@@ -96,10 +96,16 @@ ENDIF
 SELECTCASE RESULT
 	CASE 0
 		CALL 最大レベル算出保存
-		LOCAL = 最大レベル保存 * 1000 * RAND(95, 105) / 100
+		LOCAL = 100000
 		PRINTL 外を探索し、魔物を討伐しました。
 		PRINTFORML お金を{LOCAL}ルピ手に入れました
 		MONEY += LOCAL
+		ITEM:eraの性愛アニマ += 10
+		ITEM:eraの恋心アニマ += 10
+		ITEM:eraの信頼アニマ += 10
+		ITEM:eraの友情アニマ += 10
+		ITEM:輸入品リロールチケット += 10
+		FLAG:ZP所持量 += 100
 
 		EXP:MASTER:探索経験 ++
 		FOR ループ用, 0, 14
