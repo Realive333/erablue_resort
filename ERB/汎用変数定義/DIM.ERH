@@ -4,7 +4,7 @@
 #DIM debugtime
 #DIMS SAVEDATA リゾート名称
 ;一日ごとに再設定される乱数
-#DIM DAY_RAND
+#DIM SAVEDATA DAY_RAND
 
 ;コマンドごとにリセットする変数
 #DIM RFLAG, 200
@@ -151,9 +151,11 @@
 ;			"オートコマンド許可"とは独立して設定可能。１は通常、２は自慰系、３は許可必須
 #DIMS 許可取り文章
 ;許可取り文章：許可が必要なオートコマンドの時、許可取りの文章を個別に設定するための文字列
-#DIM 反転時ABLEフラグ
+#DIM 反転時フラグ
 ;主に同時モード反転の時に使う、現在のABLEが反転かどうかをチェック
 #DIM 睡眠中許可
+#DIM ダウン中許可
+#DIM ダウン中許可_PLAYER
 #DIM 同時モード_選択キャラ, 500
 #DIM 同時モード_選択数
 #DIM CONST 分身最大数 = 5
@@ -216,6 +218,7 @@
 #DIM SAVEDATA CHARADATA 知識素質, 200
 #DIMS 学校利用者, 200
 #DIM SAVEDATA CHARADATA 干渉強化変数, 3
+#DIM SAVEDATA 撃退値
 #DIM CONST 干渉経験値テーブル,5 = 20, 100, 250, 500, 1000
 #DIMS 連れ込みパターン
 
@@ -308,14 +311,13 @@
 ;サウナ時間制限用、CFLAG化するかどうか迷ったが処理がめんどくさくなりそうなのでしない
 #DIM 熱気ゲージ
 
-#DIM SAVEDATA フィールド展開, 10
+#DIM SAVEDATA フィールド展開, 11
 #DIM SAVEDATA 景切鏡取得フラグ
 #DIM SAVEDATA CHARADATA プレゼント履歴, 100
 
 ;様々な初体験の日を記録する変数
 ;初体験日.ERDにて体験の種類名を設定
 #DIM SAVEDATA CHARADATA 初体験日, 500
-#DIMS SAVEDATA CHARADATA 経験相手, 500
 #DIMS SAVEDATA CHARADATA コマンド初回フラグ, 150
 #DIMS CHARADATA コマンド初回フラグ_一時保存, 1
 #DIMS CHARADATA モード初回フラグ_一時保存, 1
@@ -323,7 +325,7 @@
 #DIMS CHARADATA コマンド初回フラグ_PLAYER_一時保存, 1
 #DIMS CHARADATA モード初回フラグ_PLAYER_一時保存, 1
 
-#DIM 飲み会TARGET, 100
+#DIM 飲み会TARGET, 5000
 
 ;従業員が現在ついている仕事
 #DIM SAVEDATA CHARADATA 現在仕事, 2
@@ -349,6 +351,10 @@
 #DIM SAVEDATA 従業員部屋_増築数
 #DIM SAVEDATA 従業員人数
 #DIM 従業員追加中フラグ
+#DIM SAVEDATA そっくりさんフラグ
+#DIM SAVEDATA そっくりさん画像枚数_閾値
+#DIM そっくりさん候補配列_非男, キャラクタ数上限
+#DIM そっくりさん候補配列_男, キャラクタ数上限
 
 #DIMS CONST 表示モード配列 = "アダルトグッズ", "消費アイテム", "自宅用アイテム", "本・書籍アイテム"
 #DIM 購入済み非表示フラグ

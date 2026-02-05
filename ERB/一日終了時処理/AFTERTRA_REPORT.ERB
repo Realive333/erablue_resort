@@ -827,7 +827,6 @@ WAIT
 @一日終了時レポート処理_従業員業務報告()
 #DIM 仕事変数
 #DIM 業務量
-#DIM 撃退値
 #DIM 雑務ゲージ減少量
 #DIM 売上分ルピ
 #DIM 人気度変動一時保存
@@ -1278,7 +1277,7 @@ IF 仕事人数表示用:高速船員担当人数 > 0
 	RSTR:従業員業務報告_記録文字列 += "<br><br>"
 ENDIF
 IF 仕事人数表示用:警備員担当人数 > 0
-	CALL 警備員イベント解消判定(撃退値)
+	CALL 警備員イベント解消判定()
 	SIF RESULT == 1
 		フォント色変更:12 = 1
 	SIF フォント色変更:12 > 0
@@ -1992,6 +1991,7 @@ ENDIF
 
 @レポート後全体処理()
 #DIM ループ用
+#DIM DAY保存
 
 ;--------------------------------------------------------------------------------
 ;キャラ個別処理
@@ -2000,6 +2000,7 @@ FOR LOCAL, 0, CHARANUM
 	SIF CFLAG:LOCAL:滞在期間 < 0
 		CONTINUE
 	TRYCALLFORM DAYEND_CHARAEVENT_{NO:LOCAL}
+	CALL DAYEND_CHARAEVENT_ETC(LOCAL)
 	;滞在中は信頼度がじわじわ上昇（初対面だと上昇しない）
 	IF 初体験日:LOCAL:初対面
 		SKIPDISP 1
@@ -2028,6 +2029,12 @@ NEXT
 ;突発イベント再発生CT減少＆再発生判定
 ;--------------------------------------------------------------------------------
 ループ用 = DT_ROW_LENGTH("各イベント用変数配列")
+
+;日付指定イベントを想定し、DAYを調整する
+DAY保存 = DAY
+IF CFLAG:MASTER:就寝時刻 % (DAY * 1440) > CFLAG:MASTER:起床予定時刻
+	DAY ++
+ENDIF
 
 FOR LOCAL, 0, ループ用
 	LOCAL:1 = DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント再発生CT")
@@ -2068,36 +2075,40 @@ FOR LOCAL, 0, ループ用
 	LOCAL:1 = DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント消滅CT")
 	LOCAL:2 = DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント消滅確率")
 
-	RESULT = 0
-	;消滅確率は消失時にしか入らないはずなので、そこで条件を読むか見る
-	SIF LOCAL:2 > 0
-		TRYCALLFORM イベント時限消失_再発生条件_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%
-	IF RESULT == -1
-		;消滅させない
-		IF LOCAL:1 > 0
-			;CTが残ってる場合は１減らす
-			DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", LOCAL:1 - 1
-		ENDIF
-	ELSEIF RESULT == 1
-		;即座に消滅させる
-		DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", -1
-	ELSE
-		;以降通常処理
-		IF LOCAL:1 > 0
-			;CTが残ってる場合は１減らす
-			DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", LOCAL:1 - 1
-		ELSEIF LOCAL:2 > 0
-			;現在出現中のものだけ消滅判定
-			IF (DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント発生フラグ") == 1 && DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント完了フラグ") == 0) || DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント再発生CT") == -2
-				;消失確率がある場合はRANDで消失させる
-				LOCAL:10 = RAND:100
-				IF LOCAL:2 > LOCAL:10
-					DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", -1
+	IF LOCAL:1 >= 0
+		RESULT = 0
+		;消滅確率は消失時にしか入らないはずなので、そこで条件を読むか見る
+		SIF LOCAL:2 > 0
+			TRYCALLFORM イベント時限消失_消失条件_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%
+		IF RESULT == -1
+			;消滅させない
+			IF LOCAL:1 > 0
+				;CTが残ってる場合は１減らす
+				DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", LOCAL:1 - 1
+			ENDIF
+		ELSEIF RESULT == 1
+			;即座に消滅させる
+			DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", -1
+		ELSE
+			;以降通常処理
+			IF LOCAL:1 > 0
+				;CTが残ってる場合は１減らす
+				DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", LOCAL:1 - 1
+			ELSEIF LOCAL:2 > 0
+				;現在出現中のものだけ消滅判定
+				IF (DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント発生フラグ") == 1 && DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント完了フラグ") == 0) || DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント再発生CT") == -2
+					;消失確率がある場合はRANDで消失させる
+					LOCAL:10 = RAND:100
+					IF LOCAL:2 > LOCAL:10
+						DT_CELL_SET "各イベント用変数配列", LOCAL, "イベント消滅CT", -1
+					ENDIF
 				ENDIF
 			ENDIF
 		ENDIF
 	ENDIF
 NEXT
+
+DAY = DAY保存
 
 ;--------------------------------------------------------------------------------
 ;輸入品店品揃え変動

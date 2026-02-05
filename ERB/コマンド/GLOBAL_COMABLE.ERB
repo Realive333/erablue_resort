@@ -71,7 +71,7 @@ IF 同時モード許可 > 0 && 同時モード拡張許可 == 1
 ENDIF
 ;同時モード時
 IF GETBIT(FLAG:モード管理, モードビット_同時)
-	IF 反転時ABLEフラグ
+	IF 反転時フラグ
 		IF 同時モード反転許可 < 同時モード_選択数
 			RESULT = 0
 			RETURNF 1
@@ -90,6 +90,8 @@ LOCALS =
 VARSET 分割文字列
 TFLAG:コマンドタイプ受渡 = -1
 睡眠中許可 = 0
+ダウン中許可 = 0
+ダウン中許可_PLAYER = 0
 
 ;種別取得
 IF ARG >= 370 && ARG <= 374
@@ -145,6 +147,8 @@ ENDIF
 LOCAL = GLOBAL_COMABLE_TYPE(LOCALS)
 RESULT = 0
 睡眠中許可 = 0
+ダウン中許可 = 0
+ダウン中許可_PLAYER = 0
 
 RETURNF LOCAL
 
@@ -198,9 +202,16 @@ IF 同時モード許可 > 0 && 同時モード拡張許可 == 1
 ENDIF
 ;同時モード時
 IF GETBIT(FLAG:モード管理, モードビット_同時)
-	IF 同時モード許可 < 同時モード_選択数
-		RESULT = 0
-		RETURNF 1
+	IF 反転時フラグ
+		IF 同時モード反転許可 < 同時モード_選択数
+			RESULT = 0
+			RETURNF 1
+		ENDIF
+	ELSE
+		IF 同時モード許可 < 同時モード_選択数
+			RESULT = 0
+			RETURNF 1
+		ENDIF
 	ENDIF
 ENDIF
 
@@ -260,6 +271,12 @@ RETURNF LOCAL
 #DIM 睡眠フラグ
 LOCALS = %ARGS%
 
+;反転コマンドで通る可能性があるので、PLAYERが睡眠時をカットしておく
+IF CFLAG:PLAYER:睡眠
+	RESULT = 0
+	RETURNF 1
+ENDIF
+
 睡眠フラグ = CFLAG:睡眠
 SIF 睡眠中許可
 	睡眠フラグ = 2
@@ -303,7 +320,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -320,7 +337,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -338,7 +355,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -352,17 +369,18 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TCVAR:MASTER:馴れ合い強度 < 2 && 知識素質:TARGET:性知識 >= 0 && !CFLAG:睡眠
+		IF TCVAR:MASTER:馴れ合い強度 < 2 && 知識素質:TARGET:性知識 >= 0 && !CFLAG:睡眠 && TCVAR:TARGET:言いなり == 0 && TCVAR:TARGET:特殊言いなり == 0
 			RESULT = 0
 			RETURNF 1
 		ENDIF
 		IF 陥落チェック_性的＋疑似恋慕(TARGET) && 初体験日取得("初うふふ", TARGET, MASTER)
 		ELSEIF 陥落チェック(TARGET) && 知識素質:TARGET:性知識 < 0 && (GET_TARGETNUM() + GET_飲み会TARGETNUM()) == 1
+		ELSEIF TCVAR:TARGET:言いなり || TCVAR:TARGET:特殊言いなり
 		ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF (TARGET:1 <= 0 && 飲み会TARGET:1 <= 0) || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -376,7 +394,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -393,7 +411,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -402,7 +420,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -411,7 +429,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -420,7 +438,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -434,7 +452,7 @@ ELSE
 			RESULT = 0
 			RETURNF 1
 		ENDIF
-		IF TARGET:2 <= 0 || 睡眠フラグ == 1 || CFLAG:隠密 || CFLAG:体力限界 == 1
+		IF TARGET:2 <= 0 || 睡眠フラグ == 1 || CFLAG:隠密 || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF
@@ -450,7 +468,7 @@ ELSE
 			RETURNF 1
 		ENDIF
 		;相手必須
-		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || CFLAG:体力限界 == 1
+		IF TARGET:1 <= 0 || 睡眠フラグ == 1 || (CFLAG:隠密 && !CFLAG:PLAYER:隠密) || (CFLAG:体力限界 == 1 && ダウン中許可 == 0) || (CFLAG:PLAYER:体力限界 == 1 && ダウン中許可_PLAYER == 0)
 			RESULT = 0
 			RETURNF 1
 		ENDIF

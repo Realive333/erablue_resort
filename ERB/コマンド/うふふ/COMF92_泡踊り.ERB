@@ -187,6 +187,15 @@ IF TCVAR:言いなり
 	＋表示フラグ = 1
 ENDIF
 
+;特殊言いなり
+IF TCVAR:特殊言いなり
+	SIF ＋表示フラグ
+		PRINT  + 
+	実行値 += 999
+	PRINTFORM %特殊言いなり分岐(TARGET)%(999)
+	＋表示フラグ = 1
+ENDIF
+
 ;合計を表示(16以上で実行)
 PRINTFORM  = {実行値}
 

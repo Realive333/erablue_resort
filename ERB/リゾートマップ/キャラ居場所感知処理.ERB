@@ -27,7 +27,7 @@ FOR 対象キャラ, 1, CHARANUM
 		CONTINUE
 	SIF CFLAG:対象キャラ:現在マップ種別 != 表示マップ種別
 		CONTINUE
-	SIF CFLAG:対象キャラ:現在位置 == 999
+	SIF CFLAG:対象キャラ:現在位置 == 999 && 表示マップ種別 != 999
 		CONTINUE
 	SIF CFLAG:対象キャラ:現在位置 == 998
 		CONTINUE
@@ -225,9 +225,11 @@ FOR LOCAL, 0, 500
 				ボタン表示格納用 += "(デ)"
 			ENDIF
 		ENDIF
+		LOCALS '= RESULTS
 		RESULTS = 
 		CALL 追加アイコン表示処理(表示キャラ, ボタン表示格納用)
 		ボタン表示格納用 += RESULTS
+		RESULTS '= LOCALS
 		文字数カウント += STRLENS(REPLACE((ボタン表示格納用), "<.*>", "　"))
 		IF 文字数カウント > 90
 			PRINTL

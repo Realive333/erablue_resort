@@ -5,7 +5,10 @@
 #DIM ソートフラグ
 #DIM 表示のみフラグ
 #DIM 表示行数 = 20; 履歴の表示行数
-#DIMS CONST 表示文字列 = "通常能力", "性的能力", "戦闘能力", "キャラ解説", "血縁関係", "キャラ履歴"
+#DIM g_loop
+#DIM 画像数
+#DIM L_C
+#DIMS CONST 表示文字列 = "通常能力", "性的能力", "戦闘能力", "キャラ解説", "血縁関係", "その他能力", "キャラ履歴"
 
 $STATE_START
 ;ツールチップ設定
@@ -37,9 +40,35 @@ PRINTL
 PRINTL
 
 DRAWLINE
+L_C = LINECOUNT
+
+;大画像表示
+SIF CSTR:ARG:画像フォルダ == ""
+	CSTR:ARG:画像フォルダ '= GET_RESOURCES_BASE_FOLDER(ARG)
+
+VARSET RESULTS
+画像数 = ENUMFILES(@"resources/%CSTR:ARG:画像フォルダ%", "能力表示画面*.*", 0)
+IF 画像数 > 0
+	g_loop = 0
+	;リソース解放
+	SPRITEDISPOSE @"能力グラ{g_loop}"
+	GDISPOSE 3000 + g_loop
+	
+	LOCALS '= RESULTS:(RAND:画像数)
+	LOCALS '= SUBSTRING(LOCALS, STRFIND(LOCALS, "能力表示画面"), -1)
+	CALLF GCREATE_拡張子F(3000 + g_loop, @"%CSTR:ARG:画像フォルダ%/%LOCALS%")
+	IF スプライト作成(@"能力グラ{g_loop}", 3000 + g_loop, 1)
+		HTML_PRINT @"<div rect='6000, 0, 2410, 4460' padding='50' border='30' bcolor='#C0C0C0'><img src='能力グラ{g_loop}' width='2250' height='4300'></div>", 1
+	ENDIF
+ELSE
+	IF ENUMFILES(@"resources/%CSTR:ARG:画像フォルダ%", "短冊_デフォルト.*", 0) > 0
+		HTML_PRINT @"<div rect='6000, 0, 2410, 4460' padding='50' border='30' bcolor='#C0C0C0'>%短冊グラ表示用文字列関数(ARG, , 2250)%</div>", 1
+	ENDIF
+ENDIF
 
 IF 能力表示 == 0
 	CALL 通常能力表示画面(ARG)
+	L_C = LINECOUNT - RESULT + 1
 ELSEIF 能力表示 == 1
 	CALL 性的能力表示画面(ARG)
 ELSEIF 能力表示 == 2
@@ -49,17 +78,26 @@ ELSEIF 能力表示 == 3
 ELSEIF 能力表示 == 4
 	CALL 血縁関係表示画面(ARG)
 ELSEIF 能力表示 == 5
+	CALL その他表示画面(ARG)
+ELSEIF 能力表示 == 6
 	CALL キャラ履歴表示画面(ARG)
 	イベント件数 = RESULT
-ELSEIF 能力表示 == 6
-	CALL デート履歴表示画面(ソートフラグ)
 ELSEIF 能力表示 == 7
+	CALL デート履歴表示画面(ソートフラグ)
+ELSEIF 能力表示 == 8
 	CALL 弱点の欠片表示画面(ソートフラグ)
 ENDIF
 
 
 ;CALL CHOICE_LOVE(ARG)
 PRINTL
+
+IF LINECOUNT - L_C < 40
+	FOR LOCAL, 0, 40 - (LINECOUNT - L_C)
+		PRINTL 
+	NEXT
+ENDIF
+
 DRAWLINE
 IF 能力表示 != 0
 	PRINTBUTTON "[90]通常能力　　", 90
@@ -103,27 +141,34 @@ IF EXIST_FAMILY(CFLAG:ARG:人物番号)
 	ENDIF
 ENDIF
 IF 能力表示 != 5
-	PRINTBUTTON "[95]キャラ履歴　　", 95
+	PRINTBUTTON "[95]その他能力　　", 95
 ELSE
 	SETCOLOR カラーパレット("黄")
-	PRINTPLAIN [95]キャラ履歴　　
+	PRINTPLAIN [95]その他能力　　
+	RESETCOLOR
+ENDIF
+IF 能力表示 != 6
+	PRINTBUTTON "[96]キャラ履歴　　", 96
+ELSE
+	SETCOLOR カラーパレット("黄")
+	PRINTPLAIN [96]キャラ履歴　　
 	RESETCOLOR
 ENDIF
 IF ARG == MASTER
-	IF 能力表示 != 6
-		PRINTBUTTON "[96]デート履歴　", 96
+	IF 能力表示 != 7
+		PRINTBUTTON "[97]デート履歴　", 97
 	ELSE
 		SETCOLOR カラーパレット("黄")
-		PRINTPLAIN [96]デート履歴　
+		PRINTPLAIN [97]デート履歴　
 		RESETCOLOR
 	ENDIF
 ENDIF
 IF ARG == MASTER
-	IF 能力表示 != 7
-		PRINTBUTTON "[97]弱点の欠片　", 97
+	IF 能力表示 != 8
+		PRINTBUTTON "[98]弱点の欠片　", 98
 	ELSE
 		SETCOLOR カラーパレット("黄")
-		PRINTPLAIN [97]弱点の欠片　
+		PRINTPLAIN [98]弱点の欠片　
 		RESETCOLOR
 	ENDIF
 ENDIF
@@ -261,7 +306,7 @@ SELECTCASE RESULT
 	CASE 101
 		能力表示現在ページ = 0
 		RETURN 101
-	CASE 90 TO 97
+	CASE 90 TO 98
 		能力表示 = RESULT - 90
 		能力表示現在ページ = 0
 		RESTART
@@ -480,11 +525,11 @@ FOR LOCAL, 0, 100
 	同行キャラ番:LOCAL = 同行候補キャラ番号:ARG:LOCAL
 	同行キャラ値:LOCAL = 同行候補キャラ確率:ARG:LOCAL
 NEXT
-IF 同行キャラ番:15 > 0
+IF 同行キャラ番:10 > 0
 	;同行候補キャラが15人以上いる場合、確率の高い順でソートする
 	ARRAYMSORTEX 同行キャラ値, Arrays, 0
 ENDIF
-FOR LOCAL, 0, 15
+FOR LOCAL, 0, 10
 	IF 同行キャラ番:LOCAL < 1
 		BREAK
 	ENDIF
@@ -497,14 +542,18 @@ FOR LOCAL, 0, 15
 	[ENDIF]
 	LOCALS += "％<br>"
 NEXT
-SIF 同行キャラ番:15 > 0
-	LOCALS += @"　他、{(FINDELEMENT(同行キャラ番, 0) >  0 ? FINDELEMENT(同行キャラ番, 0)# 100) - 15}名<br>"
+SIF 同行キャラ番:10 > 0
+	LOCALS += @"　他、{(FINDELEMENT(同行キャラ番, 0) >  0 ? FINDELEMENT(同行キャラ番, 0)# 100) - 10}名<br>"
 
 
 LOCALS += "<br>"
 CALL PRINT_STATE_弱点コマンド(ARG, "998")
 LOCALS += @"%RESULTS%"
-L_C:0 = 360 / GETCONFIG("フォントサイズ") + STRCOUNT(LOCALS, "<br>")
+IF GETBIT(画像サイズ切り替えOPTION記憶, 1)
+	L_C:0 = 360 / GETCONFIG("フォントサイズ") + STRCOUNT(LOCALS, "<br>")
+ELSE
+	L_C:0 = 180 / GETCONFIG("フォントサイズ") + STRCOUNT(LOCALS, "<br>")
+ENDIF
 
 IF GETBIT(画像サイズ切り替えOPTION記憶, 1)
 	HTML_PRINT @"<div rect = '4000, 2393, 2500, 4375'>%LOCALS%</div>", 1
@@ -539,21 +588,15 @@ L_C:1 -= RESULT
 PRINTL
 IF ARG != MASTER
 	CALL PRINT_STATE_好感度詳細(ARG)
-	IF TALENT:ARG:従業員
-		CALL PRINT_STATE_仕事レベル表示(ARG)
-	ENDIF
-ELSE
-	CALL PRINT_STATE_仕事レベル表示(ARG)
-	CALL PRINT_ITEMCOUNT
-	CALL PRINT_STATE_あなた特殊能力
-	PRINTL
 ENDIF
 L_C:1 = LINECOUNT - L_C:1
-IF  L_C:0 > L_C:1
+
+IF L_C:0 > L_C:1
 	FOR LOCAL, 0, L_C:0 - L_C:1
 		PRINTL
 	NEXT
 ENDIF
+RETURN L_C:1
 
 @戦闘能力表示画面(ARG)
 #DIMS 装備証名
@@ -611,7 +654,12 @@ PRINTL
 LOCALS = <div rect='0,0,1125,2387'>□ ステータス □------<br>
 LOCALS += @"Lv　　　　：{基礎BATTLE_STATE:ARG:Lv, 5}<br>"
 LOCALS += @"EXP 　　　：{基礎BATTLE_STATE:ARG:蓄積EXP, 5}<br>"
-LOCALS += @"　LvUPまで：{戦闘経験値テーブル:(基礎BATTLE_STATE:ARG:Lv - 1) - 基礎BATTLE_STATE:ARG:蓄積EXP, 5}<br>"
+LOCALS += @"　LvUPまで："
+IF 基礎BATTLE_STATE:ARG:Lv >= 80
+	LOCALS += @"Lv上限です<br>"
+ELSE
+	LOCALS += @"{戦闘経験値テーブル:(基礎BATTLE_STATE:ARG:Lv - 1) - 基礎BATTLE_STATE:ARG:蓄積EXP, 5}<br>"
+ENDIF
 IF 装備ステータス補正保存:ARG:属性
 	LOCALS:1 = %属性数値文字色変換_HTML(装備ステータス補正保存:ARG:属性 - 10)%
 	LOCALS += @"<font color='#%LOCALS:1%'>属性　　　：%属性数値文字列変換(装備ステータス補正保存:ARG:属性 - 10), 5%</font><br>"
@@ -648,8 +696,8 @@ ELSE
 ENDIF
 LOCALS += @"得意武器　：%得意武器表示文字列(基礎BATTLE_STATE:ARG:得意武器), 5%<br>"
 LOCALS += @"タイプ　　：%タイプ数値文字列変換(基礎BATTLE_STATE:ARG:ステータスタイプ保存), 5%<br>"
-LOCALS += @"最大ＨＰ　：{基礎BATTLE_STATE:ARG:最大ＨＰ + 装備ステータス補正保存:ARG:最大ＨＰ, 5}<br>"
-LOCALS += @"最大ＭＰ　：{基礎BATTLE_STATE:ARG:最大ＭＰ + 装備ステータス補正保存:ARG:最大ＭＰ, 5}<br>"
+LOCALS += @"最大ＨＰ　：{MAX(1, 基礎BATTLE_STATE:ARG:最大ＨＰ + 装備ステータス補正保存:ARG:最大ＨＰ), 5}<br>"
+LOCALS += @"最大ＭＰ　：{MAX(1, 基礎BATTLE_STATE:ARG:最大ＭＰ + 装備ステータス補正保存:ARG:最大ＭＰ), 5}<br>"
 LOCALS += @"攻撃力　　：{基礎BATTLE_STATE:ARG:攻撃力 + 装備ステータス補正保存:ARG:攻撃力, 5}<br>"
 LOCALS += @"防御力　　：{基礎BATTLE_STATE:ARG:防御力 + 装備ステータス補正保存:ARG:防御力, 5}<br>"
 LOCALS += @"回復力　　：{基礎BATTLE_STATE:ARG:回復力 + 装備ステータス補正保存:ARG:回復力, 5}<br>"
@@ -1229,7 +1277,7 @@ LOCAL:2 = RESULT
 
 ;まず恋慕対象かどうかを判定
 LOCAL:1 = -1
-FOR LOCAL, 0, 恋慕枠数
+FOR LOCAL, 0, CHARANUM
 	IF 恋慕対象フラグ:LOCAL == ARG
 		LOCAL:1 = LOCAL
 		BREAK
@@ -1253,7 +1301,7 @@ ELSEIF TALENT:ARG:恋慕 == 2
 ELSEIF TALENT:ARG:疑似恋慕 > 0
 ;既に恋慕達成済み時はそもそも選択肢すら出ない
 	SETCOLOR カラーパレット("えっちな色")
-	PRINTFORM %CALLNAME:ARG%は%CALLNAME:PLAYER%の%CSTR:(恋慕対象フラグ:LOCAL):擬似恋慕陥落名称%です
+	PRINTFORM %CALLNAME:ARG%は%CALLNAME:PLAYER%の%CSTR:ARG:擬似恋慕陥落名称%です
 	PRINT_IMG "えっちハート"
 	RESETCOLOR
 	PRINT 　　　
@@ -1284,7 +1332,7 @@ ELSEIF RESULT == 0
 				PRINTFORMW 恋慕対象の%CALLNAME:(恋慕対象フラグ:0)%は既に%CALLNAME:PLAYER%と結婚済みのため、外すことが出来ません。
 				RETURN 0
 			ELSEIF TALENT:(恋慕対象フラグ:0):疑似恋慕 > 0
-				PRINTFORMW 恋慕対象の%CALLNAME:(恋慕対象フラグ:0)%は%CSTR:(恋慕対象フラグ:LOCAL):擬似恋慕陥落名称%のため外すことが出来ません
+				PRINTFORMW 恋慕対象の%CALLNAME:(恋慕対象フラグ:0)%は%CSTR:(恋慕対象フラグ:0):擬似恋慕陥落名称%のため外すことが出来ません
 				RETURN 0
 			ELSE
 				PRINTFORML 現在の恋慕対象に%CALLNAME:(恋慕対象フラグ:0)%が選ばれていますが、%CALLNAME:ARG%に変更しますか？
@@ -1293,7 +1341,7 @@ ELSEIF RESULT == 0
 			ENDIF
 		ELSE
 			PRINTFORML 現在の恋慕枠は一杯です。誰かと入れ替えますか？
-			FOR LOCAL, 0, 恋慕枠数
+			FOR LOCAL, 0, CHARANUM
 				IF 恋慕対象フラグ:LOCAL
 					IF TALENT:(恋慕対象フラグ:LOCAL):恋慕 == 1
 						SETCOLOR 0x666666
@@ -1381,18 +1429,26 @@ ENDSELECT
 DRAWLINE
 恋慕枠数 = 恋慕枠判定()
 PRINTFORML 現在の恋慕対象者　　上限:{恋慕枠数}人
-LOCAL:2 = 0
-FOR LOCAL, 0, 恋慕枠数
-	SIF 全表示フラグ:0 == 0 && LOCAL > 9
+VARSET LOCAL
+FOR LOCAL, 0, CHARANUM
+	SIF 全表示フラグ:0 == 0 && LOCAL:2 > 9
 		SKIPDISP 1
 	IF 恋慕対象フラグ:LOCAL
 		PRINTPLAINFORM %CALLNAME:(恋慕対象フラグ:LOCAL), 25, LEFT%　　恋慕レベル:{CFLAG:(恋慕対象フラグ:LOCAL):恋慕レベル, 3} / 100　　
 		IF TALENT:(恋慕対象フラグ:LOCAL):恋慕 == 1
 			SETCOLOR カラーパレット("ピンク")
-			PRINT 恋慕　
+			IF CSTR:LOCAL:擬似恋慕陥落名称 != ""
+				PRINTFORM %CSTR:LOCAL:擬似恋慕陥落名称%　
+			ELSE
+				PRINT 恋慕　
+			ENDIF
 		ELSEIF TALENT:(恋慕対象フラグ:LOCAL):恋慕 == 2
 			SETCOLOR カラーパレット("ピンク")
-			PRINT 伴侶　
+			IF CSTR:LOCAL:擬似恋慕陥落名称 != ""
+				PRINTFORM %CSTR:LOCAL:擬似恋慕陥落名称%　
+			ELSE
+				PRINT 伴侶　
+			ENDIF
 		ENDIF
 		IF TALENT:(恋慕対象フラグ:LOCAL):セフレ
 			SETCOLOR カラーパレット("薄ピンク")
@@ -1404,12 +1460,26 @@ FOR LOCAL, 0, 恋慕枠数
 		LOCAL:2 += 1
 	ENDIF
 NEXT
+;擬似恋慕
+FOR LOCAL, 0, CHARANUM
+	SIF 全表示フラグ:0 == 0 && LOCAL:2 > 9
+		SKIPDISP 1
+	IF TALENT:LOCAL:疑似恋慕 > 0
+		PRINTPLAINFORM %CALLNAME:LOCAL, 25, LEFT%　　恋慕レベル:{CFLAG:LOCAL:恋慕レベル, 3} / 100　　
+		SETCOLOR カラーパレット("ピンク")
+		PRINTFORM %CSTR:LOCAL:擬似恋慕陥落名称%
+		RESETCOLOR
+
+		PRINTL
+		LOCAL:3 += 1
+	ENDIF
+NEXT
 SKIPDISP 0
-SIF LOCAL:2 == 0
+SIF LOCAL:2 + LOCAL:3 == 0
 	PRINTL なし
 
-IF 全表示フラグ:0 == 0 && LOCAL:2 > 10
-	PRINTFORML 他{LOCAL:2 - 10, 2}名
+IF 全表示フラグ:0 == 0 && LOCAL:2 + LOCAL:3 > 10
+	PRINTFORML 他{LOCAL:2 + LOCAL:3 - 10, 2}名
 	PRINTBUTTON "[200] 全員表示", 200
 	PRINTL
 ELSEIF 全表示フラグ:0 && LOCAL:2 > 10
@@ -2288,6 +2358,12 @@ PRINTL
 
 @PRINT_STATE_好感度詳細(ARG)
 #DIMS CONST 好感度種類 = "友情", "信頼", "恋心", "性愛"
+
+;ツールチップ設定
+TOOLTIP_CUSTOM 1
+TOOLTIP_SETFONTSIZE 12
+TOOLTIP_SETDURATION 100000
+
 IF ARG
 	PRINTBUTTON @"□ \@ GETBIT(INFO格納フィルタ:9, 0)? |▶ # ▽\@ 関係 □------------------------------------------------------------------", 800
 	PRINTL 
@@ -2296,7 +2372,14 @@ IF ARG
 		CALL PRINT_好感度レベル表示(ARG)
 		PRINTL
 		IF CFLAG:ARG:友情度 >= 100500
-			PRINTFORM 　　├ 要素：友情  MAX!!
+			IF OPTION変数:ツールチップ切り替え == 0
+				HTML_PRINT @"<nonbutton title='友情度：%NUM_FORMAT(CFLAG:ARG:友情度)% / 100,500'>　　├ 要素：友情  <font color='#%カラーパレット_HTML("黄")%'>MAX!!</font></nonbutton>" ,1
+			ELSE
+				PRINTFORM 　　├ 要素：友情  
+				SETCOLOR カラーパレット("黄")
+				PRINTFORM MAX!!
+				RESETCOLOR
+			ENDIF
 			HTML_PRINT "<shape type='rect' param='62, 56, 2625, 37' color='red'>", 1
 		ELSE
 			IF あなた特殊能力:フレンドリーセンス
@@ -2315,7 +2398,14 @@ IF ARG
 			ENDCATCH
 		ENDIF
 		IF CFLAG:ARG:信頼度 >= 100500
-			PRINTFORM 　　├ 要素：信頼  MAX!!
+			IF OPTION変数:ツールチップ切り替え == 0
+				HTML_PRINT @"<nonbutton title='信頼度：%NUM_FORMAT(CFLAG:ARG:信頼度)% / 100,500'>　　├ 要素：信頼  <font color='#%カラーパレット_HTML("黄")%'>MAX!!</font></nonbutton>" ,1
+			ELSE
+				PRINTFORM 　　├ 要素：信頼  
+				SETCOLOR カラーパレット("黄")
+				PRINTFORM MAX!!
+				RESETCOLOR
+			ENDIF
 			HTML_PRINT "<shape type='rect' param='62, 56, 2625, 37' color='red'>", 1
 		ELSE
 			IF あなた特殊能力:フレンドリーセンス
@@ -2334,7 +2424,14 @@ IF ARG
 			ENDCATCH
 		ENDIF
 		IF CFLAG:ARG:恋心度 >= 100500
-			PRINTFORM 　　├ 要素：恋心  MAX!!
+			IF OPTION変数:ツールチップ切り替え == 0
+				HTML_PRINT @"<nonbutton title='恋心度：%NUM_FORMAT(CFLAG:ARG:恋心度)% / 100,500'>　　├ 要素：恋心  <font color='#%カラーパレット_HTML("黄")%'>MAX!!</font></nonbutton>" ,1
+			ELSE
+				PRINTFORM 　　├ 要素：恋心  
+				SETCOLOR カラーパレット("黄")
+				PRINTFORM MAX!!
+				RESETCOLOR
+			ENDIF
 			HTML_PRINT "<shape type='rect' param='62, 56, 2625, 37' color='red'>", 1
 		ELSE
 			IF あなた特殊能力:フレンドリーセンス
@@ -2353,7 +2450,14 @@ IF ARG
 			ENDCATCH
 		ENDIF
 		IF CFLAG:ARG:性愛度 >= 100500
-			PRINTFORM 　　└ 要素：性愛  MAX!!
+			IF OPTION変数:ツールチップ切り替え == 0
+				HTML_PRINT @"<nonbutton title='性愛度：%NUM_FORMAT(CFLAG:ARG:性愛度)% / 100,500'>　　├ 要素：性愛  <font color='#%カラーパレット_HTML("黄")%'>MAX!!</font></nonbutton>" ,1
+			ELSE
+				PRINTFORM 　　├ 要素：性愛  
+				SETCOLOR カラーパレット("黄")
+				PRINTFORM MAX!!
+				RESETCOLOR
+			ENDIF
 			HTML_PRINT "<shape type='rect' param='62, 56, 2625, 37' color='red'>", 1
 		ELSE
 			IF あなた特殊能力:フレンドリーセンス
@@ -2386,7 +2490,15 @@ IF ARG && !GETBIT(INFO格納フィルタ:9, 0)
 		PRINTL
 		PRINTL □ 固有関係性 □---------------------------------------------------------------
 		IF CFLAG:ARG:キャラ固有好感度 >= 100500
-			PRINTFORM 　%CSTR:ARG:キャラ固有好感度要素% Lv100  MAX!!：%RESULTS%
+			IF OPTION変数:ツールチップ切り替え == 0
+				HTML_PRINT @"<nonbutton title='%CSTR:ARG:キャラ固有好感度要素%：%NUM_FORMAT(CFLAG:ARG:キャラ固有好感度)% / 100,500'>　%CSTR:ARG:キャラ固有好感度要素% Lv100  <font color='#%カラーパレット_HTML("黄")%'>MAX!!</font>：%RESULTS%</nonbutton>" ,1
+			ELSE
+				PRINTFORM 　%CSTR:ARG:キャラ固有好感度要素% Lv100 
+				SETCOLOR カラーパレット("黄")
+				PRINTFORM MAX!!
+				RESETCOLOR
+				PRINTFORM ：%RESULTS%
+			ENDIF
 			HTML_PRINT "<shape type='rect' param='62, 56, 2625, 37' color='red'>", 1
 		ELSE
 			IF あなた特殊能力:フレンドリーセンス
@@ -2621,3 +2733,40 @@ PRINTL
 
 WAIT
 DRAWLINE
+
+
+@その他表示画面(対象キャラ)
+#DIM 対象キャラ
+#DIM L_C
+
+;ここで立ち絵表示
+CALL 画像描画終了
+L_C = LINECOUNT
+
+IF GETBIT(画像サイズ切り替えOPTION記憶, 2)
+	HTML_PRINT @"<div rect='4062, 237, 1125, 2250'>%短冊グラ表示用文字列関数(対象キャラ)%</div>", 1
+ELSE
+	HTML_PRINT @"<div rect='4062, 237, 1125, 1125'>%顔グラ表示用文字列関数(対象キャラ)%</div>", 1
+ENDIF
+PRINTL
+PRINTFORM ■%NAME表示(対象キャラ)%
+PRINTL
+
+IF 対象キャラ != MASTER
+	CALL PRINT_STATE_好感度詳細(対象キャラ)
+	IF TALENT:対象キャラ:従業員
+		CALL PRINT_STATE_仕事レベル表示(対象キャラ)
+	ENDIF
+ELSE
+	CALL PRINT_STATE_仕事レベル表示(対象キャラ)
+	CALL PRINT_ITEMCOUNT
+	CALL PRINT_STATE_あなた特殊能力
+	PRINTL
+ENDIF
+
+FOR LOCAL, 0, 29 - (LINECOUNT - L_C)
+	PRINTL
+NEXT
+
+
+

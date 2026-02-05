@@ -15,6 +15,7 @@ TSTR:コマンド名受渡 = 足コキ
 TFLAG:コマンドタイプ受渡 = COMTYPE("うふふ&奉仕")
 オートコマンド許可 = 3
 反転オート許可 = 3
+ダウン中許可_PLAYER = 1
 
 @COM_TOOLTIP_85
 IF RFLAG:奉仕逆転時ツールチップフラグ
@@ -209,6 +210,15 @@ IF TCVAR:言いなり
 		PRINT  + 
 	実行値 += 999
 	PRINT あなたの言いなり(999)
+	＋表示フラグ = 1
+ENDIF
+
+;特殊言いなり
+IF TCVAR:特殊言いなり
+	SIF ＋表示フラグ
+		PRINT  + 
+	実行値 += 999
+	PRINTFORM %特殊言いなり分岐(TARGET)%(999)
 	＋表示フラグ = 1
 ENDIF
 

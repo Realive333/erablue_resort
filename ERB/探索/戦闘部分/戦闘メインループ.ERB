@@ -401,8 +401,8 @@ FOR LOCAL, 0, 14
 
 	;キャラ番号だけは変動しないので入れない
 	BATTLE_STATE:LOCAL:Lv = 基礎BATTLE_STATE:(BATTLE_STATE:LOCAL:キャラ登録番号):Lv
-	BATTLE_STATE:LOCAL:最大ＨＰ = 基礎BATTLE_STATE:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＨＰ + 装備ステータス補正保存:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＨＰ
-	BATTLE_STATE:LOCAL:最大ＭＰ = 基礎BATTLE_STATE:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＭＰ + 装備ステータス補正保存:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＭＰ
+	BATTLE_STATE:LOCAL:最大ＨＰ = MAX(1, 基礎BATTLE_STATE:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＨＰ + 装備ステータス補正保存:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＨＰ)
+	BATTLE_STATE:LOCAL:最大ＭＰ = MAX(1, 基礎BATTLE_STATE:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＭＰ + 装備ステータス補正保存:(BATTLE_STATE:LOCAL:キャラ登録番号):最大ＭＰ)
 	IF 初期設定フラグ
 		BATTLE_STATE:LOCAL:ＨＰ = BATTLE_STATE:LOCAL:最大ＨＰ
 		BATTLE_STATE:LOCAL:ＭＰ = BATTLE_STATE:LOCAL:最大ＭＰ
@@ -817,9 +817,29 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 				効果量 += 付随依存変動算出(ループ用, 戦闘行動キャラ, "固定値") + (BATTLE_STATE:戦闘行動キャラ:最大ＨＰ * 付随依存変動算出(ループ用, 戦闘行動キャラ, "割合") / 100)
 			ENDIF
 			効果量 = 効果量 * RAND(95, 105) / 100
-			効果量 = MIN(効果量, BATTLE_STATE:戦闘行動キャラ:ＨＰ)
-			WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
-			BATTLE_STATE:戦闘行動キャラ:ＨＰ = MAX(BATTLE_STATE:戦闘行動キャラ:ＨＰ - 効果量, 0)
+			データベース行数 = バフ番号取得("死の祝福", 戦闘行動キャラ)
+			IF データベース行数 >= 0
+				効果量 = MIN(効果量, BATTLE_STATE:戦闘行動キャラ:最大ＨＰ - BATTLE_STATE:戦闘行動キャラ:ＨＰ)
+				IF DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名") == ""
+					WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "対象能力")%の効果でダメージが回復に転換される！
+				ELSE
+					WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名")%の効果でダメージが回復に転換される！
+				ENDIF
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のＨＰを回復！
+				ELSE
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+				ENDIF
+				BATTLE_STATE:戦闘行動キャラ:ＨＰ = MIN(BATTLE_STATE:戦闘行動キャラ:ＨＰ + 効果量, BATTLE_STATE:戦闘行動キャラ:最大ＨＰ)
+			ELSE
+				効果量 = MIN(効果量, BATTLE_STATE:戦闘行動キャラ:ＨＰ)
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のダメージ！
+				ELSE
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				ENDIF
+				BATTLE_STATE:戦闘行動キャラ:ＨＰ = MAX(BATTLE_STATE:戦闘行動キャラ:ＨＰ - 効果量, 0)
+			ENDIF
 			IF BATTLE_STATE:戦闘行動キャラ:ＨＰ < 1
 				WSTR:(K++) = %キャラNAME%は倒れた！
 				CALL 戦闘不能者登録(戦闘行動キャラ, -1)
@@ -833,9 +853,29 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 				効果量 += 付随依存変動算出(ループ用, 戦闘行動キャラ, "固定値") + (敵BATTLE_STATE:(戦闘行動キャラ - 10):最大ＨＰ * 付随依存変動算出(ループ用, 戦闘行動キャラ, "割合") / 100)
 			ENDIF
 			効果量 = 効果量 * RAND(95, 105) / 100
-			効果量 = MIN(効果量, 敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ)
-			WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
-			敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ = MAX(敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ - 効果量, 0)
+			データベース行数 = バフ番号取得("死の祝福", 戦闘行動キャラ)
+			IF データベース行数 >= 0
+				効果量 = MIN(効果量, 敵BATTLE_STATE:(戦闘行動キャラ - 10):最大ＨＰ - 敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ)
+				IF DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名") == ""
+					WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "対象能力")%の効果でダメージが回復に転換される！
+				ELSE
+					WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名")%の効果でダメージが回復に転換される！
+				ENDIF
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のＨＰを回復！
+				ELSE
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+				ENDIF
+				敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ = MIN(敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ + 効果量, 敵BATTLE_STATE:(戦闘行動キャラ - 10):最大ＨＰ)
+			ELSE
+				効果量 = MIN(効果量, 敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ)
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のダメージ！
+				ELSE
+					WSTR:(K++) = %キャラNAME%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				ENDIF
+				敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ = MAX(敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ - 効果量, 0)
+			ENDIF
 			IF 敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ < 1
 				WSTR:(K++) = %キャラNAME%は倒れた！
 				CALL 戦闘不能者登録(戦闘行動キャラ, -1)
@@ -862,7 +902,11 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 			ENDIF
 			効果量 = 効果量 * RAND(95, 105) / 100
 			効果量 = MIN(効果量, BATTLE_STATE:戦闘行動キャラ:ＭＰ)
-			WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果でＭＰが{効果量}減少！
+			IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+				WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果でＭＰが{効果量}減少！
+			ELSE
+				WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果でＭＰが{効果量}減少！
+			ENDIF
 			BATTLE_STATE:戦闘行動キャラ:ＭＰ = MAX(BATTLE_STATE:戦闘行動キャラ:ＭＰ - 効果量, 0)
 			CALL メッセージ欄表示用関数(,,,0)
 			CALL 口上変数初期化
@@ -896,7 +940,11 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 			データベース行数 = バフ・デバフ効果検索("デバフ", "能力", "呪い", 戦闘行動キャラ)
 		ENDIF
 		IF データベース行数 >= 0
-			WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名")%の効果で回復がダメージに転換される！
+			IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+				WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で回復がダメージに転換される！
+			ELSE
+				WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", データベース行数, "効果名")%の効果で回復がダメージに転換される！
+			ENDIF
 			効果量 = 効果量 * DT_CELL_GET("戦闘効果データベース", データベース行数, "効果量_割合") / 100
 			SIF DT_CELL_GET("戦闘効果データベース", データベース行数, "効果量_固定値") > 0
 				効果量 = MIN(効果量, DT_CELL_GET("戦闘効果データベース", データベース行数, "効果量_固定値"))
@@ -919,7 +967,11 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 		ENDIF
 		IF 戦闘行動キャラ < 10
 			IF アンデッドフラグ
-				WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のダメージ！
+				ELSE
+					WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				ENDIF
 				BATTLE_STATE:戦闘行動キャラ:ＨＰ = MAX(BATTLE_STATE:戦闘行動キャラ:ＨＰ - 効果量, 0)
 				IF BATTLE_STATE:戦闘行動キャラ:ＨＰ < 1
 					WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は倒れた！
@@ -932,13 +984,21 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 					WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%のＨＰは回復しなかった…
 					CALL デバフ回数経過処理(戦闘行動キャラ, "強圧")
 				ELSE
-					WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+					IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+						WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のＨＰを回復！
+					ELSE
+						WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+					ENDIF
 					BATTLE_STATE:戦闘行動キャラ:ＨＰ = MIN(BATTLE_STATE:戦闘行動キャラ:ＨＰ + 効果量, BATTLE_STATE:戦闘行動キャラ:最大ＨＰ)
 				ENDIF
 			ENDIF
 		ELSE
 			IF アンデッドフラグ
-				WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+					WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のダメージ！
+				ELSE
+					WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のダメージ！
+				ENDIF
 				敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ = MAX(敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ - 効果量, 0)
 				IF 敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ < 1
 					WSTR:(K++) = %(敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名)%は倒れた！
@@ -951,7 +1011,11 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 					WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%のＨＰは回復しなかった…
 					CALL デバフ回数経過処理(戦闘行動キャラ, "強圧")
 				ELSE
-					WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+					IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+						WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で{効果量}のＨＰを回復！
+					ELSE
+						WSTR:(K++) = %敵BATTLE_STATE_STR:(戦闘行動キャラ - 10):エネミー名%は%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で{効果量}のＨＰを回復！
+					ENDIF
 					敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ = MIN(敵BATTLE_STATE:(戦闘行動キャラ - 10):ＨＰ + 効果量, 敵BATTLE_STATE:(戦闘行動キャラ - 10):最大ＨＰ)
 				ENDIF
 			ENDIF
@@ -971,7 +1035,11 @@ FOR ループ用, 0, DT_ROW_LENGTH("戦闘効果データベース")
 			WSTR:(K++) = %CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%の奥義ゲージは上昇しなかった…
 			CALL デバフ回数経過処理(戦闘行動キャラ, "恐怖")
 		ELSE
-			WSTR:(K++) =%DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で%CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%の奥義ゲージが{効果量}上昇！
+			IF DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名") == ""
+				WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", ループ用, "対象能力")%の効果で%CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%の奥義ゲージが{効果量}上昇！
+			ELSE
+				WSTR:(K++) = %DT_CELL_GETS("戦闘効果データベース", ループ用, "効果名")%の効果で%CALLNAME:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)%の奥義ゲージが{効果量}上昇！
+			ENDIF
 			BATTLE_STATE:戦闘行動キャラ:奥義ゲージ = MIN(BATTLE_STATE:戦闘行動キャラ:奥義ゲージ + 効果量, BATTLE_STATE:戦闘行動キャラ:ゲージ最大値)
 		ENDIF
 		CALL メッセージ欄表示用関数(,,,0)
@@ -1279,5 +1347,3 @@ IF EXISTSOUND("戦闘BGM.mp3")
 ENDIF
 
 RETURN 0
-
-

@@ -825,6 +825,15 @@ SIF CFLAG:TARGET:睡眠
 		＋表示フラグ = 1
 	ENDIF
 
+;特殊言いなり
+IF TCVAR:特殊言いなり
+	SIF ＋表示フラグ
+		PRINT  + 
+	実行値 += 999
+	PRINTFORM %特殊言いなり分岐(TARGET)%(999)
+	＋表示フラグ = 1
+ENDIF
+
 
 	;合計を表示(必要実行値以上で実行)
 	PRINTFORM  = {実行値}
@@ -936,7 +945,7 @@ ENDIF
 SIF MODE_存在判定_プレイヤー側("ＶＡ挿入系", TARGET)
 	RETURN 0
 ;相手が別人と立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+SIF MODE_存在判定_ターゲット側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
 	RETURN 0
 
 RETURN 1
@@ -971,8 +980,8 @@ ENDIF
 ;Ａ挿入中ダメ
 SIF MODE_存在判定_ターゲット側("Ａ挿入系", TARGET)
 	RETURN 0
-;相手が別人と立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+;相手が別人と立位中だとダメ
+SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET)
 	RETURN 0
 
 RETURN 1
@@ -995,7 +1004,7 @@ ENDIF
 SIF MODE_存在判定_プレイヤー側("ＶＡ挿入系", TARGET)
 	RETURN 0
 ;相手が別人と立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+SIF MODE_存在判定_ターゲット側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
 	RETURN 0
 
 RETURN 1
@@ -1039,7 +1048,7 @@ ELSE
 		RETURN 0
 ENDIF
 ;相手が別人と立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+SIF MODE_存在判定_いずれか側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
 	RETURN 0
 
 RETURN 1
@@ -1058,8 +1067,8 @@ ENDIF
 ;Ａ挿入中ダメ
 SIF MODE_存在判定_ターゲット側("Ａ挿入系", TARGET)
 	RETURN 0
-;相手が別人と立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+;相手が別人と立位中だとダメ
+SIF MODE_存在判定_プレイヤー側("ＶＡ立位挿入系", TARGET)
 	RETURN 0
 
 RETURN 1
@@ -1100,7 +1109,7 @@ SIF 体格差計算(PLAYER, TARGET) >= 3
 SIF MODE_存在判定_プレイヤー側("ＶＡ挿入系", TARGET)
 	RETURN 0
 ;相手が別人と非立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ非立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+SIF MODE_存在判定_ターゲット側("ＶＡ非立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
 	RETURN 0
 
 RETURN 1
@@ -1136,7 +1145,7 @@ SIF 体格差計算(PLAYER, TARGET) >= 4
 SIF MODE_存在判定_プレイヤー側("ＶＡ挿入系", TARGET)
 	RETURN 0
 ;相手が別人と非立位中だとベッドがないとダメ
-SIF MODE_存在判定_プレイヤー側("ＶＡ非立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
+SIF MODE_存在判定_ターゲット側("ＶＡ非立位挿入系", TARGET) && !BEDROOM(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置)
 	RETURN 0
 
 RETURN 1
