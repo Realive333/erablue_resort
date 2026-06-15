@@ -509,7 +509,8 @@ SELECTCASE TCVAR:ARG:ゆきずりセックス_体位
 ENDSELECT
 PRINTW
 
-IF TALENT:ARG:性別 == 1 && TCVAR:ARG:ゆきずりセックス_相手描写 == 0
+;IF TALENT:ARG:性別 == 1 && TCVAR:ARG:ゆきずりセックス_相手描写 == 0
+IF GETBIT(TALENT:ARG:性別, 0) && TCVAR:ARG:ゆきずりセックス_相手描写 == 0
 ;女性を前提とした追加文
 	SIF CFLAG:ARG:リゾート内ゆきずりセックス回数 > 10
 		PRINTFORM 今回
@@ -832,7 +833,7 @@ ELSE
 		CASE 1 ;Ｖ性交
 			PRINTFORML %CALLNAME:ARG%は快楽に身を震わせながら放たれた白濁を膣内で受けとめていた。
 			PRINTL
-			PRINTFORML リゾートでのバカンスのさなか、%CALLNAME:ARG%のような極上の雌
+			PRINTFORM リゾートでのバカンスのさなか、%CALLNAME:ARG%のような極上の雌
 			IF TCVAR:ARG:ゆきずりセックス_誘い
 				PRINTFORML をひっかけて、
 			ELSE

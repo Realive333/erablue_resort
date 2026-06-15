@@ -3,12 +3,15 @@
 
 
 
-;0.100
-#DIM SAVEDATA USERCOM表示フォロー
+;0.103
 
-;0.101
-#DIM SAVEDATA メイデナフォロー
+;0.104
+#DIM SAVEDATA 客室テーマフォロー
+#DIM SAVEDATA 客室設備フォロー
+#DIM SAVEDATA アメニティフォロー
+#DIM SAVEDATA 出生順フォロー
 
-;0.102
-#DIM SAVEDATA 疑似恋慕_恋慕枠フォロー
-#DIM SAVEDATA 舞踏会フォロー
+;0.105
+#DIM SAVEDATA デジタマフォロー
+#DIM SAVEDATA デジモンランダム化フォロー
+#DIM SAVEDATA デジモンNOフォロー

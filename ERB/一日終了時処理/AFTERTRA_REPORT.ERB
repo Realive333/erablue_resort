@@ -30,7 +30,7 @@ CALL 口上変数初期化
 ; 	CALL SELL_VIDEO
 
 ;外出を終わらせる
-IF FLAG:お出かけ先フラグ > 0
+IF FLAG:外出先番号 > 0
 	CALL 外出共通終了処理()
 ENDIF
 
@@ -60,6 +60,9 @@ CALL JUEL_CHECK(MASTER)
 CALL DENIAL_CHECK(MASTER)
 
 CALL 性知識経験値_初体験ボーナス()
+
+;日帰りキャラを帰らせる
+CALL 日帰りキャラ帰宅処理
 
 料理ZP補正保存 = 0
 料理ルピ補正保存 = 0
@@ -201,12 +204,20 @@ SELECTCASE LOCAL
 	CASE 99
 		現在ページ = 0
 		;詳細必須の項目をここで表示する
+		;出産処理
 		FOR LOCAL, 0, CHARANUM
 			SIF CFLAG:LOCAL:妊娠経過日 >= 妊娠期間
 				CALL BIRTHING(LOCAL)
 			SIF PREGNANCY_SIZE(LOCAL) >= 2 && CFLAG:LOCAL:妊娠発覚 == 0
 				CALL DETECT_PREGNANCY(LOCAL)
 		NEXT
+		;家畜処理
+		FOR LOCAL, 0, 家畜設定上限
+			IF 現在設定家畜:LOCAL != ""
+				TRYCALLFORM 家畜情報_%現在設定家畜:LOCAL%("重要_一日終了時効果", LOCAL)
+			ENDIF
+		NEXT
+
 		CALL レポート後全体処理()
 
 		BEGIN ABLUP
@@ -240,7 +251,14 @@ SELECTCASE ボタン番号
 		SPLIT CSTR:(ボタン番号 - 50000):夜這い報告_記録文字列, "ここでWAITを入れて表示を分離", RESULTS
 		HTML_PRINT RESULTS:0
 		WAIT
-		HTML_PRINT RESULTS:1
+		VARSET 分割用文字列
+		SPLIT RESULTS:1, "ここで画像を入れるために分割", 分割用文字列
+		HTML_PRINT 分割用文字列:0
+		CALL PRINT_STRL(CSTR:(ボタン番号 - 50000):夜這い報告_画像記録)
+		IF 分割用文字列:1 != ""
+			WAIT
+			HTML_PRINT 分割用文字列:1
+		ENDIF
 		PRINTL
 		VARSET RESULTS
 		SPLIT CSTR:(ボタン番号 - 50000):夜這い口上渡し_記録文字列, "+++", RESULTS
@@ -332,6 +350,7 @@ FOR LOCAL, 0, シャッフル数
 	CSTR:(順番シャッフル用配列:LOCAL):夜這い口上渡し_記録文字列 = 
 	CSTR:(順番シャッフル用配列:LOCAL):自動取得性癖_記録文字列 = 
 	CSTR:(順番シャッフル用配列:LOCAL):自動成長性癖_記録文字列 = 
+	CSTR:(順番シャッフル用配列:LOCAL):夜這い報告_画像記録 = 
 	口上あり = 0
 	;滞在してないキャラはスルー
 	IF CFLAG:(順番シャッフル用配列:LOCAL):滞在期間 < 0
@@ -365,6 +384,8 @@ FOR LOCAL, 0, シャッフル数
 				IF 口上有無確認(0,1)
 					RSTR:夜這い報告_記録文字列 += @"<button value='{40000 + (順番シャッフル用配列:LOCAL)}'>[口上を表示]</button>"
 					レポート強調フラグ:夜這い報告 = 1
+				ELSEIF CSTR:(順番シャッフル用配列:LOCAL):夜這い報告_画像記録 != ""
+					RSTR:夜這い報告_記録文字列 += @"<button value='{40000 + (順番シャッフル用配列:LOCAL)}'>[画像付き詳細表示]</button>"
 				ELSE
 					RSTR:夜這い報告_記録文字列 += @"　<button value='{40000 + (順番シャッフル用配列:LOCAL)}'>[詳細表示]</button>"
 				ENDIF
@@ -1412,6 +1433,8 @@ IF 滞在キャラ数算出関数() > 0
 		一時ZP計算 = 0
 		FOR LOCAL:2, 1, 6
 			VARSET RESULT
+			SIF メニュー無効化フラグ:(LOCAL:2)
+				CONTINUE
 			料理名 '= DT_CELL_GETS("料理メニューデータベース",  現在設定メニュー:(LOCAL:2), "メニュー名", 1)
 			TRYCALLFORM 料理効果_メニュー効果収入補正_%料理名%(LOCAL, LOCAL:1)
 			一時ルピ計算 += RESULT:0
@@ -1540,6 +1563,25 @@ IF 滞在キャラ数算出関数() > 0
 		合計ルピ収入 -= 施設維持費
 		RSTR:リゾート収支計算_記録文字列 += "-------------------------------------------------------------------------------------------------------------------<br>"
 	ENDIF
+
+	;家畜維持費
+	施設維持費 = 0
+	FOR LOCAL, 0, 家畜設定上限
+		IF 現在設定家畜:LOCAL != ""
+			RESULT = 0
+			TRYCALLFORM 家畜情報_%現在設定家畜:LOCAL%("基礎情報")
+			施設維持費 += RESULT
+		ENDIF
+	NEXT
+	IF 施設維持費
+		RSTR:リゾート収支計算_記録文字列 += @"家畜の維持費として以下のルピを消費した。<br>"
+		RSTR:リゾート収支計算_記録文字列 += @"維持費合計：%NUM_FORMAT(施設維持費)%<br>"
+		MONEY -= 施設維持費
+		合計ルピ収入 -= 施設維持費
+		RSTR:リゾート収支計算_記録文字列 += "-------------------------------------------------------------------------------------------------------------------<br>"
+	ENDIF
+	
+	CALL 食材ゲージ変動_一日終了時(合計ルピ収入)
 
 	消費ZP = 0
 	FOR LOCAL, 0, 50
@@ -1982,6 +2024,15 @@ IF 海改造度:6:0
 	CALL 海エリア漁処理()
 ENDIF
 
+RSTR:その他報告_記録文字列 += "<br>"
+
+;家畜
+FOR LOCAL, 0, 家畜設定上限
+	IF 現在設定家畜:LOCAL != ""
+		TRYCALLFORM 家畜情報_%現在設定家畜:LOCAL%("通常_一日終了時効果", LOCAL)
+	ENDIF
+NEXT
+
 ;[SKIPEND]
 
 
@@ -1997,6 +2048,13 @@ ENDIF
 ;キャラ個別処理
 ;--------------------------------------------------------------------------------
 FOR LOCAL, 0, CHARANUM
+
+	;性交相手のリセット
+	VARSET 性交相手:LOCAL:0, -1
+	VARSET 相手ごとの射精量:LOCAL:0
+	SIF !TALENT:LOCAL:妊娠 && CFLAG:LOCAL:子の父親 != -1
+		CFLAG:LOCAL:子の父親 = -1
+	
 	SIF CFLAG:LOCAL:滞在期間 < 0
 		CONTINUE
 	TRYCALLFORM DAYEND_CHARAEVENT_{NO:LOCAL}
@@ -2119,7 +2177,6 @@ CALL 輸入品店品揃え変動処理
 VARSET 解放キャラ招待
 モブ観光客数 = 0
 集客人数 = 0
-
 
 @人気度別施設充足度()
 #FUNCTION

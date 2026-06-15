@@ -32,10 +32,12 @@
 #DIM ソートボタン番号
 #DIM ソート順ボタン番号
 #DIM 素質絞込ボタン番号
+#DIM DYNAMIC 複数人モード
 
 IF 初回実行フラグ
 	初回実行フラグ = 0
 	VARSET 表示候補, -1
+	VARSET 汎用キャラ配列, -1
 	現在ページ = 0
 	描画開始行 = LINECOUNT
 	REDRAW_TEMP = CURRENTREDRAW()
@@ -76,7 +78,12 @@ ENDIF
 ;変更対象の表示
 PRINTL
 DRAWLINE
-PRINTL 誰の素質を強化しますか？
+PRINT 誰の素質を強化しますか？
+IF 複数人モード
+	PRINTL （複数人選択モード）
+ELSE
+	PRINTL （単体選択モード）
+ENDIF
 PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
 PRINTSL "-" * LINE_LEN
 
@@ -92,6 +99,8 @@ FOR 表示番号, (現在ページ * ページ表示人数), (現在ページ + 
 		PRINTL
 		CONTINUE
 	ENDIF
+	SIF FINDELEMENT(汎用キャラ配列, 表示候補:表示番号) >= 0
+		SETCOLOR カラーパレット("黄")
 	ソート情報 '= ソート情報表示(対象キャラ)
 	IF ソート情報 != ""
 		PRINTBUTTON @"[{表示番号, NO_LEN}] %GET_NAME(対象キャラ, 1)%", 表示番号
@@ -99,6 +108,7 @@ FOR 表示番号, (現在ページ * ページ表示人数), (現在ページ + 
 	ELSE
 		PRINTBUTTON @"[{表示番号, NO_LEN}] %GET_NAME(対象キャラ)%", 表示番号
 	ENDIF
+	RESETCOLOR
 	PRINTL
 NEXT
 
@@ -189,6 +199,30 @@ PRINTSL "-" * LINE_LEN
 CALL フィルタソートボタンセット表示(フィルタボタン番号, ソートボタン番号, ソート順ボタン番号, 素質絞込ボタン番号)
 
 PRINTSL "-" * LINE_LEN
+BTN_NUM   = 9997
+IF 複数人モード
+	BTN_TEXT '= @"[{BTN_NUM}]単体モードに切り替え"
+ELSE
+	BTN_TEXT '= @"[{BTN_NUM}]複数人モードに切り替え"
+ENDIF
+PRINTBUTTON BTN_TEXT, BTN_NUM
+IF 複数人モード
+	PRINT 　　　
+	BTN_NUM   = 9995
+	BTN_TEXT '= @"[{BTN_NUM}]全員選択する"
+	PRINTBUTTON BTN_TEXT, BTN_NUM
+	PRINT 　　　
+	BTN_NUM   = 9994
+	BTN_TEXT '= @"[{BTN_NUM}]選択を全て消す"
+	PRINTBUTTON BTN_TEXT, BTN_NUM
+	IF MAXARRAY(汎用キャラ配列) > -1
+		PRINTL 
+		BTN_NUM   = 9996
+		BTN_TEXT '= @"[{BTN_NUM}]選択中のキャラを変更する"
+		PRINTBUTTON BTN_TEXT, BTN_NUM
+	ENDIF
+ENDIF
+PRINTL
 ; 戻るボタン
 BTN_NUM   = 9999
 BTN_TEXT '= @"[{BTN_NUM}]戻る"
@@ -220,32 +254,51 @@ SELECTCASE 入力値
 	CASE 9999
 		; 戻る
 		RETURN_VAL = -1
+	CASE 9994
+		VARSET 汎用キャラ配列, -1
+	CASE 9995
+		ARRAYCOPY "表示候補", "汎用キャラ配列"
+	CASE 9996
+		; 複数人変更処理
+		CALL ZP_素質変化_複数人モード()
+	CASE 9997
+		; 複数人モード切り替え
+		VARSET 汎用キャラ配列, -1
+		INVERTBIT 複数人モード, 0
 	CASE 9998
 		; キャラ選択：あなた
 		CALL ZP_素質変化(MASTER)
 
 	CASEELSE
-		; キャラ選択
-		表示番号 = 入力値
-		DO
-			CALL ZP_素質変化(表示候補:表示番号)
-			SELECTCASE RESULT
-				CASE 1
-					; 前のキャラ
-					表示番号 --
-					SIF 表示番号 < 0
-						表示番号 = 表示候補人数 - 1
-				CASE 2
-					; 次のキャラ
-					表示番号 ++
-					SIF 表示候補人数 <= 表示番号
-						表示番号 = 0
-				CASE -1
-					; 終了
-					リスト生成フラグ = 1
-					BREAK
-			ENDSELECT
-		LOOP 1
+		IF 複数人モード
+			IF FINDELEMENT(汎用キャラ配列, 表示候補:入力値) >= 0
+				汎用キャラ配列:(FINDELEMENT(汎用キャラ配列, 表示候補:入力値)) = -1
+			ELSE
+				汎用キャラ配列:(FINDELEMENT(汎用キャラ配列, -1)) = 表示候補:入力値
+			ENDIF
+		ELSE
+			; キャラ選択
+			表示番号 = 入力値
+			DO
+				CALL ZP_素質変化(表示候補:表示番号)
+				SELECTCASE RESULT
+					CASE 1
+						; 前のキャラ
+						表示番号 --
+						SIF 表示番号 < 0
+							表示番号 = 表示候補人数 - 1
+					CASE 2
+						; 次のキャラ
+						表示番号 ++
+						SIF 表示候補人数 <= 表示番号
+							表示番号 = 0
+					CASE -1
+						; 終了
+						リスト生成フラグ = 1
+						BREAK
+				ENDSELECT
+			LOOP 1
+		ENDIF
 ENDSELECT
 IF !RETURN_VAL
 	CLEARLINE LINECOUNT - 描画開始行
@@ -327,7 +380,22 @@ IF フレーバー素質:キャラ番号:フレーバー素質_素質表示設�
 ENDIF
 PRINTBUTTONLC "[30]弱点コマンドを追加する", 30
 PRINTL
+IF TALENT:キャラ番号:長乳 > 0
+	DRAWLINE
+	PRINTBUTTONLC "[100]素質［長乳］を消去する", 100
+	PRINTL
+ENDIF
+IF CFLAG:キャラ番号:性知識成長禁止
+	DRAWLINE
+	PRINTBUTTONLC "[101]性知識の成長を解禁する（消費：0ZP）", 101
+	PRINTL
+ELSEIF 知識素質:キャラ番号:性知識 < 3
+	DRAWLINE
+	PRINTBUTTONLC "[101]性知識の成長を禁止する（消費：20ZP）", 101
+	PRINTL
+ENDIF
 
+DRAWLINE
 PRINTL
 IF キャラ番号 == MASTER
 	PRINTBUTTONLC "[998]あなたの設定をやり直す", 998
@@ -380,6 +448,66 @@ SELECTCASE RESULT
 		RESTART
 	CASE 30
 		CALL 弱点コマンド追加(キャラ番号)
+		RESTART
+	CASE 100
+		PRINTL
+		DRAWLINE
+		PRINTFORML %NAME表示(キャラ番号)%の素質［長乳］を消去し、取得に必要なコマンド実行回数をリセットします。
+		PRINTL もう一度条件を満たせば素質の再取得が可能です。
+		PRINTL 
+		PRINTL 素質［長乳］を消去しますか？
+		PRINTBUTTONLC "[0] 消去する", 0
+		PRINTBUTTONLC "[1] 消去しない", 1
+		PRINTL
+		PRINTL
+		BINPUT
+		PRINTL
+		IF RESULT == 0
+			CFLAG:キャラ番号:おっぱい引っぱりカウント = 0
+			TALENT:キャラ番号:長乳 = 0
+			PRINTW 素質［長乳］を消去しました。
+		ENDIF
+		RESTART
+	CASE 101
+		PRINTL
+		DRAWLINE
+		IF CFLAG:キャラ番号:性知識成長禁止
+			PRINTFORML 0ZPを消費し、%NAME表示(キャラ番号)%の性知識の成長を解禁します。
+			PRINTL 再び禁止する際はまたZPが必要になります。
+			PRINTL 
+			PRINTL 性知識の成長を解禁しますか？
+			PRINTBUTTONLC "[0] 解禁する", 0
+			PRINTBUTTONLC "[1] 解禁しない", 1
+			PRINTL
+			PRINTL
+			BINPUT
+			PRINTL
+			IF RESULT == 0
+				CFLAG:キャラ番号:性知識成長禁止 = 0
+				PRINTW 性知識の成長を解禁しました。
+			ENDIF
+		ELSE
+			IF FLAG:ZP所持量 < 20
+				PRINTW ZPが足りません。
+				RESTART
+			ENDIF
+			PRINTFORML 20ZPを消費し、%NAME表示(キャラ番号)%の性知識の成長を禁止します。
+			PRINTL 成長の解禁はいつでも可能です。
+			PRINTL ※禁止していても固有のキャライベントなどで成長することがあります。
+			PRINTL 
+			PRINTL 性知識の成長を禁止しますか？
+			PRINTBUTTONLC "[0] 禁止する", 0
+			PRINTBUTTONLC "[1] 禁止しない", 1
+			PRINTL
+			PRINTL
+			BINPUT
+			PRINTL
+			IF RESULT == 0
+				CFLAG:キャラ番号:性知識成長禁止 = 1
+				PRINTW 性知識の成長を禁止しました。
+				FLAG:ZP所持量 -= 20
+			ENDIF
+		ENDIF
 		RESTART
 	CASE 995
 		RESTART
@@ -997,7 +1125,7 @@ ENDSELECT
 #DIM 変更先性別
 
 IF GETBIT(変更先性別, 0) != GETBIT(変更元性別, 0)
-	IF !TALENT:キャラ番号:ランダムキャラ && GETBIT(CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "性別")), 0) == GETBIT(変更先性別, 0) && CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "種族")) == TALENT:キャラ番号:種族
+	IF !ランダムキャラ判定(NO:キャラ番号) && GETBIT(CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "性別")), 0) == GETBIT(変更先性別, 0) && CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "種族")) == TALENT:キャラ番号:種族
 		;元の性別・種族に戻ったのなら初期化
 		BASE:キャラ番号:身長 = 0
 		BASE:キャラ番号:バスト = 0
@@ -1222,7 +1350,7 @@ IF TALENT:キャラ番号:母乳体質 == 2
 ENDIF
 
 ;CSVと同じ種族、あるいは星晶獣やその他の場合、CSVと同じ体格体型に戻す
-IF 変更先種族 == 5 || 変更先種族 == 6 || (!TALENT:キャラ番号:ランダムキャラ && 変更先種族 == CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "種族")))
+IF 変更先種族 == 5 || 変更先種族 == 6 || (!ランダムキャラ判定(NO:キャラ番号) && 変更先種族 == CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "種族")))
 	TALENT:キャラ番号:角あり = CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "角あり"))
 	TALENT:キャラ番号:尻尾あり = CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "尻尾あり"))
 	TALENT:キャラ番号:エルーン耳 = CSVTALENT(NO:キャラ番号, GETNUM(TALENT, "エルーン耳"))
@@ -1254,7 +1382,7 @@ IF !((変更元種族 == 1 && 変更先種族 == 2) || (変更元種族 == 2 && 
 	;ヒューマン←→エルーンの場合を除き、ランダムでバスト・体格変化
 	SIF GETBIT(TALENT:キャラ番号:性別, 0)
 		TALENT:キャラ番号:バストサイズ = ランダムバストサイズ(変更先種族, TALENT:キャラ番号:年齢層)
-	TALENT:キャラ番号:体格 = ランダム体格(変更先種族, TALENT:キャラ番号:性別, キャラ見た目年齢(キャラ番号), TALENT:キャラ番号:バストサイズ, (TALENT:キャラ番号:年齢層>=年齢層_老年))
+	TALENT:キャラ番号:体格 = ランダム体格(変更先種族, TALENT:キャラ番号:性別, TALENT:キャラ番号:年齢層, TALENT:キャラ番号:外見年齢, TALENT:キャラ番号:バストサイズ)
 ENDIF
 
 ;種族に応じた変化
@@ -1824,29 +1952,29 @@ PRINTL
 SELECTCASE 表示種別
 	CASE "モード"
 		フィルタフラグ = 1
-		グレーアウト閾値 = 999
+		グレーアウト閾値 = 99
 		ZP消費量 = 100
-		PRINTL ・モード弱点の必要欠片数：1000個　　必要ZP：100
+		PRINTL ・モード弱点の必要欠片数：100個　　必要ZP：100
 	CASE "シチュエーション"
 		フィルタフラグ = 2
-		グレーアウト閾値 = 2999
+		グレーアウト閾値 = 299
 		ZP消費量 = 200
-		PRINTL ・シチュエーション弱点の必要欠片数：3000個　　必要ZP：200
+		PRINTL ・シチュエーション弱点の必要欠片数：300個　　必要ZP：200
 	CASE "マッサージ"
 		フィルタフラグ = 3
-		グレーアウト閾値 = 99
+		グレーアウト閾値 = 9
 		ZP消費量 = 30
-		PRINTL ・マッサージ弱点の必要欠片数：100個　　必要ZP：30
+		PRINTL ・マッサージ弱点の必要欠片数：10個　　必要ZP：30
 	CASE "むりやりうふふ"
 		フィルタフラグ = 4
-		グレーアウト閾値 = 99
+		グレーアウト閾値 = 9
 		ZP消費量 = 30
-		PRINTL ・むりやりうふふ弱点の必要欠片数：100個　　必要ZP：30
+		PRINTL ・むりやりうふふ弱点の必要欠片数：10個　　必要ZP：30
 	CASEELSE
 		フィルタフラグ = 0
-		グレーアウト閾値 = 99
+		グレーアウト閾値 = 9
 		ZP消費量 = 30
-		PRINTL ・通常弱点の必要欠片数：100個　　必要ZP：30
+		PRINTL ・通常弱点の必要欠片数：10個　　必要ZP：30
 ENDSELECT
 PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
 DRAWLINE

@@ -4,8 +4,70 @@ DRAWLINE
 PRINTL リゾートの経営に関する開発・研究を行います。
 PRINTL ※開発中のため、正しく挙動しないことがあります。
 DRAWLINE
-LOCALS = <div rect='81,31,1937,2812' border='31' bcolor='#C0C0C0'></div><div rect='2050,31,3875,2812' border='31' bcolor='#C0C0C0'></div>
+
+;右枠
+LOCALS = <div rect='81,31,1937,2812' border='31' bcolor='#C0C0C0'></div><div rect='2050,31,3875,2812' padding='50, 25, 50' border='31' bcolor='#C0C0C0'>
+LOCALS += @"■%リゾート名称, 36, LEFT%　人気度：%リゾート人気度全文字列()%"
+CALL 人気度上限算出()
+IF リゾート人気度 >= RESULT / 1000
+	LOCALS += @"<font color='#C0C070'>　　　上限到達</font>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += @"リゾートランク：%リゾートランク文字列:リゾートランク%<br>"
+LOCALS += @"---------------------------------------------------------------------------<br>"
+LOCALS += "</div>"
+LOCALS += "<div rect='2130,430,3720,700' padding='50, 25, 50' border='15' bcolor='#C0C0C0'>"
+IF 客室テーマ:設定テーマ == 0
+	客室テーマ:設定テーマ = 1
+ENDIF
+LOCALS += @"・客室「%ERDNAME(客室テーマ, 客室テーマ:設定テーマ)%」　　　<button value='0'>[変更]</button><br>"
+TSTR:ツールチップ受渡 = 
+CALLFORM 客室テーマ_%ERDNAME(客室テーマ, 客室テーマ:設定テーマ)%("部屋説明")
+LOCALS += TSTR:ツールチップ受渡
+LOCALS += "</div>"
+LOCALS += "<div rect='2130,1160,1860,1600' padding='50, 25, 50' border='15' bcolor='#C0C0C0'>"
+LOCALS += "・設備一覧<br>"
+FOR LOCAL, 0, VARSIZE("配置客室設備")
+	LOCALS += @"<button value='{LOCAL + 10}'>[変更]</button>"
+	IF 配置客室設備:LOCAL > 0
+		TSTR:コマンド名受渡 = 
+		TSTR:ツールチップ受渡 = 
+		CALLFORM 客室設備_%ERDNAME(客室設備, 配置客室設備:LOCAL)%("名前取得", 客室設備:(配置客室設備:LOCAL))
+		IF TSTR:ツールチップ受渡 != ""
+			LOCALS += @"　<nonbutton  title='%TSTR:ツールチップ受渡%'>%TSTR:コマンド名受渡%</nonbutton>"
+		ELSE
+			LOCALS += @"　%TSTR:コマンド名受渡%"
+		ENDIF
+	ELSE
+		LOCALS += "　----------"
+	ENDIF
+	LOCALS += "<br>"
+NEXT
+LOCALS += "</div>"
+LOCALS += "<div rect='4030,1160,1820,1600' padding='50, 25, 50' border='15' bcolor='#C0C0C0'>"
+LOCALS += "・アメニティ一覧<br>"
+FOR LOCAL, 0, VARSIZE("配置アメニティ")
+	LOCALS += @"<button value='{LOCAL + 20}'>[変更]</button>"
+	IF 配置アメニティ:LOCAL > 0
+		TSTR:コマンド名受渡 = 
+		TSTR:ツールチップ受渡 = 
+		CALLFORM アメニティ_%ERDNAME(アメニティ, 配置アメニティ:LOCAL)%("名前取得", アメニティ:(配置アメニティ:LOCAL))
+		IF TSTR:ツールチップ受渡 != ""
+			LOCALS += @"　<nonbutton  title='%TSTR:ツールチップ受渡%'>%TSTR:コマンド名受渡%</nonbutton>"
+		ELSE
+			LOCALS += @"　%TSTR:コマンド名受渡%"
+		ENDIF
+	ELSE
+		LOCALS += "　----------"
+	ENDIF
+	LOCALS += "<br>"
+NEXT
+LOCALS += "</div>"
+
+;左枠
 LOCALS += "<div rect='156,156,1937,2812'>"
+LOCALS += "■計画一覧"
+LOCALS += "<br>"
 IF ダンジョンクリアフラグ_沿岸部の森
 	IF チュートリアルフラグ:施設改造 == 0
 		LOCALS += @"<font color='#%カラーパレット_HTML("黄")%'><button value='100'>[100] 施設改造</font>　<font color='#%カラーパレット_HTML("真っ赤")%'>NEW!</font></button>"
@@ -39,6 +101,20 @@ ELSE
 ENDIF
 LOCALS += "<br>"
 IF 開拓エリア解放フラグ:0
+	IF MATCH(開拓エリア開発番号, 大規模番号_居住区エリア) > 0
+		IF チュートリアルフラグ:定住者管理 == 0
+			LOCALS += @"<font color='#%カラーパレット_HTML("黄")%'><button value='115'>[115] 定住者管理</font>　<font color='#%カラーパレット_HTML("真っ赤")%'>NEW!</font></button>"
+		ELSE
+			LOCALS += "<button value='115'>[115] 定住者管理</button>"
+		ENDIF
+	ELSE
+		IF OPTION変数:ツールチップ切り替え == 0
+			LOCALS += "<font color='#666666'><nonbutton title='<br>未開放機能<br>大規模エリア「居住区エリア」建築で解放<br>'>[115] 定住者管理</nonbutton></font>"
+		ELSE
+			LOCALS += "<font color='#666666'><nonbutton>[115] 定住者管理</nonbutton></font>"
+		ENDIF
+	ENDIF
+	LOCALS += "<br>"
 	IF チュートリアルフラグ:大規模エリア建築 == 0
 		LOCALS += @"<font color='#%カラーパレット_HTML("黄")%'><button value='120'>[120] 大規模エリア建築</font>　<font color='#%カラーパレット_HTML("真っ赤")%'>NEW!</font></button>"
 	ELSE
@@ -61,6 +137,12 @@ $INPUT_LOOP
 BINPUT
 LOCAL = RESULT
 SELECTCASE LOCAL
+	CASE 0
+		CALL 客室テーマ変更()
+	CASE 10 TO 19
+		CALL 客室設備変更(LOCAL - 10)
+	CASE 20 TO 29
+		CALL アメニティ変更(LOCAL - 20)
 	CASE 100
 		CALL 施設改装メニュー処理
 	CASE 101
@@ -69,6 +151,8 @@ SELECTCASE LOCAL
 		CALL 食堂メニュー設定処理
 	CASE 110
 		CALL お祭り企画メニュー処理
+	CASE 115
+		CALL 定住者管理メニュー処理
 	CASE 120
 		CALL 大規模エリア建築メニュー処理
 	CASE 999

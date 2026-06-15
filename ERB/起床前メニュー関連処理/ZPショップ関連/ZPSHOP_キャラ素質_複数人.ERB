@@ -1,0 +1,1349 @@
+﻿
+@ZP_素質変化_複数人モード()
+#DIM キャラ番号
+
+PRINTL
+DRAWLINE
+PRINTL ZPを消費して複数人の素質を変化させることが出来ます。
+PRINTL （変化出来ないキャラが選択されている場合、そのキャラについてはスキップされます）
+PRINTL （ZPが途中で無くなった場合、処理はそこで止まります）
+PRINTL どの素質を変化させますか？
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+PRINTBUTTONLC "[1]感覚系素質を強化する", 1
+PRINTL
+PRINTBUTTONLC "[2]乳を変化させる", 2
+PRINTL
+PRINTBUTTONLC "[3]男性器を変化させる", 3
+PRINTL
+PRINTBUTTONLC "[4]性別を変化させる", 4
+PRINTL
+PRINTBUTTONLC "[5]種族を変化させる", 5
+PRINTL
+PRINTBUTTONLC "[6]妊娠を可能にさせる", 6
+PRINTL
+PRINTBUTTONLC "[7]受胎体質を変化させる", 7
+PRINTL
+PRINTBUTTONLC "[8]発情期素質を変化させる", 8
+PRINTL
+; PRINTBUTTONLC "[9]体格・体型を変化させる", 9
+; PRINTL
+IF あなた特殊能力:ハーレム >= 2
+	;ハーレム一人前以上だと他者にハーレムの心得を付与可能
+	PRINTBUTTONLC "[10]ハーレムの心得を取得させる", 10
+	PRINTL
+ENDIF
+; PRINTBUTTONLC "[30]弱点コマンドを追加する", 30
+; PRINTL
+DRAWLINE
+PRINTBUTTONLC "[100]素質［長乳］を消去する", 100
+PRINTL
+
+DRAWLINE
+PRINTL
+PRINTBUTTONLC "[999]戻る", 999
+PRINTL
+
+$INPUT_LOOP
+BINPUT
+SELECTCASE RESULT
+	CASE 1
+		CALL 敏感素質変化_複数人()
+		RESTART
+	CASE 2
+		CALL バスト素質変化_複数人()
+		RESTART
+	CASE 3
+		CALL 男性器素質変化_複数人()
+		RESTART
+	CASE 4
+		CALL 性別素質変化_複数人()
+		RESTART
+	CASE 5
+		CALL 種族素質変化_複数人()
+		RESTART
+	CASE 6
+		CALL 妊娠不可素質変化_複数人()
+		RESTART
+	CASE 7
+		CALL 受胎体質素質変化_複数人()
+		RESTART
+	CASE 8
+		CALL 発情期素質設定_複数人()
+		RESTART
+	; CASE 9
+	; 	CALL 体格・体型素質設定_複数人()
+	; 	RESTART
+	CASE 10
+		CALL ハーレムの心得素質設定_複数人()
+		RESTART
+	; CASE 20
+	; 	CALL フレーバー素質再設定_複数人()
+	; 	RESTART
+	; CASE 30
+	; 	CALL 弱点コマンド追加_複数人()
+	; 	RESTART
+	CASE 100
+		PRINTL
+		DRAWLINE
+		PRINTFORML 素質［長乳］を消去し、取得に必要なコマンド実行回数をリセットします。（ZP消費なし）
+		PRINTL もう一度条件を満たせば素質の再取得が可能です。
+		PRINTL 
+		PRINTL 素質［長乳］を消去しますか？
+		PRINTBUTTONLC "[0] 消去する", 0
+		PRINTBUTTONLC "[1] 消去しない", 1
+		PRINTL
+		PRINTL
+		BINPUT
+		PRINTL
+		IF RESULT == 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):長乳 == 0
+					CONTINUE
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%
+				CFLAG:(汎用キャラ配列:LOCAL):おっぱい引っぱりカウント = 0
+				TALENT:(汎用キャラ配列:LOCAL):長乳 = 0
+			NEXT
+			PRINTFORMW 以上のキャラについて処理を実行しました。
+		ENDIF
+		RESTART
+	CASE 995
+		RESTART
+	CASE 996
+		RETURN 1
+	CASE 997
+		RETURN 2
+	CASE 998
+		CALL キャラメイク設定
+		RESTART
+	CASE 999
+		RETURN -1
+ENDSELECT
+
+
+
+@敏感素質変化_複数人()
+#DIM 対象キャラ
+#DIM CONST COST_TO_敏感 = 300
+#DIM CONST COST_TO_通常 = 100
+#DIM CONST COST_TO_鈍感 = 300
+#DIM 必要COST
+#DIM 必要COST_計算値
+#DIM 素質番号
+#DIMS 段階名
+
+DRAWLINE
+PRINTL ZPを消費してキャラに敏感系素質を付与することが出来ます。
+PRINTL どの部位を敏感化しますか？
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+FOR LOCAL:1 , 101, 106
+	PRINTFORM %TALENTNAME:(LOCAL:1)%　　
+	PRINTBUTTON @"[{LOCAL:1 * 10}]鈍感まで上昇", LOCAL:1 * 10
+	PRINT 　　　
+	PRINTBUTTON @"[{LOCAL:1 * 10 + 1}]通常まで上昇", LOCAL:1 * 10 + 1
+	PRINT 　　　
+	PRINTBUTTON @"[{LOCAL:1 * 10 + 2}]敏感まで上昇", LOCAL:1 * 10 + 2
+	PRINTL
+NEXT
+
+PRINTBUTTON @"[241] [即イキ]を取得する", 241
+PRINTFORML 　　　必要ZP:{COST_TO_敏感 * 2}（1キャラ分）
+
+PRINTBUTTON @"[242] [早イキ]を取得する", 242
+PRINTFORML 　　　必要ZP:{COST_TO_敏感}（1キャラ分）
+
+PRINTBUTTON @"[243] イキやすさ素質を削除する", 243
+PRINTFORML 　　　必要ZP:{COST_TO_通常}（1キャラ分）
+
+PRINTBUTTON @"[244] [遅イキ]を取得する", 244
+PRINTFORML 　　　必要ZP:{COST_TO_通常 / 2}（1キャラ分）
+
+PRINTBUTTON @"[250] [ＥＤ]を取得する", 250
+PRINTFORML 　　　必要ZP:{COST_TO_通常}（1キャラ分）
+
+PRINTBUTTON @"[251] [ＥＤ]を削除する", 251
+PRINTFORML 　　　必要ZP:{COST_TO_通常}（1キャラ分）
+
+PRINTL
+PRINTBUTTON "[999]戻る", 999
+$INPUT_LOOP2
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE IS > 1000
+		;1010~はそれぞれの素質変化
+		SELECTCASE LOCAL:1 % 10
+			CASE 0
+				;鈍感まで上げ
+				段階名 = 鈍感
+			CASE 1
+				;通常まで上げ
+				段階名 = 通常
+			CASE 2
+				;敏感まで上げ
+				段階名 = 敏感
+		ENDSELECT
+		PRINTFORML %TALENTNAME:(LOCAL:1 / 10)%を%段階名%まで上昇させますか？
+		PRINTL ※既にそれ以上の素質を持つ場合は変動しません。
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				必要COST_計算値 = 0
+				SELECTCASE LOCAL:1 % 10
+					CASE 0
+						;鈍感まで上げ
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) >= -1
+							CONTINUE
+						必要COST_計算値 += COST_TO_鈍感
+					CASE 1
+						;通常まで上げ
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) >= 0
+							CONTINUE
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) == -2
+							必要COST_計算値 += COST_TO_鈍感
+						必要COST_計算値 += COST_TO_通常
+					CASE 2
+						;敏感まで上げ
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) >= 1
+							CONTINUE
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) == -2
+							必要COST_計算値 += COST_TO_鈍感 + COST_TO_通常
+						SIF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) == -1
+							必要COST_計算値 += COST_TO_通常
+						必要COST_計算値 += COST_TO_敏感
+				ENDSELECT
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				IF TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) == 0
+					PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 通常 > 
+				ELSE
+					PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(LOCAL:1 / 10, TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10), , 汎用キャラ配列:LOCAL)% > 
+				ENDIF
+				IF LOCAL:1 % 10 == 1
+					PRINTL 通常
+				ELSE
+					PRINTFORML %GET_TALENTNAME(LOCAL:1 / 10, LOCAL:1 % 10 - 1, , 汎用キャラ配列:LOCAL)%
+				ENDIF
+				TALENT:(汎用キャラ配列:LOCAL):(LOCAL:1 / 10) = LOCAL:1 % 10 - 1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 241
+		素質番号 = 241
+		PRINTFORML ［即イキ］を持たないキャラに取得させますか？
+		PRINTFORML ※他のイキやすさ素質を上書きします
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				必要COST_計算値 = COST_TO_敏感 * 2
+				IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ != 2
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ == 0
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 通常 > 
+					ELSE
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(素質番号, TALENT:(汎用キャラ配列:LOCAL):素質番号, , 汎用キャラ配列:LOCAL)% > 
+					ENDIF
+					PRINTL 即イキ
+					TALENT:(汎用キャラ配列:LOCAL):素質番号 = 2
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 242
+		素質番号 = 242
+		PRINTFORML {必要COST}ZPを支払い、［早イキ］を取得しますか？
+		PRINTFORML ※他のイキやすさ素質を上書きします
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				必要COST_計算値 = COST_TO_敏感
+				IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ != 1
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ == 0
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 通常 > 
+					ELSE
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(素質番号, TALENT:(汎用キャラ配列:LOCAL):素質番号, , 汎用キャラ配列:LOCAL)% > 
+					ENDIF
+					PRINTL 早イキ
+					TALENT:(汎用キャラ配列:LOCAL):素質番号 = 1
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 243
+		素質番号 = 243
+		PRINTFORML {必要COST}ZPを支払い、イキやすさ素質を削除しますか？
+		PRINTFORML ※他のイキやすさ素質を上書きします
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				必要COST_計算値 = COST_TO_通常
+				IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ != 0
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(素質番号, TALENT:(汎用キャラ配列:LOCAL):素質番号, , 汎用キャラ配列:LOCAL)% > 
+					PRINTL 通常
+					TALENT:(汎用キャラ配列:LOCAL):素質番号 = 0
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 244
+		素質番号 = 244
+		必要COST = COST_TO_通常 / 2
+		PRINTFORML {必要COST}ZPを支払い、［遅イキ］を取得しますか？
+		PRINTFORML ※他のイキやすさ素質を上書きします
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				必要COST_計算値 = COST_TO_通常 / 2
+				IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ != -1
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					IF TALENT:(汎用キャラ配列:LOCAL):イキやすさ == 0
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 通常 > 
+					ELSE
+						PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(素質番号, TALENT:(汎用キャラ配列:LOCAL):素質番号, , 汎用キャラ配列:LOCAL)% > 
+					ENDIF
+					PRINTL 遅イキ
+					TALENT:(汎用キャラ配列:LOCAL):素質番号 = -1
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 250
+		必要COST = COST_TO_通常
+		PRINTFORML {必要COST}ZPを支払い、[ＥＤ]を取得しますか？
+		PRINTFORML ※ペニスを所持するキャラにのみ適用されます
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			必要COST_計算値 = COST_TO_通常
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF !GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 1)
+					CONTINUE
+				IF TALENT:(汎用キャラ配列:LOCAL):ＥＤ != 1
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%
+					TALENT:(汎用キャラ配列:LOCAL):ＥＤ = 1
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASE 251
+		必要COST = COST_TO_通常
+		PRINTFORML {必要COST}ZPを支払い、[ＥＤ]を削除しますか？
+		PRINTFORML ※ペニスを所持するキャラにのみ適用されます
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			必要COST_計算値 = COST_TO_通常
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF !GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 1)
+					CONTINUE
+				IF TALENT:(汎用キャラ配列:LOCAL):ＥＤ != 0
+					IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+						PRINTL 必要ZPが不足したので処理を停止しました。
+						BREAK
+					ENDIF
+					PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%
+					TALENT:(汎用キャラ配列:LOCAL):ＥＤ = 0
+					必要COST += 必要COST_計算値
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+		RETURN 0
+	CASEELSE
+		REUSELASTLINE 
+		GOTO INPUT_LOOP2
+ENDSELECT
+
+@バスト素質変化_複数人()
+#DIM CONST COST_胸定数 = 20
+#DIM 必要COST
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTL ZPを消費してキャラの乳の大きさなどを変化させることができます。
+PRINTL 任意の大きさを選択してください
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+PRINTFORML 消費ZP:（現在の胸のサイズと変更後のサイズの差）✕{COST_胸定数}ZP（1キャラ分）
+FOR LOCAL:1 , -2, 4
+	PRINTBUTTON @"[{LOCAL:1}]%GET_TALENTNAME(205, LOCAL:1), 20, LEFT%にする", LOCAL:1
+	PRINTL
+NEXT
+IF 素質切り替えOPTION記憶:陥没乳首_なし == 0
+	PRINTL
+	PRINTBUTTON @"[10] 陥没乳首素質を付与する", 10
+	PRINTFORML :{COST_胸定数}ZP（1キャラ分）
+	PRINTBUTTON @"[11] 陥没乳首素質を削除する", 11
+	PRINTFORML :{COST_胸定数}ZP（1キャラ分）
+ENDIF
+PRINTL
+PRINTBUTTON "[999]戻る", 999
+$INPUT_LOOP3
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE 10
+		PRINTFORML 陥没乳首素質を付与しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):陥没乳首
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 0) == 0
+					CONTINUE
+				必要COST_計算値 = COST_胸定数
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 陥没乳首追加
+				TALENT:(汎用キャラ配列:LOCAL):陥没乳首 = 1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+	CASE 11
+		PRINTFORML 陥没乳首素質を削除しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):陥没乳首 == 0
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 0) == 0
+					CONTINUE
+				必要COST_計算値 = COST_胸定数
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 陥没乳首削除
+				TALENT:(汎用キャラ配列:LOCAL):陥没乳首 = 0
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+	CASE -2 TO 3
+		;バスト変化
+		PRINTFORML バストサイズを［%GET_TALENTNAME(205, LOCAL:1)%］に変更しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):バストサイズ == LOCAL:1
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 0) == 0
+					CONTINUE
+				必要COST_計算値 = ABS(TALENT:(汎用キャラ配列:LOCAL):バストサイズ - LOCAL:1) * COST_胸定数
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(205, TALENT:(汎用キャラ配列:LOCAL):バストサイズ, , 汎用キャラ配列:LOCAL), 15, LEFT% > 
+				PRINTFORML %GET_TALENTNAME(205, LOCAL:1, , 汎用キャラ配列:LOCAL)%
+				TALENT:(汎用キャラ配列:LOCAL):バストサイズ = LOCAL:1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+ENDSELECT
+
+
+
+@男性器素質変化_複数人()
+#DIM CONST COST_男性器定数 = 20
+#DIM CONST COST_TO_射精可能 = 300
+#DIM 必要COST
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTL ZPを消費してキャラの男性器の大きさなどを変化させることができます。
+PRINTL 任意の大きさを選択してください
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+PRINTFORML 消費ZP:（現在の男性器サイズと変更後のサイズの差）✕{COST_男性器定数}ZP（1キャラ分）
+FOR LOCAL:1 , -2, 3
+	PRINTBUTTON @"[{LOCAL:1}]%GET_TALENTNAME(162, LOCAL:1), 20, LEFT%", LOCAL:1
+	PRINTL
+NEXT
+PRINTL
+PRINTBUTTON @"[10] 射精不可・未精通を削除する:{COST_TO_射精可能}ZP（1キャラ分）", 10
+PRINTL
+PRINTL 
+PRINTBUTTON "[999]戻る", 999
+$INPUT_LOOP3
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE -2 TO 2
+		;サイズ変化
+		PRINTFORML 男性器を［%GET_TALENTNAME(162, LOCAL:1)%］に変更しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):男性器サイズ == LOCAL:1
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 1) == 0
+					CONTINUE
+				必要COST_計算値 = ABS(TALENT:(汎用キャラ配列:LOCAL):男性器サイズ - LOCAL:1) * COST_男性器定数
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(162, TALENT:(汎用キャラ配列:LOCAL):男性器サイズ, , 汎用キャラ配列:LOCAL), 12, LEFT% > 
+				PRINTFORML %GET_TALENTNAME(162, LOCAL:1, , 汎用キャラ配列:LOCAL)%
+				TALENT:(汎用キャラ配列:LOCAL):男性器サイズ = LOCAL:1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+	CASE 10
+		PRINTFORML ［射精不可］［未精通］を削除しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):射精不可 == 0
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 1) == 0
+					CONTINUE
+				必要COST_計算値 = COST_TO_射精可能
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(246, TALENT:(汎用キャラ配列:LOCAL):射精不可, , 汎用キャラ配列:LOCAL), 12, LEFT% > なし
+				TALENT:(汎用キャラ配列:LOCAL):射精不可 = 0
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+ENDSELECT
+
+@性別素質変化_複数人()
+#DIM 必要COST_計算値
+#DIM CONST COST_性別定数 = 30
+#DIM 必要COST
+#DIM 変更位置
+#DIM 元の性別
+
+DRAWLINE
+PRINTL ZPを消費してキャラの性別を変化させることができます。
+PRINTL 発情ふたなりなど、一時的に性別が変化する状態の場合、変化前の性別を変更します。
+PRINTL 任意の性別を選択してください。
+PRINTL ※その他・無性への変化は出来ません。元が該当性別の場合、性別変化させると元に戻せなくなります。
+PRINTL ※妊娠中は性別変更出来ません。
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+FOR LOCAL:1, 1, 3
+	PRINTBUTTON @"[{LOCAL:1}]%GET_TALENTNAME(2, LOCAL:1), 20, LEFT%:{COST_性別定数}ZP（1キャラ分）", LOCAL:1
+	PRINTL
+NEXT
+IF 素質切り替えOPTION記憶:ふたなり_女性 == 0
+	IF OPTION変数:ふたなり玉設定 == 0
+		PRINTBUTTON @"[3]ふたなり玉なし　　　:{COST_性別定数}ZP（1キャラ分）", 3
+		PRINTL
+		PRINTBUTTON @"[4]ふたなり玉あり　　　:{COST_性別定数}ZP（1キャラ分）", 4
+	ELSEIF OPTION変数:ふたなり玉設定 == 1
+		PRINTBUTTON @"[3]ふたなり玉なし　　　:{COST_性別定数}ZP（1キャラ分）", 3
+	ELSEIF OPTION変数:ふたなり玉設定 == 2
+		PRINTBUTTON @"[4]ふたなり玉あり　　　:{COST_性別定数}ZP（1キャラ分）", 4
+	ENDIF
+	PRINTL
+ENDIF
+PRINTBUTTON "[999]戻る", 999
+$INPUT_LOOP3
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE 1 TO 4
+		SELECTCASE LOCAL:1
+			CASE 3
+				PRINTFORML 性別を［ふたなり（玉なし）］に変更しますか？
+			CASE 4
+				PRINTFORML 性別を［ふたなり（玉あり）］に変更しますか？
+			CASEELSE
+				PRINTFORML 性別を［%GET_TALENTNAME(2, LOCAL:1)%］に変更しますか？
+		ENDSELECT
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):妊娠 && GETBIT(LOCAL:1, 0) == 0
+					CONTINUE
+				SELECTCASE LOCAL:1
+					CASE 3
+						SIF TALENT:(汎用キャラ配列:LOCAL):性別 == 3 && フレーバー素質:(汎用キャラ配列:LOCAL):ふたなり時_玉ありなし == 1
+							CONTINUE
+					CASE 4
+						SIF TALENT:(汎用キャラ配列:LOCAL):性別 == 3 && フレーバー素質:(汎用キャラ配列:LOCAL):ふたなり時_玉ありなし == 2
+							CONTINUE
+					CASEELSE
+						SIF TALENT:(汎用キャラ配列:LOCAL):性別 == LOCAL:1
+							CONTINUE
+				ENDSELECT
+				必要COST_計算値 = COST_性別定数
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				
+				元の性別 = TALENT:(汎用キャラ配列:LOCAL):性別
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(2, TALENT:(汎用キャラ配列:LOCAL):性別, , 汎用キャラ配列:LOCAL), 8, LEFT% > 
+				SELECTCASE LOCAL:1
+					CASE 3
+						PRINTFORML %GET_TALENTNAME(2, 3, , 汎用キャラ配列:LOCAL)%（玉なし）
+						TALENT:(汎用キャラ配列:LOCAL):性別 = 3
+						IF フレーバー素質:(汎用キャラ配列:LOCAL):素質表示設定 == 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):素質表示設定 = 1
+							フレーバー素質:(汎用キャラ配列:LOCAL):陰毛濃さ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):乳首大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):乳輪大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):性器種類 = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):クリ大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):ほくろ位置 = 0
+						ENDIF
+						フレーバー素質:(汎用キャラ配列:LOCAL):ふたなり時_玉ありなし = 1
+					CASE 4
+						PRINTFORML %GET_TALENTNAME(2, 3, , 汎用キャラ配列:LOCAL)%（玉あり）
+						TALENT:(汎用キャラ配列:LOCAL):性別 = 3
+						IF フレーバー素質:(汎用キャラ配列:LOCAL):素質表示設定 == 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):素質表示設定 = 1
+							フレーバー素質:(汎用キャラ配列:LOCAL):陰毛濃さ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):乳首大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):乳輪大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):性器種類 = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):クリ大きさ = 0
+							フレーバー素質:(汎用キャラ配列:LOCAL):ほくろ位置 = 0
+						ENDIF
+						フレーバー素質:(汎用キャラ配列:LOCAL):ふたなり時_玉ありなし = 2
+					CASEELSE
+						PRINTFORML %GET_TALENTNAME(2, LOCAL:1, , 汎用キャラ配列:LOCAL)%
+						TALENT:(汎用キャラ配列:LOCAL):性別 = LOCAL:1
+				ENDSELECT
+				
+				;性転換後処理
+				SIF !TALENT:(汎用キャラ配列:LOCAL):性転換 && 元の性別 == 2
+					TALENT:(汎用キャラ配列:LOCAL):処女 = 1
+				CALL ZP_SHOP_性別特徴変換(汎用キャラ配列:LOCAL, 元の性別, TALENT:(汎用キャラ配列:LOCAL):性別)
+				IF RESULT == 0
+					SETBIT 変更位置, 0
+					SETBIT 変更位置, 1
+					SETBIT 変更位置, 2
+					SETBIT 変更位置, 3
+					IF 身長固定キャラ(汎用キャラ配列:LOCAL)
+						CLEARBIT 変更位置, 0
+					; ELSE
+					; 	;身長任意設定
+					; 	CALL 性別変化時_身長任意設定(汎用キャラ配列:LOCAL)
+					; 	SIF RESULT == 1
+					; 		CLEARBIT 変更位置, 0
+					ENDIF
+					IF バスト固定キャラ(汎用キャラ配列:LOCAL)
+						CLEARBIT 変更位置, 1
+					ENDIF
+					SIF 変更位置
+						CALL SET_BODYSIZE(汎用キャラ配列:LOCAL, 変更位置)
+				ENDIF
+				;性転換が0なら元の性別(ふたなりは-3)を代入し、再度元の性別やふたなりになった場合は-をかけて非表示に
+				IF !TALENT:(汎用キャラ配列:LOCAL):性転換
+					IF TALENT:(汎用キャラ配列:LOCAL):性別 == 2 && (元の性別 == 1 || (元の性別 == 3 && 素質切り替えOPTION記憶:ふたなり_女性))
+						TALENT:(汎用キャラ配列:LOCAL):性転換 = 1
+					ELSEIF TALENT:(汎用キャラ配列:LOCAL):性別 == 1 && 元の性別 == 2
+						TALENT:(汎用キャラ配列:LOCAL):性転換 = 2
+					ELSE
+						TALENT:(汎用キャラ配列:LOCAL):性転換 = 元の性別 * -1
+					ENDIF
+				ELSEIF TALENT:(汎用キャラ配列:LOCAL):性転換 < 0 && TALENT:(汎用キャラ配列:LOCAL):性転換 > -3 && TALENT:(汎用キャラ配列:LOCAL):性別 != TALENT:(汎用キャラ配列:LOCAL):性転換 * -1 && (TALENT:(汎用キャラ配列:LOCAL):性別 == 1 || TALENT:(汎用キャラ配列:LOCAL):性別 == 2)
+					TALENT:(汎用キャラ配列:LOCAL):性転換 *= -1
+				ELSEIF TALENT:(汎用キャラ配列:LOCAL):性転換 > 0
+					TALENT:(汎用キャラ配列:LOCAL):性転換 *= -1
+				ENDIF
+				;ふたなり、その他の場合は何に変化しても元女・元男はつかない
+				;元性別も処理しておく
+				CFLAG:(汎用キャラ配列:LOCAL):元性別保存 = TALENT:(汎用キャラ配列:LOCAL):性別
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+ENDSELECT
+
+
+
+@種族素質変化_複数人()
+#DIM 対象キャラ
+#DIM 必要COST
+#DIM CONST COST_種族変化 = 200
+#DIMS 特殊種族一時保存
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTL ZPを消費してキャラの種族を変化させることができます。
+PRINTL 任意の種族を選択してください
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+FOR LOCAL:1 , 1, 7
+	PRINTBUTTON @"[{LOCAL:1}]%GET_TALENTNAME(200, LOCAL:1,,対象キャラ), 14, LEFT%必要ZP:{COST_種族変化}（1キャラ分）", LOCAL:1
+	PRINTL
+NEXT
+PRINTBUTTON "[999]戻る", 999
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE 1 TO 6
+		特殊種族一時保存 = 
+		IF LOCAL:1 == 6
+			DRAWLINE
+			PRINTL 追加種族名を指定出来ます。
+			PRINTL 任意の種族名を入力してください。
+			INPUTS
+			特殊種族一時保存 = %RESULTS%
+			PRINTL
+			DRAWLINE
+			PRINTFORML 種族を［%GET_TALENTNAME(200, LOCAL:1)%（%特殊種族一時保存%）］に変更しますか？
+		ELSE
+			PRINTFORML 種族を［%GET_TALENTNAME(200, LOCAL:1)%］に変更しますか？
+		ENDIF
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):種族 == LOCAL:1
+					CONTINUE
+				SIF TALENT:(汎用キャラ配列:LOCAL):種族 == 6 && CSTR:(汎用キャラ配列:LOCAL):特殊種族 == 特殊種族一時保存
+				必要COST_計算値 = COST_種族変化
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(200, TALENT:(汎用キャラ配列:LOCAL):種族, , 汎用キャラ配列:LOCAL), 12, LEFT% > %GET_TALENTNAME(200, LOCAL:1, , 汎用キャラ配列:LOCAL)%
+				SIF 特殊種族一時保存 != ""
+					PRINTFORM （%特殊種族一時保存%）
+				PRINTL  
+
+				CSTR:(汎用キャラ配列:LOCAL):特殊種族 = %特殊種族一時保存%
+				TALENT:(汎用キャラ配列:LOCAL):種族 = LOCAL:1
+				CALL ZP_SHOP_種族特徴変換(汎用キャラ配列:LOCAL, TALENT:(汎用キャラ配列:LOCAL):種族, LOCAL:1)
+				SIF RESULT == 0
+					CALL SET_BODYSIZE(汎用キャラ配列:LOCAL,0)
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+ENDSELECT
+
+
+@妊娠不可素質変化_複数人()
+#DIM 対象キャラ
+#DIM CONST COST_TO_妊娠可能 = 300
+#DIM 必要COST
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTL ZPを消費して妊娠不可素質を削除することができます。
+PRINTFORML ［妊娠不可］［初潮前］を削除しますか？　消費ZP:{COST_TO_妊娠可能}（1キャラ分）
+PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+PRINTBUTTONLC "[0]はい", 0
+PRINTBUTTONLC "[1]いいえ", 1
+BINPUT
+IF RESULT == 0
+	必要COST = 0
+	FOR LOCAL, 0, キャラクタ数上限
+		SIF 汎用キャラ配列:LOCAL < 0
+			BREAK
+		SIF TALENT:(汎用キャラ配列:LOCAL):妊娠不可 == 0
+			CONTINUE
+		SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 0) == 0
+			CONTINUE
+		必要COST_計算値 = COST_TO_妊娠可能
+		IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+			PRINTL 必要ZPが不足したので処理を停止しました。
+			BREAK
+		ENDIF
+		必要COST += 必要COST_計算値
+		PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %GET_TALENTNAME(238, TALENT:(汎用キャラ配列:LOCAL):妊娠不可, , 汎用キャラ配列:LOCAL), 12, LEFT% > なし
+		TALENT:(汎用キャラ配列:LOCAL):妊娠不可 = 0
+	NEXT
+	FLAG:ZP所持量 -= 必要COST
+	
+	IF 必要COST <= 0
+		PRINTW 変更条件を満たすキャラが存在しません。
+	ELSE
+		PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+	ENDIF
+ENDIF
+
+RETURN 0
+
+@受胎体質素質変化_複数人()
+#DIM CONST COST_TO_受胎 = 100
+#DIM 必要COST
+#DIM CONST 必要蓄積度 = 2, 2, 400, 1200
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTL ZPを消費してキャラの受胎体質を変化させることができます。
+PRINTL 任意の体質を選択してください
+PRINTL ※母体への負荷が高いため、特殊な状況での妊娠・出産の経験が必要です。
+PRINTL 　短い期間で出産をしたり、双子などの多胎児の出産を繰り返すことで解放されていきます。
+PRINTL ※条件を満たさないキャラはスキップされます。
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+FOR LOCAL:1 , 0, 4
+	PRINTBUTTON @"[{LOCAL:1}]%受胎体質素質名(LOCAL:1)%　消費ZP:{COST_TO_受胎}（1キャラ分）", LOCAL:1
+	PRINTL
+NEXT
+PRINTBUTTON "[999]戻る", 999
+$INPUT_LOOP3
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 999
+		RETURN 0
+	CASE 0 TO 3
+		PRINTFORML 受胎体質を［%受胎体質素質名(LOCAL:1)%］に変更しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF TALENT:(汎用キャラ配列:LOCAL):受胎体質 == LOCAL:1
+					CONTINUE
+				SIF CFLAG:(汎用キャラ配列:LOCAL):特殊妊娠蓄積度 < 必要蓄積度:(LOCAL:1)
+					CONTINUE
+				SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):性別, 0) == 0
+					CONTINUE
+				必要COST_計算値 = COST_TO_受胎
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: %受胎体質素質名(TALENT:(汎用キャラ配列:LOCAL):受胎体質), 12, LEFT% > %受胎体質素質名(LOCAL:1)%
+				TALENT:(汎用キャラ配列:LOCAL):受胎体質 = LOCAL:1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+		RETURN 0
+ENDSELECT
+
+@発情期素質設定_複数人(対象キャラ)
+#DIM 対象キャラ
+#DIM 表示番号
+#DIM 発情不可フラグ
+#DIM 必要COST
+#DIM 必要COST_計算値
+#DIM CONST COST_TO_発情期 = 20
+VARSET LOCALS
+表示番号 = 0
+発情不可フラグ = 0
+
+DRAWLINE
+PRINTL ZPを消費してキャラの発情期を設定したり、特殊発情を付与・削除することができます。
+PRINTL 種族によっては一部の特殊発情が外せないことがあります。
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+PRINT 発情期を
+PRINTBUTTON "　[100] なしに変更", 100
+PRINTBUTTON "　[0] ありに変更", 0
+PRINTFORML  …  なし：1ZP あり：{COST_TO_発情期}ZP（1キャラ分）
+PRINTL
+PRINT 欲情ブースト（大）を
+PRINTBUTTON "　[101] なしに変更", 101
+PRINTBUTTON "　[1] ありに変更", 1
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 母乳体質化を
+PRINTBUTTON "　[102] なしに変更", 102
+PRINTBUTTON "　[2] ありに変更", 2
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT ふたなり化を
+PRINTBUTTON "　[103] なしに変更", 103
+PRINTBUTTON "　[3] ありに変更", 3
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 危険日周期短縮を
+PRINTBUTTON "　[104] なしに変更", 104
+PRINTBUTTON "　[4] ありに変更", 4
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 体力自動回復を
+PRINTBUTTON "　[105] なしに変更", 105
+PRINTBUTTON "　[5] ありに変更", 5
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 過敏体質（快楽・苦痛＋）を
+PRINTBUTTON "　[106] なしに変更", 106
+PRINTBUTTON "　[6] ありに変更", 6
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 陥没乳首常時勃起を
+PRINTBUTTON "　[107] なしに変更", 107
+PRINTBUTTON "　[7] ありに変更", 7
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINT 女体化を
+PRINTBUTTON "　[108] なしに変更", 108
+PRINTBUTTON "　[8] ありに変更", 8
+PRINTFORML  …  {COST_TO_発情期}ZP（1キャラ分）
+PRINTL
+PRINTBUTTON "　[999] 戻る", 999
+PRINTL
+PRINTL
+
+BINPUT
+LOCAL:1 = RESULT
+SELECTCASE LOCAL:1
+	CASE 100
+		PRINTFORML 発情期を なし に変更します。よろしいですか？
+		PRINTL ※特殊発情は種族に付随するものを除きリセットされます。
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF 発情期存在判定(汎用キャラ配列:LOCAL) == 0
+					CONTINUE
+				必要COST_計算値 = 1
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 発情期削除
+				TALENT:(汎用キャラ配列:LOCAL):発情期あり = -1
+				IF CFLAG:(汎用キャラ配列:LOCAL):発情期フラグ < 0 && GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, 3) && TALENT:(汎用キャラ配列:LOCAL):性別 == 3
+					;女性器ないキャラがふたなり化妊娠中の時は戻さない
+					IF GETBIT(CFLAG:(汎用キャラ配列:LOCAL):元性別保存, 0) != 0 || TALENT:(汎用キャラ配列:LOCAL):妊娠 == 0
+						TALENT:(汎用キャラ配列:LOCAL):性別 = CFLAG:(汎用キャラ配列:LOCAL):元性別保存
+					ENDIF
+				ENDIF
+				IF CFLAG:(汎用キャラ配列:LOCAL):発情期フラグ < 0 && GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, 8) && TALENT:(汎用キャラ配列:LOCAL):性別 == 1
+					;女性器ないキャラが女体化妊娠中の時は戻さない
+					IF GETBIT(CFLAG:(汎用キャラ配列:LOCAL):元性別保存, 0) != 0 || TALENT:(汎用キャラ配列:LOCAL):妊娠 == 0
+						TALENT:(汎用キャラ配列:LOCAL):性別 = CFLAG:(汎用キャラ配列:LOCAL):元性別保存
+					ENDIF
+				ENDIF
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+	CASE 0
+		PRINTL 発情期を あり に変更します。よろしいですか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}）
+		PRINTBUTTONLC "[0] はい", 0
+		PRINTBUTTONLC "[1] いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF 発情期存在判定(汎用キャラ配列:LOCAL)
+					CONTINUE
+				SIF TALENT:(汎用キャラ配列:LOCAL):性欲 == -2
+					CONTINUE
+				SIF TALENT:(汎用キャラ配列:LOCAL):性別 == 0
+					CONTINUE
+				SIF TALENT:(汎用キャラ配列:LOCAL):妊娠不可 == 2
+					CONTINUE
+				SIF TALENT:(汎用キャラ配列:LOCAL):射精不可 == 2
+					CONTINUE
+				必要COST_計算値 = COST_TO_発情期
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 発情期追加
+				TALENT:(汎用キャラ配列:LOCAL):発情期あり = 1
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+	CASE 999
+		RETURN 0
+	CASEELSE
+		SELECTCASE LOCAL:1 % 100
+			CASE 1
+				PRINT 欲情ブースト（大）
+			CASE 2
+				PRINT 母乳体質化
+			CASE 3
+				PRINT ふたなり化
+			CASE 4
+				PRINT 危険日周期短縮
+			CASE 5
+				PRINT 体力自動回復
+			CASE 6
+				PRINT 過敏体質（快楽・苦痛＋）
+			CASE 7
+				PRINT 陥没乳首常時勃起
+			CASE 8
+				PRINT 女体化
+		ENDSELECT
+		IF LOCAL:1 > 100
+			PRINTL を なし に変更します。よろしいですか？
+		ELSE
+			PRINTL を あり に変更します。よろしいですか？
+		ENDIF
+		IF LOCAL:1 == 8
+			PRINTL ※ふたなり化の発情がありの場合、そちらが優先されます。
+		ENDIF
+		PRINTFORML 使用ZP： {必要COST}
+		PRINTBUTTONLC "[0] はい", 0
+		PRINTBUTTONLC "[1] いいえ", 1
+		BINPUT
+		IF RESULT == 0
+			必要COST = 0
+			FOR LOCAL, 0, キャラクタ数上限
+				SIF 汎用キャラ配列:LOCAL < 0
+					BREAK
+				SIF 発情期存在判定(汎用キャラ配列:LOCAL) == 0
+					CONTINUE
+				IF LOCAL:1 > 100
+					SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, LOCAL:1 % 100) == 0
+						CONTINUE
+				ELSE
+					SIF GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, LOCAL:1 % 100)
+						CONTINUE
+				ENDIF
+				必要COST_計算値 = COST_TO_発情期
+				IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+					PRINTL 必要ZPが不足したので処理を停止しました。
+					BREAK
+				ENDIF
+				必要COST += 必要COST_計算値
+				PRINTFORM %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: 
+				SELECTCASE LOCAL:1 % 100
+					CASE 1
+						PRINT 欲情ブースト（大）
+					CASE 2
+						PRINT 母乳体質化
+					CASE 3
+						PRINT ふたなり化
+					CASE 4
+						PRINT 危険日周期短縮
+					CASE 5
+						PRINT 体力自動回復
+					CASE 6
+						PRINT 過敏体質（快楽・苦痛＋）
+					CASE 7
+						PRINT 陥没乳首常時勃起
+					CASE 8
+						PRINT 女体化
+				ENDSELECT
+				IF LOCAL:1 > 100
+					PRINTL 削除
+				ELSE
+					PRINTL 追加
+				ENDIF
+				IF LOCAL:1 == 103 && CFLAG:(汎用キャラ配列:LOCAL):発情期フラグ < 0 && GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, 3) && TALENT:(汎用キャラ配列:LOCAL):性別 == 3
+					;女性器ないキャラがふたなり化妊娠中の時は戻さない
+					IF GETBIT(CFLAG:(汎用キャラ配列:LOCAL):元性別保存, 0) != 0 || TALENT:(汎用キャラ配列:LOCAL):妊娠 == 0
+						TALENT:(汎用キャラ配列:LOCAL):性別 = CFLAG:(汎用キャラ配列:LOCAL):元性別保存
+					ENDIF
+				ENDIF
+				IF LOCAL:1 == 108 && CFLAG:(汎用キャラ配列:LOCAL):発情期フラグ < 0 && GETBIT(TALENT:(汎用キャラ配列:LOCAL):発情期あり, 8) && TALENT:(汎用キャラ配列:LOCAL):性別 == 1
+					;女性器ないキャラが女体化妊娠中の時は戻さない
+					IF GETBIT(CFLAG:(汎用キャラ配列:LOCAL):元性別保存, 0) != 0 || TALENT:(汎用キャラ配列:LOCAL):妊娠 == 0
+						TALENT:(汎用キャラ配列:LOCAL):性別 = CFLAG:(汎用キャラ配列:LOCAL):元性別保存
+					ENDIF
+				ENDIF
+				INVERTBIT TALENT:(汎用キャラ配列:LOCAL):発情期あり, LOCAL:1 % 100
+			NEXT
+			FLAG:ZP所持量 -= 必要COST
+			IF 必要COST <= 0
+				PRINTW 変更条件を満たすキャラが存在しません。
+			ELSE
+				PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+			ENDIF
+		ENDIF
+
+ENDSELECT
+
+RESTART
+
+@ハーレムの心得素質設定_複数人()
+#DIM 対象キャラ
+#DIM CONST 消費ZP = 200
+#DIM 必要COST
+#DIM 必要COST_計算値
+
+DRAWLINE
+PRINTFORML キャラクターにハーレムの心得を取得させます。
+PRINTFORML 恋慕の縁結びをする際、自身が恋慕を既に持っていても縁結びが進行するようになります。
+PRINTFORML 変更時に{消費ZP}ZP（1キャラ分）消費します。
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+PRINTBUTTON "[0] 取得する", 0
+PRINTL
+PRINTBUTTON "[999] 取得せず戻る", 999
+PRINTL
+PRINTL
+
+
+BINPUT
+LOCAL = RESULT
+SELECTCASE LOCAL
+	CASE 999
+		RETURN 0
+	CASE 0
+		必要COST = 0
+		FOR LOCAL, 0, キャラクタ数上限
+			SIF 汎用キャラ配列:LOCAL < 0
+				BREAK
+			SIF TALENT:(汎用キャラ配列:LOCAL):ハーレムの心得
+				CONTINUE
+			必要COST_計算値 = 消費ZP
+			IF 必要COST + 必要COST_計算値 > FLAG:ZP所持量
+				PRINTL 必要ZPが不足したので処理を停止しました。
+				BREAK
+			ENDIF
+			必要COST += 必要COST_計算値
+			PRINTFORML %GET_NAME(汎用キャラ配列:LOCAL, 1, 50), 50, LEFT%: ハーレムの心得追加
+			TALENT:(汎用キャラ配列:LOCAL):ハーレムの心得 = 1
+		NEXT
+		FLAG:ZP所持量 -= 必要COST
+		IF 必要COST <= 0
+			PRINTW 変更条件を満たすキャラが存在しません。
+		ELSE
+			PRINTFORMW 以上のキャラについて処理を実行しました。（消費ZP:{必要COST}）
+		ENDIF
+ENDSELECT

@@ -119,6 +119,8 @@ RESTART
 #DIM 引き継いだキャラ人数
 #DIMS 分割文字列, 3
 #DIM era番号
+#DIM キャラ番号記録, 2
+#DIM 対象キャラ
 
 VARSET LOCAL
 VARSET LOCALS
@@ -315,26 +317,63 @@ AWAIT
 CALL RESET_GRAPH_0
 AWAIT
 
+;客室初期値
+客室テーマ:設定テーマ = 1
+客室テーマ:簡素な部屋 = 1
+客室テーマ:アロハスな部屋 = 1
+客室テーマ:東方風の部屋 = 1
+客室設備:ベッド_通常系列 = 1
+客室設備:家具_テーブル系列 = 1
+配置客室設備:0 = 1
+配置客室設備:1 = 10
+アメニティ:入浴セット系列 = 1
+配置アメニティ:0 = 1
+
 PRINTW パラメータの初期化処理を行います
 PRINTL 
 SAVESTR:10 = /
 LOCAL:1 = CHARANUM / 100
 REDRAW 0
-IF 引き継ぎ中フラグ && キャラ同士関係性データ != ""
-	VARSET LOCALS
-	SPLIT キャラ同士関係性データ, "+++", LOCALS
-	FOR LOCAL, 0, RESULT
-		SPLIT LOCALS:LOCAL, "_", 分割文字列
-		LOCAL:2 = キャラ検索(分割文字列:0)
-		LOCAL:3 = キャラ検索(分割文字列:1)
-		SIF LOCAL:2 > 0 && LOCAL:3 > 0
-			DT_ROW_ADD "関係性データベース", "対象キャラ１", CFLAG:(LOCAL:2):人物番号, "対象キャラ２", CFLAG:(LOCAL:3):人物番号, "関係性種別", 分割文字列:2
+IF 引き継ぎ中フラグ && キャラ縁結び引き継ぎフラグ
+	CALL 周回時縁結び引き継ぎデータベースセット
+	LOADTEXT "dat/縁結び引き継ぎDT_XML.txt"
+	LOCALS:0 = %RESULTS%
+	LOADTEXT "dat/縁結び引き継ぎDT_schema.txt"
+	LOCALS:1 = %RESULTS%
+	DT_FROMXML "縁結び引き継ぎデータベース", LOCALS:1, LOCALS:0
+	FOR LOCAL, 0, DT_ROW_LENGTH("縁結び引き継ぎデータベース")
+		IF DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ１") > 0
+			;通常キャラ
+			キャラ番号記録:0 = GETCHARA(DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ１"))
+		ELSE
+			;ランダムキャラ
+			FOR 対象キャラ, 1, キャラクタ数上限
+				IF ランダムキャラ引き継ぎナンバー記録:対象キャラ:0 == DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ１")
+					キャラ番号記録:0 = 対象キャラ
+					BREAK
+				ENDIF
+			NEXT
+		ENDIF
+		IF DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ２") > 0
+			;通常キャラ
+			キャラ番号記録:1 = GETCHARA(DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ２"))
+		ELSE
+			;ランダムキャラ
+			FOR 対象キャラ, 1, キャラクタ数上限
+				IF ランダムキャラ引き継ぎナンバー記録:対象キャラ:0 == DT_CELL_GET("縁結び引き継ぎデータベース", LOCAL, "対象キャラ２")
+					キャラ番号記録:1 = 対象キャラ
+					BREAK
+				ENDIF
+			NEXT
+		ENDIF
+
+		DT_ROW_ADD "縁結びデータベース", "対象キャラ１", CFLAG:(キャラ番号記録:0):人物番号, "対象キャラ２", CFLAG:(キャラ番号記録:1):人物番号, "進展度", 100, "縁結び種別", DT_CELL_GETS("縁結び引き継ぎデータベース", LOCAL, "関係性種別"), "受け攻め設定", DT_CELL_GETS("縁結び引き継ぎデータベース", LOCAL, "受け攻め設定")
 	NEXT
 ENDIF
 FOR LOCAL, 0, CHARANUM
 	IF LOCAL > 0 && LOCAL <= 引き継いだキャラ人数
 		CALL キャラクター初期化(LOCAL, 1)
-	ELSEIF NO:LOCAL == 999
+	ELSEIF ランダムキャラ判定(NO:LOCAL)
 		CALL キャラクター初期化(LOCAL, 1)
 	ELSE
 		CALL キャラクター初期化(LOCAL)
@@ -350,8 +389,6 @@ CLEARLINE 1
 PRINTL 進行度……100%
 
 REDRAW 1
-
-
 
 PRINTW パラメータの初期化処理が終了しました
 
@@ -494,7 +531,7 @@ IF 引き継ぎ中フラグ
 	VARSET あなた特殊能力引き継ぎ
 	引き継ぎ中フラグ = 0
 	あなた引き継ぎ = 0
-	キャラ同士関係性データ = 
+	キャラ縁結び引き継ぎフラグ = 0
 
 	最大レベル保存_周回 = 最大レベル引き継ぎ
 	;最大レベルに応じて経験値アイテム配布
@@ -525,6 +562,11 @@ SIF OPTION変数:招待画像枚数閾値 < 1
 LOCAL = GETSECOND() / 3600
 ;日単位
 LOCAL:1 = (LOCAL + 19) / 24
+
+;縁結び引き継ぎ用
+SKIPDISP 1
+CALL 縁結び完了処理()
+SKIPDISP 0
 
 IF (REAL_TIME < LOCAL:1)
 	REAL_TIME = LOCAL:1
@@ -562,7 +604,7 @@ IF 引き継ぎ中フラグ
 			;引き継ぎキャラは先に登録
 			LOADCHARA TOSTR(引き継ぎ番号)
 			キャラ番号 += 1
-			IF NO:キャラ番号 == 999
+			IF ランダムキャラ判定(NO:キャラ番号)
 				引き継いだランダムキャラ:ランダム引き継ぎ番号 = ランダムキャラデータ_GET_KEY_FROM_PERSON(, CFLAG:キャラ番号:人物番号)
 				ランダム引き継ぎ番号 += 1
 			ENDIF
@@ -576,7 +618,7 @@ FOR キャラ番号, 1, キャラクタ数上限
 	SIF !EXISTCSV(キャラ番号)
 		CONTINUE
 	;ランダムキャラ排除
-	SIF キャラ番号 == 999
+	SIF ランダムキャラ判定(キャラ番号)
 		CONTINUE
 	;登録済みのキャラ(=引き継ぎキャラ)はスキップ
 	GETCHARA キャラ番号
@@ -598,13 +640,6 @@ FOR キャラ番号, 1, キャラクタ数上限
 		NEXT
 		CALL 弱点妥当性チェック(設定中キャラ番号)
 	ENDIF
-
-	;eraエンドを見てるならeraをキャラ解放
-	IF エンディングイベント完了フラグ確認("era") > 0 && キャラ番号 == 998
-		CFLAG:設定中キャラ番号:招待不可フラグ = 0
-		CFLAG:設定中キャラ番号:滞在期間 = 999
-		TALENT:設定中キャラ番号:妊娠不可 = 1
-	ENDIF
 NEXT
 
 ;引き継ぎランダムキャラの追加
@@ -615,10 +650,16 @@ IF 引き継ぎ中フラグ
 			LOCAL ++
 			CONTINUE
 		ENDIF
-		ADDCHARA 999
-		設定中キャラ番号 = CHARANUM - 1
 		FOR 引き継ぎ番号, 0, キャラクタ数上限
 			IF キャラ変数引き継ぎ:引き継ぎ番号:キャラナンバー == LOCAL * -1
+				;ランダムキャラじゃないCSV番号は入らないはずだがエラー防止のため一応フォロー
+				IF ランダムキャラ判定(キャラ変数引き継ぎ:引き継ぎ番号:ランダムキャラCSV)
+					ADDCHARA キャラ変数引き継ぎ:引き継ぎ番号:ランダムキャラCSV
+				ELSE
+					ADDCHARA 999
+				ENDIF
+				設定中キャラ番号 = CHARANUM - 1
+
 				EXP:設定中キャラ番号:肉体熟知 = キャラ変数引き継ぎ:引き継ぎ番号:肉体熟知
 				FOR 弱点配列, 0, 50
 					弱点看破:設定中キャラ番号:弱点配列 = キャラ変数引き継ぎ:引き継ぎ番号:(弱点配列 + 2)
@@ -633,10 +674,13 @@ IF 引き継ぎ中フラグ
 		CALL ランダムキャラデータ_SET(, LOCAL, "人物番号", 0, CFLAG:設定中キャラ番号:人物番号)
 
 		;素質の調整
-		NAME:設定中キャラ番号 = [一般人]%CALLNAME:設定中キャラ番号%
+		IF NO:設定中キャラ番号 == 999
+			NAME:設定中キャラ番号 = [一般人]%CALLNAME:設定中キャラ番号%
+		ENDIF
 		TALENT:設定中キャラ番号:従業員 = 0
 		TALENT:設定中キャラ番号:定住者 = 0
 		CFLAG:設定中キャラ番号:招待不可フラグ = 0
+		ランダムキャラ引き継ぎナンバー記録:設定中キャラ番号:0 = LOCAL * -1
 
 		LOCAL ++
 	WEND
@@ -658,6 +702,7 @@ VARSET CSTR切り分け文字列格納
 ;全員睡眠状態
 CFLAG:ARG:睡眠 = 1
 CFLAG:ARG:滞在期間 = -1
+
 CFLAG:ARG:現在位置 = 999
 CFLAG:ARG:現在マップ種別 = 0
 BASE:ARG:酩酊 = 0
@@ -691,7 +736,10 @@ CFLAG:ARG:酔いすぎ = 0
 
 IF 引き継ぎキャラフラグ == 0
 	;招待時同行キャラ
-	IF CSTR:ARG:同行キャラ != ""
+	IF ランダムキャラ判定(NO:ARG)
+		;ランダムキャラの場合、招待時同行キャラを初期値記録ＤＢの値で初期化
+		CALL ランダムキャラ初期化処理_同行候補キャラ(, ARG, 0)
+	ELSEIF CSTR:ARG:同行キャラ != ""
 		VARSET LOCALS
 		REPLACE CSTR:ARG:同行キャラ, " ", ""
 		SPLIT RESULTS, "%", LOCALS
@@ -852,7 +900,7 @@ ELSE
 	SIF !BASE:ARG:身長
 		CALL INIT_BODYSIZE(ARG)
 
-	;同行キャラをCSVを見て入れ直す
+	;同行キャラを入れ直す
 	VARSET LOCAL
 	VARSET LOCALS
 	;まず引き継ぎキャラ同士の同行記録を見る
@@ -870,25 +918,33 @@ ELSE
 			LOCAL += 1
 		NEXT
 	ENDIF
-	;招待時同行キャラをCSVから見直す
-	VARSET LOCALS
-	CSTR:ARG:同行キャラ = %CSVCSTR(NO:ARG, GETNUM(CSTR, "同行キャラ"))%
-	REPLACE CSTR:ARG:同行キャラ, " ", ""
-	SPLIT RESULTS, "%", LOCALS
-	FOR LOCAL, 0, 100
-		SIF LOCALS:LOCAL == ""
-			BREAK
-		SPLIT LOCALS:LOCAL, "_", CSTR切り分け文字列格納
-		キャラ番号記録 = FINDCHARA(NAME, CSTR切り分け文字列格納:0)
-		SIF キャラ番号記録 < 0
-			CONTINUE
-		SIF FINDELEMENT(同行候補キャラ番号:ARG:0, キャラ番号記録) > -1
-			CONTINUE
-		;同行キャラ格納格納:0に名前、同行キャラ格納:1に確率が入っているはず
-		同行候補キャラ番号:ARG:(LOCAL:1) = キャラ番号記録
-		同行候補キャラ確率:ARG:(LOCAL:1) = TOINT(CSTR切り分け文字列格納:1)
-		LOCAL:1 += 1
-	NEXT
+	IF ランダムキャラ判定(NO:ARG)
+		;ランダムキャラの場合、招待時同行キャラを初期値記録ＤＢから見直す
+		CALL ランダムキャラ初期化処理_同行候補キャラ(, ARG, LOCAL:1)
+		LOCAL:1 = RESULT
+	ELSE
+		;非ランダムキャラの場合、招待時同行キャラをCSVから見直す
+		CSTR:ARG:同行キャラ '= CSVCSTR(NO:ARG, GETNUM(CSTR, "同行キャラ"))
+		IF CSTR:ARG:同行キャラ != ""
+			VARSET LOCALS
+			REPLACE CSTR:ARG:同行キャラ, " ", ""
+			SPLIT RESULTS, "%", LOCALS
+			FOR LOCAL, 0, 100
+				SIF LOCALS:LOCAL == ""
+					BREAK
+				SPLIT LOCALS:LOCAL, "_", CSTR切り分け文字列格納
+				キャラ番号記録 = FINDCHARA(NAME, CSTR切り分け文字列格納:0)
+				SIF キャラ番号記録 < 0
+					CONTINUE
+				SIF FINDELEMENT(同行候補キャラ番号:ARG:0, キャラ番号記録) > -1
+					CONTINUE
+				;同行キャラ格納格納:0に名前、同行キャラ格納:1に確率が入っているはず
+				同行候補キャラ番号:ARG:(LOCAL:1) = キャラ番号記録
+				同行候補キャラ確率:ARG:(LOCAL:1) = TOINT(CSTR切り分け文字列格納:1)
+				LOCAL:1 += 1
+			NEXT
+		ENDIF
+	ENDIF
 	;キャラ妊娠引き継ぎ時
 	IF TALENT:ARG:妊娠
 		;引き継ぎキャラが種親の場合、-10000するとキャラIDになるようにいじってある
@@ -922,9 +978,21 @@ CALL INIT_RELATION(ARG)
 ;初期関係性のセット、引き継ぎキャラの場合は先に設定してあるので同じ処理でOK
 CALL 初期関係性データベース登録(ARG)
 
+;ランダムキャラの場合、親子関係を初期化
+IF ランダムキャラ判定(NO:ARG)
+	CALL ランダムキャラ初期化処理_出生(, ARG)
+ENDIF
+
 ;性癖の設定
 IF TALENT:ARG:性愛傾向 == 3
 	性癖素質:ARG:同性愛 = 2
+ENDIF
+
+;eraエンドを見てるならeraをキャラ解放
+IF エンディングイベント完了フラグ確認("era") > 0 && NO:ARG == 998
+	CFLAG:ARG:招待不可フラグ = 0
+	CFLAG:ARG:滞在期間 = 999
+	TALENT:ARG:妊娠不可 = 1
 ENDIF
 
 
@@ -1656,7 +1724,7 @@ ELSE
 	LOCALS += @"<font color='#%LOCALS:1%'>属性：%属性数値文字列変換(基礎BATTLE_STATE:キャラ番号:属性)%</font>"
 ENDIF
 LOCALS += @"　得意武器：%得意武器表示文字列(基礎BATTLE_STATE:キャラ番号:得意武器)%　"
-LOCALS += @"　タイプ：%タイプ数値文字列変換(基礎BATTLE_STATE:キャラ番号:ステータスタイプ保存)%"
+LOCALS += @"　タイプ：%タイプ表示関数(キャラ番号)%"
 LOCALS += "<br><br>"
 LOCALS += "□ 情報 □---------------------------------------------------------------------<br>"
 LOCALS += @"　種族：%GET_TALENTNAME(200,TALENT:キャラ番号:種族,,キャラ番号)%"
@@ -2246,7 +2314,7 @@ FOR LOCAL, 0, 追加人数
 		PRINTL 未選択
 	ELSE
 		PRINTBUTTON "[外す]", 9900 + LOCAL
-		PRINTFORML 　%GET_NAME(追加候補:LOCAL, 1, 24)%
+		PRINTFORML 　%GET_NAME(追加候補:LOCAL, 1)%
 	ENDIF
 NEXT
 PRINTL 
@@ -2419,7 +2487,10 @@ GOTO 表示ループ
 #DIM キャラ番号記録
 #DIMS CSTR切り分け文字列格納, 2
 
-IF CSTR:対象キャラ:初期関係性 != ""
+IF ランダムキャラ判定(NO:対象キャラ)
+	;ランダムキャラの場合、初期値記録ＤＢの値で初期化
+	CALL ランダムキャラ初期化処理_初期関係性(, 対象キャラ)
+ELSEIF CSTR:対象キャラ:初期関係性 != ""
 	VARSET LOCALS
 	REPLACE CSTR:対象キャラ:初期関係性, " ", ""
 	SPLIT RESULTS, "%", LOCALS
@@ -2430,8 +2501,12 @@ IF CSTR:対象キャラ:初期関係性 != ""
 		キャラ番号記録 = FINDCHARA(NAME, CSTR切り分け文字列格納:0)
 		SIF キャラ番号記録 < 0
 			CONTINUE
+		;同行率セット
+		IF GET_RELATION(対象キャラ, キャラ番号記録) / 100 < 80
+			CALL SET_同行候補(対象キャラ, キャラ番号記録, 8000)
+		ENDIF
 		;同一組み合わせはスキップ
-		SIF DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号}) And (対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号})")
+		SIF DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号}) And (対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号}) And 関係性種別 = '%CSTR切り分け文字列格納:1%'")
 			CONTINUE
 		;既に恋慕があるなら恋慕初期はスキップ
 		SIF CSTR切り分け文字列格納:1 == "恋慕" && (DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号}) And 関係性種別 = '恋慕'") || TALENT:対象キャラ:恋慕 || TALENT:キャラ番号記録:恋慕)

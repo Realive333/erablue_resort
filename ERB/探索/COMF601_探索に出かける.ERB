@@ -77,9 +77,18 @@ ELSE
 	PRINTL
 ENDIF
 PRINTL 
-PRINTBUTTONLC "[2] 自動探索編成", 2
-PRINTL 
-PRINTL 　　　：業務［自動探索］に設定したキャラが赴くダンジョンを設定します
+IF あなた特殊能力:ダンジョン探索PRO
+	PRINTBUTTONLC "[2] 自動探索編成", 2
+	PRINTL 
+	PRINTL 　　　：業務［自動探索］に設定したキャラが赴くダンジョンを設定します
+ELSE
+	SETCOLOR カラーパレット("グレーアウト")
+	PRINTPLAIN [2] 自動探索編成
+	PRINTL 
+	PRINTL 　　　：業務［自動探索］に設定したキャラが赴くダンジョンを設定します
+	RESETCOLOR
+	PRINTL 　　　　※あなた特殊能力［ダンジョン探索PRO Lv1］が必要です
+ENDIF
 PRINTL 
 PRINTL
 PRINTBUTTONLC "[998] システムの説明", 998
@@ -99,6 +108,7 @@ SELECTCASE RESULT
 		LOCAL = 100000
 		PRINTL 外を探索し、魔物を討伐しました。
 		PRINTFORML お金を{LOCAL}ルピ手に入れました
+		PRINTW あなたとパーティメンバーの探索経験が増加しました
 		MONEY += LOCAL
 		ITEM:eraの性愛アニマ += 100
 		ITEM:eraの恋心アニマ += 100
@@ -117,9 +127,13 @@ SELECTCASE RESULT
 				EXP:(BATTLE_STATE:ループ用:キャラ登録番号):探索経験 ++
 				CALL SOURCE_CALC_好感度要素_信頼度UP(BATTLE_STATE:ループ用:キャラ登録番号, PLAYER, 100)
 				TCVAR:(BATTLE_STATE:ループ用:キャラ登録番号):摂取カロリー -= 200
+				IF SAVESTR:ゲームフェイズ管理 != "通常モード"
+					CALL Love_CALC(BATTLE_STATE:ループ用:キャラ登録番号, 1)
+					CALL FAVOR_CALC(BATTLE_STATE:ループ用:キャラ登録番号, 1)
+					VARSET NOWEX:(BATTLE_STATE:ループ用:キャラ登録番号):0, 0
+				ENDIF
 			ENDIF
 		NEXT
-		PRINTW あなたとパーティメンバーの探索経験が増加しました
 		TIME += 120
 		探索フラグ ++
 	CASE 1

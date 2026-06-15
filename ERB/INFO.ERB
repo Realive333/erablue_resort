@@ -333,7 +333,7 @@ IF OPTION変数:サイド領域非表示 == 0
 ENDIF
 ;時計画像表示
 CALL INFO_CLOCK_IMAGE(TIME)
-IF TIME > 1440
+IF TIME >= 1440
 	DAY ++
 	TIME -= 1440
 ENDIF
@@ -770,6 +770,7 @@ IF TARGET || (GETBIT(FLAG:モード管理, モードビット_指示) && PLAYER 
 		PRINT (前後不覚
 		PRINT_IMG "えっちハート"
 		PRINT )
+		RESETCOLOR
 	ENDIF
 	; 意識状態(睡眠/トランス)
 	CALL 意識状態表示(TARGET)
@@ -1079,8 +1080,16 @@ CALL MODE_BUTTON
 
 
 @SAVEINFO
+
 LOCALS = %月算出()%
-PUTFORM {RESULT}年目 %LOCALS% {DAY % 30 + 1}日(%GET_DAY()%)
+LOCALS = {RESULT}年目 %月算出()% {DAY % 30 + 1}日(%GET_DAY()%)
+
+IF STR:セーブコメント保存 != ""
+	PUTFORM %LOCALS, 22, LEFT% %リゾート名称% 人気度：%リゾート人気度全文字列()% %STR:セーブコメント保存%
+ELSE
+	PUTFORM %LOCALS, 22, LEFT% %リゾート名称% 人気度：%リゾート人気度全文字列()%
+ENDIF
+
 
 @SHOW_EQUIP_2
 ;状況の表示
@@ -1287,7 +1296,7 @@ HTML_PRINT LOCALS, 1
 
 IF OPTION変数:PLAYER画像オフ
 ELSE
-	HTML文字列 = %顔グラ表示用文字列関数(PLAYER, 1000)%
+	HTML文字列 = %顔グラ表示用文字列関数(PLAYER, 1111)%
 	IF STRFIND(HTML文字列, "顔ノーイメ") < 0
 		HTML_PRINT @"<div rect='4300, -650, 1125, 1350'>%HTML文字列%</div>", 1
 	ENDIF
@@ -1577,6 +1586,7 @@ NEXT
 @AFFAIR_DISCLOSURE(対象キャラ, うふふ終了フラグ, 在室キャラ, 在室キャラ:1)
 #DIM 対象キャラ
 #DIM うふふ終了フラグ
+#DIM 分身番号
 #DIMS REF 在室キャラ
 #DIM L_TMP
 #DIMS L_TMPS, 2
@@ -1604,7 +1614,16 @@ ELSEIF LOCAL:1 && CFLAG:(LOCAL:1):うふふ && うふふ終了フラグ == 0 && 
 			DRAWLINE
 			RETURN 0
 		ELSE
-			CFLAG:対象キャラ:情事目撃 = LOCAL:1
+			IF TALENT:(LOCAL:1):分身
+				FOR 分身番号, 0, 分身最大数
+					IF 分身登録:分身番号:0 == LOCAL:1
+						CFLAG:対象キャラ:情事目撃 = 分身登録:分身番号:1
+						BREAK
+					ENDIF
+				NEXT
+			ELSE
+				CFLAG:対象キャラ:情事目撃 = LOCAL:1
+			ENDIF
 			LOCAL:2 = 1
 		ENDIF
 	ENDIF

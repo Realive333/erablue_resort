@@ -13,8 +13,14 @@ VARSET LOCALS
 CALL 画面再描画
 CALL 口上変数初期化
 
-エネミー画像ボタン化フラグ = 1
+IF クイック行動フラグ
+	エネミー画像ボタン化フラグ = 3
+ELSE
+	エネミー画像ボタン化フラグ = 1
+ENDIF
+
 キャラ画像ボタン化フラグ = 1
+
 
 CALL 奥義名呼び出し(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
 表示不可フラグ = RESULT
@@ -22,7 +28,11 @@ CALL 奥義名呼び出し(BATTLE_STATE:戦闘行動キャラ:キャラ登録番
 IF デバフ番号取得("奥義封印", 戦闘行動キャラ) >= 0 || 表示不可フラグ == -1
 	KSTR:(K++) = <button value = '100'>[100] 通常攻撃</button>　　　<font color='#%カラーパレット_HTML("グレーアウト")%'>[101] 奥義：%TSTR:コマンド名受渡%</font>
 ELSEIF 表示不可フラグ == 0
-	KSTR:(K++) = <button value = '100'>[100] 通常攻撃</button>　　　<button value = '101'>[101] 奥義：%TSTR:コマンド名受渡%</button>
+	IF デバフ番号取得("通常攻撃封印", 戦闘行動キャラ) >= 0
+		KSTR:(K++) = <font color='#%カラーパレット_HTML("グレーアウト")%'>[100] 通常攻撃</font>　　　<button value = '101'>[101] 奥義：%TSTR:コマンド名受渡%</button>
+	ELSE
+		KSTR:(K++) = <button value = '100'>[100] 通常攻撃</button>　　　<button value = '101'>[101] 奥義：%TSTR:コマンド名受渡%</button>
+	ENDIF
 ELSE
 	KSTR:(K++) = <button value = '100'>[100] 通常攻撃</button>
 ENDIF
@@ -65,6 +75,8 @@ ENDIF
 
 IF 装備ステータス補正保存:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号):装備証番号 < 1
 	;証装備なし
+	VARSET 証アビ関数名保存
+	VARSET RESULTS
 ELSE
 	VARSET 証アビ関数名保存
 	VARSET RESULTS
@@ -79,12 +91,12 @@ ELSE
 		IF TSTR:コマンド名受渡 != ""
 			IF デバフ番号取得("アビリティ封印", 戦闘行動キャラ) >= 0 || アビテンプレート用_アビ封印用フラグ || 消費ＭＰ > BATTLE_STATE:戦闘行動キャラ:ＭＰ
 				IF アビ使用確認スキップフラグ == 0
-					NSTR:(K++) = <font color='#%カラーパレット_HTML("グレーアウト")%'><button value = '{120 + LOCAL}'>[{120 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</button></font>
+					NSTR:(K++) = <font color='#%カラーパレット_HTML("グレーアウト")%'><button value = '{130 + LOCAL}'>[{130 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</button></font>
 				ELSE
-					NSTR:(K++) = <font color='#%カラーパレット_HTML("グレーアウト")%'>[{120 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</font>
+					NSTR:(K++) = <font color='#%カラーパレット_HTML("グレーアウト")%'>[{130 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</font>
 				ENDIF
 			ELSE
-				NSTR:(K++) = <button value = '{120 + LOCAL}'>[{120 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</button>
+				NSTR:(K++) = <button value = '{130 + LOCAL}'>[{130 + LOCAL}] %TSTR:コマンド名受渡, 24, LEFT%</button>
 			ENDIF
 			証アビ関数名保存:LOCAL = %RESULTS:LOCAL%
 			LOCAL:1 += 1
@@ -315,7 +327,7 @@ SELECTCASE 戦闘行動内容
 		エネミー画像ボタン化フラグ = 0
 		キャラ画像ボタン化フラグ = 0
 		上メニュー操作許可フラグ = 0
-	CASE 110 TO 129
+	CASE 110 TO 139
 		エネミー画像ボタン化フラグ = 0
 		キャラ画像ボタン化フラグ = 0
 		上メニュー操作許可フラグ = 0
@@ -397,7 +409,7 @@ SELECTCASE 戦闘行動内容
 		ENDIF
 ;		IF 奥義使用確認スキップフラグ == 0 || 奥義威力保存 < 1
 		;奥義使用確認ON、または威力0の奥義の場合使用確認が挟まる
-		確認スキップ = !(奥義使用確認スキップフラグ == 0 || 奥義威力保存 < 1)
+		確認スキップ = !(奥義使用確認スキップフラグ == 0 || 奥義威力保存 < 1) * 3
 		エネミー画像ボタン化フラグ = 確認スキップ
 		KSTR:(K++) = \@ 確認スキップ? 攻撃対象を選んで下さい# <button value='0'>[0]使用する</button>\@　　　　　<button value='999'>[999]戻る</button>
 		詳細文文字列受け渡し変数 = 
@@ -532,7 +544,7 @@ SELECTCASE 戦闘行動内容
 			ENDIF
 		NEXT
 		
-	CASE 110 TO 119
+	CASE 110 TO 129
 		CALL 口上変数初期化
 		アビテンプレート用_アビ封印用フラグ = 0
 		CALLFORM %アビ関数名保存:(戦闘行動内容 - 110)%("アビ名", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
@@ -616,17 +628,17 @@ SELECTCASE 戦闘行動内容
 			BATTLE_STATE:戦闘行動キャラ:ＭＰ -= 消費MP一時保存
 			CALL アビテンプレート用_表示メッセージ変換処理
 		ENDIF
-	CASE 120 TO 129
+	CASE 130 TO 139
 		CALL 口上変数初期化
 		VARSET RESULTS
-		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 120)%(@"アビ名", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
+		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 130)%(@"アビ名", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
 		アビテンプレート用_アビ名 = %TSTR:コマンド名受渡%
 		口上用技名保存 = %TSTR:コマンド名受渡%
 		;ここに来てる時点で存在しないアビが選ばれてことは無いはずなので例外規定は作らない
 		証番号 = 装備ステータス補正保存:(BATTLE_STATE:戦闘行動キャラ:キャラ登録番号):装備証番号
 		;消費MP算出
 		RESULT = 0
-		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 120)%(@"アビ説明文", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
+		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 130)%(@"アビ説明文", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
 		説明保存 = %詳細文文字列受け渡し変数%
 		消費MP一時保存 = RESULT
 		;内部に状態異常などの単語がある場合、ツールチップで説明文を登録
@@ -650,7 +662,7 @@ SELECTCASE 戦闘行動内容
 				KSTR:(K++) = <button value='0'>[0]使用する</button>　　　　　<button value='999'>[999]戻る</button>
 			ENDIF
 			詳細文文字列受け渡し変数 = 
-			CALLFORM %証アビ関数名保存:(戦闘行動内容 - 120)%(@"アビ説明文_詳細", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
+			CALLFORM %証アビ関数名保存:(戦闘行動内容 - 130)%(@"アビ説明文_詳細", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
 			IF 詳細文文字列受け渡し変数 != ""
 				KSTR:(K - 1) += "　　　　　<button value='998'>[998]詳細を見る</button>"
 			ENDIF
@@ -690,7 +702,7 @@ SELECTCASE 戦闘行動内容
 			ENDIF
 		ENDIF
 		CALL 口上変数初期化
-		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 120)%(@"アビ効果", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
+		CALLFORM %証アビ関数名保存:(戦闘行動内容 - 130)%(@"アビ効果", BATTLE_STATE:戦闘行動キャラ:キャラ登録番号)
 		IF アビテンプレート用_キャンセルフラグ
 			アビテンプレート用_キャンセルフラグ = 0
 			RETURN -1

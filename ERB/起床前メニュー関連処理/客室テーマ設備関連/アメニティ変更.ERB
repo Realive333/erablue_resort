@@ -1,0 +1,124 @@
+﻿
+@アメニティ変更(配置番号)
+#DIM 配置番号
+
+DRAWLINE
+PRINTL 設置するアメニティを選択してください。
+PRINT 設定中アメニティ：
+IF 配置アメニティ:配置番号 > 0
+	TSTR:コマンド名受渡 = 
+	TSTR:ツールチップ受渡 = 
+	CALLFORM アメニティ_%ERDNAME(アメニティ, 配置アメニティ:配置番号)%("名前取得", アメニティ:(配置アメニティ:配置番号))
+	IF TSTR:ツールチップ受渡 != ""
+		HTML_PRINT @"<nonbutton  title='%TSTR:ツールチップ受渡%'>%TSTR:コマンド名受渡%</nonbutton>", 1
+		PRINTL
+	ELSE
+		PRINTFORML %TSTR:コマンド名受渡%
+	ENDIF
+ELSE
+	PRINTL ----------
+ENDIF
+DRAWLINE
+FOR LOCAL, 1, VARSIZE("アメニティ")
+	SIF アメニティ:LOCAL < 1
+		CONTINUE
+	SIF MATCH(配置アメニティ, LOCAL)
+		CONTINUE
+	TSTR:コマンド名受渡 = 
+	TSTR:ツールチップ受渡 = 
+	CALLFORM アメニティ_%ERDNAME(アメニティ, LOCAL)%("名前取得", アメニティ:LOCAL)
+	IF TSTR:ツールチップ受渡 != ""
+		HTML_PRINT @"<button value='{LOCAL}' title='%TSTR:ツールチップ受渡%'>[{LOCAL}] %TSTR:コマンド名受渡%</button>", 1
+		PRINTL
+	ELSE
+		HTML_PRINT @"<button value='{LOCAL}'>[{LOCAL}] %TSTR:コマンド名受渡%</button>", 1
+		PRINTL
+	ENDIF
+NEXT
+PRINTL
+IF 配置アメニティ:配置番号 > 0
+	PRINTBUTTON "[998] 設定中の設備を外す", 998
+	PRINTL
+ELSE
+	SETCOLOR カラーパレット("グレーアウト")
+	PRINTPLAIN [998] 設定中の設備を外す
+	RESETCOLOR
+	PRINTL
+ENDIF
+PRINTBUTTON "[999] 戻る", 999
+PRINTL
+PRINTL
+BINPUT
+PRINTL
+PRINTL
+SELECTCASE RESULT
+	CASE 999
+		RETURN 0
+	CASE 998
+		TSTR:コマンド名受渡 = 
+		TSTR:ツールチップ受渡 = 
+		CALLFORM アメニティ_%ERDNAME(アメニティ, 配置アメニティ:配置番号)%("名前取得", アメニティ:(配置アメニティ:配置番号))
+		PRINTFORMW アメニティ「%TSTR:コマンド名受渡%」を解除しました。
+		配置アメニティ:配置番号 = 0
+	CASEELSE
+		配置アメニティ:配置番号 = RESULT
+		TSTR:コマンド名受渡 = 
+		TSTR:ツールチップ受渡 = 
+		CALLFORM アメニティ_%ERDNAME(アメニティ, 配置アメニティ:配置番号)%("名前取得", アメニティ:(配置アメニティ:配置番号))
+		DRAWLINE
+		PRINTFORML アメニティ「%TSTR:コマンド名受渡%」を設置しました。
+		IF TSTR:ツールチップ受渡 != ""
+			DRAWLINE
+			HTML_PRINT TSTR:ツールチップ受渡
+			DRAWLINE
+		ENDIF
+		WAIT
+ENDSELECT
+
+
+@アメニティ_入浴セット系列(動作モード, Lv指定 = 1)
+#DIMS 動作モード
+#DIM Lv指定
+
+SELECTCASE Lv指定
+	CASE 1
+		SELECTCASE 動作モード
+			CASE "名前取得"
+				TSTR:コマンド名受渡 = 入浴セット
+				TSTR:ツールチップ受渡 = 普通の入浴セット。<br>
+				TSTR:ツールチップ受渡 += "浴衣やバスタオルなどの必要最低限の入浴グッズがひとまとめになっている。<br>"
+				;価格を返す
+				RETURN 3000
+		ENDSELECT
+	CASE 2
+		SELECTCASE 動作モード
+			CASE "名前取得"
+				TSTR:コマンド名受渡 = 高級入浴セット
+				TSTR:ツールチップ受渡 = ちょっと高級な入浴セット。<br>
+				TSTR:ツールチップ受渡 += "浴衣やバスタオル、ひげ剃りなどの他に化粧水やドラフ用の角磨き布などが準備されている。<br>"
+				TSTR:ツールチップ受渡 += "化粧水はローションタイプで粘膜に触れても大丈夫なタイプ。<br>"
+				;価格を返す
+				RETURN 20000
+		ENDSELECT
+ENDSELECT
+
+RETURN -1
+
+
+@アメニティ_遊戯場クーポン系列(動作モード, Lv指定 = 1)
+#DIMS 動作モード
+#DIM Lv指定
+
+SELECTCASE Lv指定
+	CASE 1
+		SELECTCASE 動作モード
+			CASE "名前取得"
+				TSTR:コマンド名受渡 = 遊戯場３ゲーム無料券
+				TSTR:ツールチップ受渡 = 遊戯場で遊ぶ際に何度か無料になるクーポン券。<br>
+				TSTR:ツールチップ受渡 += "設置すると観光客が遊戯場に訪れやすくなる。<br>"
+				;価格を返す
+				RETURN 4000
+		ENDSELECT
+ENDSELECT
+
+RETURN -1

@@ -23,6 +23,21 @@ CALLFORM ROUTINE_SCHEDULE_%移動ルーチン:対象キャラ:ルーチンID%(�
 
 
 
+@外出先_自宅設定_200(対象キャラ)
+#FUNCTION
+#DIM 対象キャラ
+
+IF NO:対象キャラ == 997
+	;タピィラ
+	RESULT:1 = 1
+ELSEIF NO:対象キャラ == 410
+	;シトリ
+	RESULT:1 = 2
+ENDIF
+
+;それ以外は自宅なし
+RESULT:1 = -1
+
 ;------------------------------------------------------------------------------
 ;タピィラ用ルーチンセット
 ;家にずっといる
@@ -44,6 +59,8 @@ SELECTCASE ARGS
 		RETURN 時間計算
 
 	CASE "就寝場所"
+		RESULT:1 = 200
+		RESULT:2 = 1
 		RETURN 1
 
 	CASE "初期位置"
@@ -103,6 +120,8 @@ SELECTCASE ARGS
 		RETURN 時間計算
 
 	CASE "就寝場所"
+		RESULT:1 = 200
+		RESULT:2 = 2
 		RETURN 1
 
 	CASE "初期位置"
@@ -167,6 +186,8 @@ SELECTCASE ARGS
 		RETURN 時間計算
 
 	CASE "就寝場所"
+		RESULT:1 = 200
+		RESULT:2 = 4
 		RETURN 1
 
 	CASE "初期位置"

@@ -350,7 +350,7 @@ IF 港改造度:0:0
 	IF RAND:4 == 0
 		属性登録 = 
 		店増加数 ++ 
-		LOCAL = RAND(-4, -1)
+		LOCAL = RAND(-4, 0)
 		STRDATA RESULTS
 			DATA 雑貨屋
 			DATA 食堂
@@ -419,7 +419,7 @@ CFLAG:MASTER:起床時刻 = 1440 * DAY + TIME
 ;調教者は誰か
 PLAYER = MASTER
 
-IF FLAG:お出かけ先フラグ > 0
+IF FLAG:外出先番号 > 0
 	CALL 外出共通初期処理()
 ENDIF
 
@@ -429,9 +429,11 @@ ENDIF
 #DIM 秘書人数
 #DIM 対象キャラ
 #DIM 告白キャラ
+#DIM プロポーズキャラ
 #DIM 起こしに来る秘書
 #DIM レイヤー記録
 #DIM PLAYER記録
+#DIM 精液量保存
 
 VARSET LOCAL
 VARSET 秘書一覧
@@ -441,6 +443,7 @@ FOR LOCAL,1,CHARANUM
 		TARGET = LOCAL
 NEXT
 告白キャラ = 起床時告白キャラ判定()
+プロポーズキャラ = 起床時プロポーズキャラ判定()
 秘書人数 = 0
 FOR LOCAL, 1, CHARANUM
 	SIF TALENT:LOCAL:従業員 == 0
@@ -475,6 +478,28 @@ IF FLAG:挿入睡眠相手記録
 		CFLAG:(FLAG:挿入睡眠相手記録):現在マップ種別 = 部屋検索_マップ種別
 		;経験取得表示スキップ用
 		TCVAR:(FLAG:挿入睡眠相手記録):436 = EXP:(FLAG:挿入睡眠相手記録):ダウン経験
+
+		IF STRFIND(SAVESTR:挿入睡眠モード記録, "Ｖ") > -1
+			;精液処理
+			IF TALENT:MASTER:射精不可 == 2
+				;未精通は空打ち扱い
+			ELSEIF TALENT:MASTER:射精不可
+			ELSE
+				;射精量は固定でいいか
+				精液量保存 = 最大射精量(MASTER)
+				IF GETBIT(CFLAG:(FLAG:挿入睡眠相手記録):妊娠個別設定フラグ, 0)
+					SIF GETBIT(CFLAG:(FLAG:挿入睡眠相手記録):妊娠個別設定フラグ, 3) == 0
+						CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+				ELSE
+					SELECTCASE OPTION変数:夜這い時妊娠
+						CASE 0
+							CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+						CASE 1
+							CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+					ENDSELECT
+				ENDIF
+			ENDIF
+		ENDIF
 	ELSE
 		;挿入歩きパターン
 		CALL PRINT_STRL(@"IMAGEPATH_%CSTR:(FLAG:挿入睡眠相手記録):画像フォルダ%/起床時_挿入歩き系")
@@ -482,6 +507,26 @@ IF FLAG:挿入睡眠相手記録
 		PRINTFORM 先に起きていた%CALLNAME:(FLAG:挿入睡眠相手記録)%はゆっくりと
 		IF STRFIND(SAVESTR:挿入睡眠モード記録, "Ｖ") > -1
 			PRINT 膣内から
+
+			;精液処理
+			IF TALENT:MASTER:射精不可 == 2
+				;未精通は空打ち扱い
+			ELSEIF TALENT:MASTER:射精不可
+			ELSE
+				;射精量は固定でいいか
+				精液量保存 = 最大射精量(MASTER)
+				IF GETBIT(CFLAG:(FLAG:挿入睡眠相手記録):妊娠個別設定フラグ, 0)
+					SIF GETBIT(CFLAG:(FLAG:挿入睡眠相手記録):妊娠個別設定フラグ, 3) == 0
+						CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+				ELSE
+					SELECTCASE OPTION変数:夜這い時妊娠
+						CASE 0
+							CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+						CASE 1
+							CALL TAKE_SPERM((FLAG:挿入睡眠相手記録), MASTER, 精液量保存)
+					ENDSELECT
+				ENDIF
+			ENDIF
 		ELSE
 			PRINT 尻穴から
 		ENDIF
@@ -506,6 +551,8 @@ ELSEIF TARGET
 		ENDIF
 		TRYCALLFORM KOJO_EVENT_逆おはよう_{NO:TARGET}(TARGET)
 	ENDIF
+ELSEIF プロポーズキャラ > 0
+	CALL 起床時プロポーズ処理(プロポーズキャラ)
 ELSEIF 告白キャラ > 0
 	CALL 起床時告白処理(告白キャラ)
 ELSEIF 秘書人数 > 0
@@ -719,10 +766,15 @@ ELSEIF 秘書人数 > 0
 			CALL 汎用一枚絵画像_名称算出(起こしに来る秘書, "秘書朝起こし_", "ペッティング")
 			CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/%RESULTS%")
 			IF レイヤー記録 == TFLAG:口上用画像表示番号
-				;専用画像が表示されてないということなので、現在の服のV挿入画像を見る
+				;専用画像が表示されてないということなので、現在の服のコマンド実行時_プレイヤー側_愛撫.画像を探す
 				PLAYER記録 = PLAYER
 				PLAYER = 起こしに来る秘書
-				CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/%コマンド実行時画像名称変換処理(起こしに来る秘書, "愛撫")%")
+				TFLAG:TARGET保存用 = PLAYER
+				CALL 汎用一枚絵画像_名称算出(起こしに来る秘書, "コマンド実行時_プレイヤー側_", "愛撫")
+				;現在の服の画像が無いので、デフォルト衣装の画像を探す
+				SIF RESULTS == ""
+					CALL 汎用一枚絵画像_名称算出(起こしに来る秘書, "コマンド実行時_プレイヤー側_", "愛撫", "デフォルト")
+				CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/コマンド実行時_プレイヤー側_%RESULTS%")
 				PLAYER = PLAYER記録
 			ENDIF
 			PRINTFORMW 目を開けてみると、%CALLNAME:起こしに来る秘書%が%CALLNAME:MASTER%の体を愛撫していた。
@@ -769,8 +821,12 @@ ELSEIF 秘書人数 > 0
 			CALL 汎用一枚絵画像_名称算出(起こしに来る秘書, "秘書朝起こし_", "キス")
 			CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/%RESULTS%")
 			IF レイヤー記録 == TFLAG:口上用画像表示番号
-				;専用画像が表示されてないということなので、現在の服のV挿入画像を見る
-				CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/%コマンド実行時画像名称変換処理(起こしに来る秘書, "キス")%")
+				;専用画像が表示されてないということなので、現在の服のコマンド実行時_キス.画像を探す
+				LOCALS '= コマンド実行時画像名称変換処理(起こしに来る秘書, "キス")
+				;現在の服の画像が無いので、デフォルト衣装の画像を探す
+				SIF LOCALS == ""
+					LOCALS '= コマンド実行時画像名称変換処理(起こしに来る秘書, "キス", "デフォルト")
+				CALL PRINT_STRL(@"IMAGEPATH_%CSTR:起こしに来る秘書:画像フォルダ%/コマンド実行時_%LOCALS%")
 			ENDIF
 			PRINTFORMW 目を開けてみると、%CALLNAME:起こしに来る秘書%が%CALLNAME:MASTER%の唇にキスをしている。
 			PRINTFORMW これも秘書の務めと、朝キスで起こしにきてくれたようだ。
@@ -821,12 +877,13 @@ BASE:ARG:体力 = MAXBASE:ARG:体力
 
 IF OPTION変数:編成解除時の装備解除
 	;装備解除
-	装備ステータス補正保存:ARG:装備証番号 = 0
-	IF 装備ステータス補正保存:ARG:装備指輪番号
+	SIF CFLAG:ARG:ジョブ証変更禁止 == 0
+		装備ステータス補正保存:ARG:装備証番号 = 0
+	IF 装備ステータス補正保存:ARG:装備指輪番号 && CFLAG:ARG:指輪変更禁止 == 0
 		DT_CELL_SET "所持指輪データベース", 装備ステータス補正保存:ARG:装備指輪番号, "装備キャラ番号", 0, 1
 		装備ステータス補正保存:ARG:装備指輪番号 = 0
 	ENDIF
-	IF 装備ステータス補正保存:ARG:装備耳飾り番号
+	IF 装備ステータス補正保存:ARG:装備耳飾り番号 && CFLAG:ARG:耳飾り変更禁止 == 0
 		DT_CELL_SET "所持耳飾りデータベース", 装備ステータス補正保存:ARG:装備耳飾り番号, "装備キャラ番号", 0, 1
 		装備ステータス補正保存:ARG:装備耳飾り番号 = 0
 	ENDIF

@@ -7,6 +7,7 @@
 #DIM 表示位置
 #DIM 描画開始位置
 #DIM 描画幅
+#DIM 潜伏フラグ
 レイヤー番号 = 10
 
 FOR LOCAL, 0, 10
@@ -20,6 +21,13 @@ NEXT
 FOR LOCAL, 0, 10
 	SIF 敵BATTLE_STATE_STR:LOCAL:エネミー名 == ""
 		CONTINUE
+
+	;潜伏バフ時に選択出来なくする場面の場合、フラグをONにしとく
+	潜伏フラグ = 0
+	IF GETBIT(エネミー画像ボタン化フラグ, 1) && バフ存在判定("潜伏", LOCAL + 10)
+		潜伏フラグ = 1
+	ENDIF
+
 	IF 敵BATTLE_STATE:LOCAL:ボスフラグ
 		GCREATE レイヤー番号, 470, 184
 		GCREATE レイヤー番号 + 20, 470, 184
@@ -32,7 +40,7 @@ FOR LOCAL, 0, 10
 	LOCAL:2 = 敵BATTLE_STATE:LOCAL:ＨＰ
 	LOCAL:3 = 敵BATTLE_STATE:LOCAL:最大ＨＰ
 	GSETBRUSH レイヤー番号, 属性数値文字色変換_透明度込(敵BATTLE_STATE:LOCAL:属性)
-	IF LOCAL:2 <= 0
+	IF LOCAL:2 <= 0 || 潜伏フラグ
 		GSETBRUSH レイヤー番号, カラーパレット_透明度込("戦闘不能")
 	ENDIF
 	IF 敵BATTLE_STATE:LOCAL:ボスフラグ
@@ -45,7 +53,7 @@ FOR LOCAL, 0, 10
 		GFILLRECTANGLE レイヤー番号, 5, 5, 225, 82
 	ENDIF
 	GSETBRUSH レイヤー番号, 0xFFC0C0C0
-	IF LOCAL:2 <= 0
+	IF LOCAL:2 <= 0 || 潜伏フラグ
 		GSETBRUSH レイヤー番号, カラーパレット_透明度込("戦闘不能")
 	ENDIF
 	GDRAWTEXT レイヤー番号, @"%敵BATTLE_STATE_STR:LOCAL:エネミー名%", 10, 10
@@ -181,6 +189,8 @@ NEXT
 
 
 @戦闘画像表示部分
+#DIM 潜伏フラグ
+
 ;表示部分
 VARSET LOCALS
 VARSET LOCAL
@@ -208,10 +218,17 @@ FOR LOCAL, 0, 10
 		LOCAL:1 = 362
 	SIF 敵BATTLE_STATE_STR:LOCAL:エネミー名 == ""
 		CONTINUE
+
+	;潜伏バフ時に選択出来なくする場面の場合、フラグをONにしとく
+	潜伏フラグ = 0
+	IF GETBIT(エネミー画像ボタン化フラグ, 1) && バフ存在判定("潜伏", LOCAL + 10)
+		潜伏フラグ = 1
+	ENDIF
+
 	LOCAL:2 = 敵BATTLE_STATE:LOCAL:ＨＰ
 	IF 敵BATTLE_STATE:(LOCAL):ボスフラグ
 		LOCALS += @"<div rect='{LOCAL:1},{1125 + (LOCAL / 2) * 575},3125,1250'>"
-		IF エネミー画像ボタン化フラグ && LOCAL:2 > 0
+		IF エネミー画像ボタン化フラグ && LOCAL:2 > 0 && 潜伏フラグ == 0
 			LOCALS += @"<button value='{LOCAL + 10}' ><img src='エネミー_{LOCAL}' srcb='エネミー_{LOCAL}_ボタン' height='1037' width='2650'></button>"
 		ELSE
 			LOCALS += @"<nonbutton><img src='エネミー_{LOCAL}' height='1037' width='2650'></nonbutton>"
@@ -220,7 +237,7 @@ FOR LOCAL, 0, 10
 		LOCAL += 3
 	ELSE
 	LOCALS += @"<div rect='{LOCAL:1 + (LOCAL % 2) * 1469},{1125 + (LOCAL / 2) * 575},1462,510'>"
-		IF エネミー画像ボタン化フラグ && LOCAL:2 > 0
+		IF エネミー画像ボタン化フラグ && LOCAL:2 > 0 && 潜伏フラグ == 0
 			LOCALS += @"<button value='{LOCAL + 10}' ><img src='エネミー_{LOCAL}' srcb='エネミー_{LOCAL}_ボタン' height='511' width='1305'></button>"
 		ELSE
 			LOCALS += @"<nonbutton><img src='エネミー_{LOCAL}' height='511' width='1305'></nonbutton>"

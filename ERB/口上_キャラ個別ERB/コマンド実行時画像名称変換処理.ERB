@@ -1,5 +1,5 @@
 ;
-@コマンド実行時画像名称変換処理(対象キャラ, コマンド名)
+@コマンド実行時画像名称変換処理(対象キャラ, コマンド名, カテゴリ指定 = "")
 #FUNCTIONS
 #DIM  対象キャラ
 #DIM  実行キャラ
@@ -7,6 +7,7 @@
 #DIMS コマンド画像名称
 #DIMS コマンド派生名称
 #DIMS キャラ衣装識別
+#DIMS カテゴリ指定
 
 ;DEBUGPRINTFORML @コマンド実行時画像名称変換処理(%CALLNAME:対象キャラ%, %コマンド名%)
 
@@ -14,6 +15,13 @@
 コマンド画像名称 '= ""
 
 キャラ衣装識別 '= ""
+
+;体位を変えるは挿入と同一にする
+IF コマンド名 == "Ａ体位を変える"
+	コマンド名 = Ａ挿入する
+ELSEIF コマンド名 == "体位を変える"
+	コマンド名 = Ｖ挿入する
+ENDIF
 
 キャラ衣装識別 '= REPLACE(CSTR:対象キャラ:顔グラ表示切り替え用文字列, "顔_", "")
 SIF キャラ衣装識別 == ""
@@ -23,30 +31,26 @@ SIF キャラ衣装識別 == ""
 SIF キャラ衣装識別 == ""
 	キャラ衣装識別 = デフォルト
 
+SIF カテゴリ指定 != ""
+	キャラ衣装識別 '= カテゴリ指定
+
 コマンド画像名称 '= GRAP_COM_RAND(対象キャラ, "コマンド実行時_", キャラ衣装識別, コマンド名)
 
-SIF コマンド画像名称 != ""
-	RETURNF コマンド画像名称
+; SIF コマンド画像名称 != ""
+; 	RETURNF コマンド画像名称
 
+LOCALS '= ""
 SELECTCASE 1
 	CASE GROUPMATCH(コマンド名, "Ｖ挿入する", "Ｇスポ責め", "ポルチオ責め", "種付けプレス", "子宮口挿入", "角ハンドル", "尻尾ひっぱり後背位", "首筋甘噛み交尾", "おっぱい手綱正常位") > 0
 		;V性交系
-		コマンド画像名称 '= コマンド実行時画像文字列算出処理(対象キャラ)
-	CASE GROUPMATCH(コマンド名, "入口を責める", "子宮裏を責める", "Ｓ字結腸責め", "角ハンドルＡ", "尻尾ひっぱり後背位A") > 0
+		LOCALS '= コマンド実行時画像文字列算出処理(対象キャラ, コマンド名)
+	CASE GROUPMATCH(コマンド名, "Ａ挿入する", "入口を責める", "子宮裏を責める", "Ｓ字結腸責め", "角ハンドルＡ", "尻尾ひっぱり後背位Ａ") > 0
 		;A性交系
-		コマンド画像名称 '= コマンド実行時画像文字列算出処理(対象キャラ)
+		LOCALS '= コマンド実行時画像文字列算出処理(対象キャラ, コマンド名)
 	CASEELSE
 ENDSELECT
-
-;★%名称%%体位%だと意図しない動作になる(最初の判定で別の体位の画像を呼んでしまう場合がある)ので%体位%%名称%にする
-コマンド派生名称 '= ""
-コマンド派生名称 '= REPLACE(コマンド画像名称, @"コマンド実行時_%キャラ衣装識別%_", "") + @"%コマンド名%"
-
-IF コマンド画像名称 != "" && GRAP_COM_RAND(対象キャラ, "コマンド実行時_", キャラ衣装識別, @"%コマンド派生名称%") != ""
-	コマンド画像名称 '= GRAP_COM_RAND(対象キャラ, "コマンド実行時_", キャラ衣装識別, @"%コマンド派生名称%")
-	SIF コマンド画像名称 == ""
-		コマンド画像名称 '= GRAP_COM_RAND(対象キャラ, "コマンド実行時_", キャラ衣装識別, コマンド画像名称)
-ENDIF
+SIF LOCALS != ""
+	RETURNF LOCALS
 
 IF コマンド画像名称 == ""
 	;自慰の場合はTARGET保存から値を持ってくる
@@ -63,44 +67,35 @@ IF コマンド画像名称 == ""
 		キャラ衣装識別 = デフォルト
 	コマンド画像名称 '= GRAP_COM_RAND(実行キャラ, "コマンド実行時_プレイヤー側_", キャラ衣装識別, コマンド名)
 
-	IF コマンド画像名称 != ""
-		コマンド画像名称 '= "プレイヤー側_" + コマンド画像名称
-		RETURNF コマンド画像名称
-	ENDIF
-
+	;IF コマンド画像名称 != ""
+	;	コマンド画像名称 '= "プレイヤー側_" + コマンド画像名称
+	;	RETURNF コマンド画像名称
+	;ENDIF
+	LOCALS '= ""
 	SELECTCASE 1
 		CASE GROUPMATCH(コマンド名, "Ｖ挿入する", "Ｇスポ責め", "ポルチオ責め", "種付けプレス", "子宮口挿入", "角ハンドル", "尻尾ひっぱり後背位", "首筋甘噛み交尾", "おっぱい手綱正常位") > 0
 			;V性交系
-			コマンド画像名称 '= コマンド実行時画像文字列算出処理(実行キャラ)
-		CASE GROUPMATCH(コマンド名, "入口を責める", "子宮裏を責める", "Ｓ字結腸責め", "角ハンドルＡ", "尻尾ひっぱり後背位A") > 0
+			LOCALS '= コマンド実行時画像文字列算出処理_プレイヤー側(実行キャラ, コマンド名)
+		CASE GROUPMATCH(コマンド名, "Ａ挿入する", "入口を責める", "子宮裏を責める", "Ｓ字結腸責め", "角ハンドルＡ", "尻尾ひっぱり後背位Ａ") > 0
 			;A性交系
-			コマンド画像名称 '= コマンド実行時画像文字列算出処理(実行キャラ)
+			LOCALS '= コマンド実行時画像文字列算出処理_プレイヤー側(実行キャラ, コマンド名)
 		CASEELSE
 	ENDSELECT
-
-	;★%名称%%体位%だと意図しない動作になる(最初の判定で別の体位の画像を呼んでしまう場合がある)ので%体位%%名称%にする
-	コマンド派生名称 '= ""
-	コマンド派生名称 '= REPLACE(コマンド画像名称, @"コマンド実行時_プレイヤー側_%キャラ衣装識別%_", "") + @"%コマンド名%"
-
-	IF コマンド画像名称 != "" && GRAP_COM_RAND(実行キャラ, "コマンド実行時_プレイヤー側_", キャラ衣装識別, @"%コマンド派生名称%") != ""
-		コマンド画像名称 '= GRAP_COM_RAND(実行キャラ, "コマンド実行時_プレイヤー側_", キャラ衣装識別, @"%コマンド派生名称%")
-		SIF コマンド画像名称 == ""
-			コマンド画像名称 '= GRAP_COM_RAND(実行キャラ, "コマンド実行時_プレイヤー側_", キャラ衣装識別, コマンド画像名称)
-	ENDIF
-
-	IF コマンド画像名称 != ""
+	SIF LOCALS != ""
+		RETURNF LOCALS
+	SIF コマンド画像名称 != ""
 		コマンド画像名称 '= "プレイヤー側_" + コマンド画像名称
-		RETURNF コマンド画像名称
-	ENDIF
 ENDIF
 
 RETURNF コマンド画像名称
 
-@コマンド実行時画像文字列算出処理(対象キャラ)
+@コマンド実行時画像文字列算出処理(対象キャラ, コマンド名)
 #FUNCTIONS
 #DIM  対象キャラ
 #DIMS 文字列記憶
 #DIMS D_NAME
+#DIMS コマンド名
+#DIM DYNAMIC NO_CLOTH
 
 VARSET LOCAL
 VARSET 差分エフェクト
@@ -115,10 +110,12 @@ IF LOCALS == ""
 	SIF CSTR:対象キャラ:表示グラフィックカテゴリ == ""
 		CSTR:対象キャラ:表示グラフィックカテゴリ = デフォルト
 	;LOCALS = %TYPE + CSTR:対象キャラ:表示グラフィックカテゴリ%
-	LOCALS = %CSTR:対象キャラ:表示グラフィックカテゴリ%
+	LOCALS = コマンド実行時_%CSTR:対象キャラ:表示グラフィックカテゴリ%
 ENDIF
 
 LOCALS '= LOCALS + "_"
+
+$処理部分
 
 ;;DEBUGPRINTFORML LOCALS == %LOCALS%
 ;;DEBUGPRINTFORML CSTR:対象キャラ:表示グラフィックカテゴリ == %CSTR:対象キャラ:表示グラフィックカテゴリ%
@@ -128,7 +125,7 @@ IF MODE_存在判定_ターゲット側("Ｖ挿入系", 対象キャラ)
 	FOR LOCAL, 0, VARSIZE("V_FRONT")
 		IF MODE_存在判定_ターゲット側(V_FRONT:LOCAL, 対象キャラ)
 			LOCAL:1 ++
-			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_FRONT:LOCAL, "", "") && D_NAME == ""
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_FRONT:LOCAL + コマンド名, "", "") && D_NAME == ""
 				D_NAME '= RESULTS
 			;;DEBUGPRINTFORML  D_NAME == %D_NAME%
 		ENDIF
@@ -136,7 +133,7 @@ IF MODE_存在判定_ターゲット側("Ｖ挿入系", 対象キャラ)
 	FOR LOCAL, 0, VARSIZE("V_BACK")
 		IF MODE_存在判定_ターゲット側(V_BACK:LOCAL, 対象キャラ)
 			LOCAL:2 ++
-			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_BACK:LOCAL, "", "") && D_NAME == ""
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_BACK:LOCAL + コマンド名, "", "") && D_NAME == ""
 				D_NAME '= RESULTS
 			;;DEBUGPRINTFORML  D_NAME == %D_NAME%
 		ENDIF
@@ -144,13 +141,13 @@ IF MODE_存在判定_ターゲット側("Ｖ挿入系", 対象キャラ)
 	;なければ正面体位は正常位を、背面体位は後背位を表示する
 	IF LOCAL:1 && D_NAME == ""
 		VARSET 差分エフェクト
-		IF コマンド画像差分抽出(対象キャラ, "", LOCALS, "正常位", "", "") && D_NAME == ""
+		IF コマンド画像差分抽出(対象キャラ, "", LOCALS, "正常位" + コマンド名, "", "") && D_NAME == ""
 			D_NAME '= RESULTS
 			;;DEBUGPRINTFORML  D_NAME == %D_NAME%
 		ENDIF
 	ELSEIF LOCAL:2 && D_NAME == ""
 		VARSET 差分エフェクト
-		IF コマンド画像差分抽出(対象キャラ, "", LOCALS, "後背位", "", "") && D_NAME == ""
+		IF コマンド画像差分抽出(対象キャラ, "", LOCALS, "後背位" + コマンド名, "", "") && D_NAME == ""
 			D_NAME '= RESULTS
 			;;DEBUGPRINTFORML  D_NAME == %D_NAME%
 		ENDIF
@@ -163,21 +160,21 @@ IF MODE_存在判定_ターゲット側("Ａ挿入系", 対象キャラ)
 	FOR LOCAL, 0, VARSIZE("A_FRONT")
 		IF MODE_存在判定_ターゲット側(A_FRONT:LOCAL, 対象キャラ)
 			LOCAL:1 ++
-			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_FRONT:LOCAL, "", "") && D_NAME == ""
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_FRONT:LOCAL + コマンド名, "", "") && D_NAME == ""
 				D_NAME '= RESULTS
 		ENDIF
 	NEXT
 	FOR LOCAL, 0, VARSIZE("A_BACK")
 		IF MODE_存在判定_ターゲット側(A_BACK:LOCAL, 対象キャラ)
 			LOCAL:2 ++
-			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_BACK:LOCAL, "", "") && D_NAME == ""
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_BACK:LOCAL + コマンド名, "", "") && D_NAME == ""
 				D_NAME '= RESULTS
 		ENDIF
 	NEXT
 	;なければ正面体位はA正常位を、背面体位はA後背位を表示する
-	SIF LOCAL:1 && コマンド画像差分抽出(対象キャラ, "", LOCALS, "Ａ正常位", "") && D_NAME == ""
+	SIF LOCAL:1 && コマンド画像差分抽出(対象キャラ, "", LOCALS, "Ａ正常位" + コマンド名, "") && D_NAME == ""
 		D_NAME '= RESULTS
-	SIF LOCAL:2 && コマンド画像差分抽出(対象キャラ, "", LOCALS, "Ａ後背位", "") && D_NAME == ""
+	SIF LOCAL:2 && コマンド画像差分抽出(対象キャラ, "", LOCALS, "Ａ後背位" + コマンド名, "") && D_NAME == ""
 		D_NAME '= RESULTS
 ENDIF
 
@@ -185,8 +182,118 @@ ENDIF
 SIF D_NAME != ""
 	RETURNF D_NAME
 
+IF NO_CLOTH == 0
+	LOCALS = コマンド実行時_
+	NO_CLOTH ++
+	GOTO 処理部分
+ENDIF
+
 RETURNF ""
 
+@コマンド実行時画像文字列算出処理_プレイヤー側(対象キャラ, コマンド名)
+#FUNCTIONS
+#DIM  対象キャラ
+#DIMS 文字列記憶
+#DIMS D_NAME
+#DIMS コマンド名
+#DIM DYNAMIC NO_CLOTH
+#DIM 再確認
+
+VARSET LOCAL
+VARSET 差分エフェクト
+
+D_NAME '= ""
+
+LOCALS '= REPLACE(CSTR:対象キャラ:短冊グラ表示切り替え用文字列, "短冊_", "コマンド実行時_プレイヤー側_")
+SIF LOCALS == ""
+	LOCALS '= REPLACE(CSTR:対象キャラ:顔グラ表示切り替え用文字列, "顔_", "コマンド実行時_プレイヤー側_")
+
+IF LOCALS == ""
+	SIF CSTR:対象キャラ:表示グラフィックカテゴリ == ""
+		CSTR:対象キャラ:表示グラフィックカテゴリ = デフォルト
+	;LOCALS = %TYPE + CSTR:対象キャラ:表示グラフィックカテゴリ%
+	LOCALS = コマンド実行時_プレイヤー側_%CSTR:対象キャラ:表示グラフィックカテゴリ%
+ENDIF
+
+LOCALS '= LOCALS + "_"
+
+$処理部分
+
+IF MODE_存在判定_プレイヤー側("Ｖ挿入系", 対象キャラ)
+	;各体位の挿入差分があればそれを表示する
+	FOR LOCAL, 0, VARSIZE("V_FRONT")
+		IF 再確認 || MODE_存在判定_プレイヤー側(V_FRONT:LOCAL, 対象キャラ)
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_FRONT:LOCAL + コマンド名, "", "")
+				D_NAME '= RESULTS
+			;なければ正常位を探す
+			IF LOCAL && D_NAME == ""
+				LOCAL = -1
+				再確認 = 1
+			ELSE
+				再確認 = 0
+				BREAK
+			ENDIF
+		ENDIF
+	NEXT
+	IF D_NAME == ""
+		FOR LOCAL, 0, VARSIZE("V_BACK")
+			IF 再確認 || MODE_存在判定_プレイヤー側(V_BACK:LOCAL, 対象キャラ)
+				SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, V_BACK:LOCAL + コマンド名, "", "")
+					D_NAME '= RESULTS
+				IF LOCAL && D_NAME == ""
+					LOCAL = -1
+					再確認 = 1
+				ELSE
+					再確認 = 0
+					BREAK
+				ENDIF
+			ENDIF
+		NEXT
+	ENDIF
+ENDIF
+IF D_NAME == "" && MODE_存在判定_プレイヤー側("Ａ挿入系", 対象キャラ)
+	;各体位の挿入差分があればそれを表示する
+	FOR LOCAL, 0, VARSIZE("A_FRONT")
+		IF 再確認 || MODE_存在判定_プレイヤー側(A_FRONT:LOCAL, 対象キャラ)
+			SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_FRONT:LOCAL + コマンド名, "", "")
+				D_NAME '= RESULTS
+			IF LOCAL && D_NAME == ""
+				LOCAL = -1
+				再確認 = 1
+			ELSE
+				再確認 = 0
+				BREAK
+			ENDIF
+		ENDIF
+	NEXT
+	IF D_NAME == ""
+		FOR LOCAL, 0, VARSIZE("A_BACK")
+			IF 再確認 || MODE_存在判定_プレイヤー側(A_BACK:LOCAL, 対象キャラ)
+				SIF コマンド画像差分抽出(対象キャラ, "", LOCALS, A_BACK:LOCAL + コマンド名, "", "")
+					D_NAME '= RESULTS
+				IF LOCAL && D_NAME == ""
+					LOCAL = -1
+					再確認 = 1
+				ELSE
+					再確認 = 0
+					BREAK
+				ENDIF
+			ENDIF
+		NEXT
+	ENDIF
+ENDIF
+
+;差分が見つかればそれを、なければ空文字
+SIF D_NAME != ""
+	RETURNF D_NAME
+
+IF NO_CLOTH == 0
+	LOCALS = コマンド実行時_プレイヤー側_
+	NO_CLOTH ++
+	GOTO 処理部分
+ENDIF
+
+RETURNF ""
 
 @コマンド画像差分抽出(対象キャラ, TYPE, TYPE:1, DIFF, DIFF:1="", DIFF:2="", TYPE:2="", DIFF:3="")
 #FUNCTION
@@ -298,13 +405,15 @@ RETURNF RESULTS
 
 
 
-@汎用一枚絵画像_名称算出(ARG, TYPE, PIC_NAME)
+@汎用一枚絵画像_名称算出(ARG, TYPE, PIC_NAME, カテゴリ指定 = "")
 #DIMS PIC_NAME
 #DIMS TYPE
 #DIMS キャラ衣装識別
+#DIMS カテゴリ指定
 
 ;GRAP_COM_RANDを利用した一枚絵の検索
 ;妊娠、及び衣装変更などに対応
+;EXACTに0を指定した場合、条件に合致する一枚絵が見つからない場合
 
 キャラ衣装識別 '= REPLACE(CSTR:ARG:顔グラ表示切り替え用文字列, "顔_", "")
 SIF キャラ衣装識別 == ""
@@ -313,5 +422,7 @@ SIF キャラ衣装識別 == ""
 	キャラ衣装識別 '= CSTR:ARG:表示グラフィックカテゴリ
 SIF キャラ衣装識別 == ""
 	キャラ衣装識別 = デフォルト
+SIF カテゴリ指定 != ""
+	キャラ衣装識別 '= カテゴリ指定
 
 RESULTS '= GRAP_COM_RAND(ARG, TYPE, キャラ衣装識別, PIC_NAME)

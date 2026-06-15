@@ -93,6 +93,14 @@ ENDIF
 PRINT 　　
 PRINTBUTTON "[説明]", 105
 PRINTL
+IF キャラ縁結び引き継ぎフラグ
+	HTML_PRINT @"<button value='107'>[107] キャラの縁結び成立状態を引き継ぐ / <font color='#%カラーパレット_HTML("グレーアウト")%'>引き継がない</font></button>", 1
+ELSE
+	HTML_PRINT @"<button value='107'>[107] キャラの縁結び成立状態を<font color='#%カラーパレット_HTML("グレーアウト")%'>引き継ぐ</font> / 引き継がない</button>", 1
+ENDIF
+PRINT 　　
+PRINTBUTTON "[説明]", 108
+PRINTL
 DRAWLINE
 
 PRINT 周回後のスタート地点：
@@ -177,6 +185,16 @@ SELECTCASE LOCAL
 		PRINTL 
 		FORCEWAIT
 		RESTART
+	CASE 107
+		INVERTBIT キャラ縁結び引き継ぎフラグ, 0
+		RESTART
+	CASE 108
+		DRAWLINE
+		PRINTFORML キャラクター同士の成立した縁結びを引き継ぎます。
+		PRINTFORML 連続デートなどの記録はリセットされます。成立していない縁結びは引き継がれません。
+		PRINTL ※この機能は現在無条件で解放されていますが、開発が進んだ時、解放条件が設定される可能性があります。
+		WAIT
+		RESTART
 	CASE 999
 		IF 戻れないフラグ == 0
 			VARSET 引き継ぎキャラ番号
@@ -201,27 +219,42 @@ ENDSELECT
 @引き継ぎ枠判定
 #FUNCTION
 #DIM 引き継ぎ枠
-引き継ぎ枠 = 0
 
 ;ハーレム能力に応じて増加
 SELECTCASE あなた特殊能力:ハーレム
 	CASE 1
-		引き継ぎ枠 += 1
+		引き継ぎ枠 = 1
 	CASE 2
-		引き継ぎ枠 += 1
+		引き継ぎ枠 = 1
 	CASE 3
-		引き継ぎ枠 += 2
+		引き継ぎ枠 = 2
 	CASE 4
-		引き継ぎ枠 += 3
+		引き継ぎ枠 = 3
 	CASE 5
-		引き継ぎ枠 += 10
+		引き継ぎ枠 = 10
 ENDSELECT
 
+IF 引き継ぎ数記録:ハーレム能力 < 引き継ぎ枠
+	引き継ぎ数記録:ハーレム能力 = 引き継ぎ枠
+ENDIF
+
 ;セフレ数に応じて増加
-引き継ぎ枠 += SQRT(MIN(あなたセフレ人数(), 100))
+引き継ぎ枠 = SQRT(MIN(あなたセフレ人数(), 100))
+
+IF 引き継ぎ数記録:セフレ人数 < 引き継ぎ枠
+	引き継ぎ数記録:セフレ人数 = 引き継ぎ枠
+ENDIF
+
+;視聴済みED数に応じて増加
+引き継ぎ数記録:ＥＤ視聴数 = 0
+FOR LOCAL, 0, DT_ROW_LENGTH("エンディング用変数配列")
+	IF DT_CELL_GET("エンディング用変数配列", LOCAL, "イベント完了フラグ") == 1
+		引き継ぎ数記録:ＥＤ視聴数 += 5
+	ENDIF
+NEXT
 
 ;最低１人
-引き継ぎ枠 = MAX(引き継ぎ枠, 1)
+引き継ぎ枠 = MAX(SUMARRAY(引き継ぎ数記録), 1)
 RETURNF 引き継ぎ枠
 
 @引き継ぎ不能キャラ(キャラ番号)
@@ -335,6 +368,7 @@ ENDIF
 #DIM 候補数
 #DIM 相手キャラ
 #DIM 引き継ぎ枠
+#DIM NO記録, 2
 ; ・引き継ぐデータ
 ; あなた特殊能力・ランダムキャラの存在（従業員ではなくなります）
 ; 各キャラへの肉体熟知及び弱点開示状況・所持ルピ・指輪・耳飾り・素材アイテム
@@ -342,6 +376,9 @@ ENDIF
 ; その他一部の特殊なフラグ
 
 引き継ぎ中フラグ = 1
+
+;必要なデータベースをセット
+CALL 周回時縁結び引き継ぎデータベースセット
 
 ;人物データベースを最後に更新しておく
 FOR LOCAL, 0, CHARANUM
@@ -424,8 +461,9 @@ SAVETEXT RESULTS:1, "dat/Rキャラ初期値DT_schema.txt"
 LOCAL:1 = 0
 FOR LOCAL, 1, CHARANUM
 	キャラ変数引き継ぎ:(LOCAL):キャラナンバー = NO:LOCAL
-	IF NO:LOCAL == 999
+	IF ランダムキャラ判定(NO:LOCAL)
 		キャラ変数引き継ぎ:(LOCAL):キャラナンバー = ランダムキャラデータ_GET_KEY_FROM_PERSON(, CFLAG:LOCAL:人物番号) * -1
+		キャラ変数引き継ぎ:(LOCAL):ランダムキャラCSV = NO:LOCAL
 	ENDIF
 	キャラ変数引き継ぎ:(LOCAL):肉体熟知 = EXP:LOCAL:肉体熟知
 	IF キャラ弱点引き継ぎフラグ
@@ -446,7 +484,19 @@ ARRAYCOPY "画像サイズ切り替えOPTION記憶", "画像サイズ切り替�
 ARRAYCOPY "一日終了時オナニーOPTION", "一日終了時オナニー引き継ぎ"
 ARRAYCOPY "ITEM", "アイテム引き継ぎ"
 
-
+IF キャラ縁結び引き継ぎフラグ
+	IF DT_ROW_LENGTH("縁結びデータベース") > 0
+		FOR LOCAL, 0, DT_ROW_LENGTH("縁結びデータベース")
+			;縁結びデータベースのうち、成立済みをコピー
+			SIF DT_CELL_GET("縁結びデータベース", LOCAL, "完遂フラグ") < 1
+				CONTINUE
+			;人物番号をNOに直す
+			NO記録:0 = キャラ変数引き継ぎ:(FIND_CHARA_FROM_PERSON_ID(DT_CELL_GET("縁結びデータベース", LOCAL, "対象キャラ１"))):キャラナンバー
+			NO記録:1 = キャラ変数引き継ぎ:(FIND_CHARA_FROM_PERSON_ID(DT_CELL_GET("縁結びデータベース", LOCAL, "対象キャラ２"))):キャラナンバー
+			DT_ROW_ADD "縁結び引き継ぎデータベース", "対象キャラ１", NO記録:0, "対象キャラ２", NO記録:1, "関係性種別", DT_CELL_GETS("縁結びデータベース", LOCAL, "縁結び種別"), "受け攻め設定", DT_CELL_GETS("縁結びデータベース", LOCAL, "受け攻め設定")
+		NEXT
+	ENDIF
+ENDIF
 
 VARSET あなた特殊能力引き継ぎ
 VARSET あなた技巧引き継ぎ
@@ -472,7 +522,6 @@ ELSEIF あなた引き継ぎフラグ == 1
 ENDIF
 
 ;選択したキャラの退避
-キャラ同士関係性データ = 
 引き継ぎ人数 = 引き継ぎ枠
 FOR LOCAL, 0, 引き継ぎ枠
 	IF 引き継ぎキャラ番号:LOCAL > 0
@@ -538,7 +587,7 @@ FOR LOCAL, 0, 引き継ぎ枠
 						ENDIF
 						;引き継ぎキャラ以外の場合
 						IF LOCAL:1 == 引き継ぎ枠 - 1
-							IF NO:(CFLAG:(引き継ぎキャラ番号:LOCAL):子の父親) == 999 && !ランダムキャラ引き継ぎフラグ
+							IF ランダムキャラ判定(NO:(CFLAG:(引き継ぎキャラ番号:LOCAL):子の父親)) && !ランダムキャラ引き継ぎフラグ
 								CFLAG:(引き継ぎキャラ番号:LOCAL):子の父親 = 999
 							ELSE
 								CFLAG:(引き継ぎキャラ番号:LOCAL):子の父親 = キャラ変数引き継ぎ:(引き継ぎキャラ番号:LOCAL):キャラナンバー
@@ -553,26 +602,45 @@ FOR LOCAL, 0, 引き継ぎ枠
 		AWAIT
 
 		;キャラ同士恋慕セフレの記録
-		VARSET RESULT
-		候補数 = DT_SELECT("関係性データベース", @"対象キャラ１ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号} Or 対象キャラ２ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号}")
-		IF 候補数
-			FOR LOCAL:1, 1, 候補数 + 1
-				相手キャラ = FIND_CHARA_FROM_PERSON_ID(関係性_相手人物番号取得(CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号, RESULT:(LOCAL:1)))
-				SIF 相手キャラ <= 0
-					CONTINUE
-				SIF MATCH(引き継ぎキャラ番号, 相手キャラ) < 1
-					CONTINUE
-				;既にあるならスルー
-				SIF STRFIND(キャラ同士関係性データ, @"%NAME:(引き継ぎキャラ番号:LOCAL)%_%NAME:相手キャラ%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%") >= 0
-					CONTINUE
-				SIF STRFIND(キャラ同士関係性データ, @"%NAME:相手キャラ%_%NAME:(引き継ぎキャラ番号:LOCAL)%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%") >= 0
-					CONTINUE
-				;引き継ぎ用に登録
-				キャラ同士関係性データ += @"%NAME:(引き継ぎキャラ番号:LOCAL)%_%NAME:相手キャラ%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%+++"
-			NEXT
+		;縁結び引き継ぎしてる場合は全部引き継いでるので考えなくても良い
+		IF !キャラ縁結び引き継ぎフラグ
+			VARSET RESULT
+			候補数 = DT_SELECT("関係性データベース", @"対象キャラ１ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号} Or 対象キャラ２ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号}")
+			IF 候補数
+				FOR LOCAL:1, 1, 候補数 + 1
+					相手キャラ = FIND_CHARA_FROM_PERSON_ID(関係性_相手人物番号取得(CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号, RESULT:(LOCAL:1)))
+					SIF 相手キャラ <= 0
+						CONTINUE
+					SIF MATCH(引き継ぎキャラ番号, 相手キャラ) < 1
+						CONTINUE
+					;既に登録済みならスルー
+					IF DT_SELECT("縁結び引き継ぎデータベース", @"(対象キャラ１ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号} Or 対象キャラ２ = {CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号}) And (対象キャラ１ = {CFLAG:相手キャラ:人物番号} Or 対象キャラ２ = {CFLAG:相手キャラ:人物番号}) And 受け攻め設定 = '%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "受け攻め設定", 1)%'")
+						CONTINUE
+					ENDIF
+					;引き継ぎ用に登録
+					IF DT_CELL_GET("関係性データベース", RESULT:(LOCAL:1), "対象キャラ１", 1) == CFLAG:(引き継ぎキャラ番号:LOCAL):人物番号
+						NO記録:0 = キャラ変数引き継ぎ:(引き継ぎキャラ番号:LOCAL):キャラナンバー
+						NO記録:1 = キャラ変数引き継ぎ:相手キャラ:キャラナンバー
+					ELSE
+						NO記録:0 = キャラ変数引き継ぎ:相手キャラ:キャラナンバー
+						NO記録:1 = キャラ変数引き継ぎ:(引き継ぎキャラ番号:LOCAL):キャラナンバー
+					ENDIF
+					DT_ROW_ADD "縁結び引き継ぎデータベース", "対象キャラ１", NO記録:0, "対象キャラ２", NO記録:1, "関係性種別", DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1), "受け攻め設定", DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "受け攻め設定", 1)
+
+					; SIF STRFIND(キャラ同士関係性データ, @"%NAME:(引き継ぎキャラ番号:LOCAL)%_%NAME:相手キャラ%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%") >= 0
+					; 	CONTINUE
+					; SIF STRFIND(キャラ同士関係性データ, @"%NAME:相手キャラ%_%NAME:(引き継ぎキャラ番号:LOCAL)%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%") >= 0
+					; 	CONTINUE
+					; キャラ同士関係性データ += @"%NAME:(引き継ぎキャラ番号:LOCAL)%_%NAME:相手キャラ%_%DT_CELL_GETS("関係性データベース", RESULT:(LOCAL:1), "関係性種別", 1)%+++"
+				NEXT
+			ENDIF
 		ENDIF
 	ENDIF
 NEXT
+
+DT_TOXML "縁結び引き継ぎデータベース"
+SAVETEXT RESULTS:0, "dat/縁結び引き継ぎDT_XML.txt"
+SAVETEXT RESULTS:1, "dat/縁結び引き継ぎDT_schema.txt"
 
 周回回数累計:0 += 1
 
@@ -585,3 +653,12 @@ CALL 最大レベル算出保存()
 ARRAYCOPY "周回回数累計", "周回回数累計_退避"
 RESETDATA
 ARRAYCOPY "周回回数累計_退避", "周回回数累計"
+
+
+@周回時縁結び引き継ぎデータベースセット
+DT_CREATE "縁結び引き継ぎデータベース"
+DT_COLUMN_ADD "縁結び引き継ぎデータベース", "対象キャラ１", 4
+DT_COLUMN_ADD "縁結び引き継ぎデータベース", "対象キャラ２", 4
+DT_COLUMN_ADD "縁結び引き継ぎデータベース", "関係性種別"
+DT_COLUMN_ADD "縁結び引き継ぎデータベース", "受け攻め設定"
+

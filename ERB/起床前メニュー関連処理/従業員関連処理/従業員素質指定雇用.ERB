@@ -1561,7 +1561,7 @@ SELECTCASE 表示モード
 				SIF !EXISTCSV(LOCAL)
 					CONTINUE
 				;ランダムキャラ排除
-				SIF LOCAL == 999
+				SIF ランダムキャラ判定(LOCAL)
 					CONTINUE
 				DT_ROW_ADD "DT_CHARA", "NO", LOCAL, "NAME", CSVNAME(LOCAL), "VALUE", 0
 			NEXT
@@ -1619,7 +1619,7 @@ SELECTCASE 表示モード
 				SIF !EXISTCSV(LOCAL)
 					CONTINUE
 				;ランダムキャラ排除
-				SIF LOCAL == 999
+				SIF ランダムキャラ判定(LOCAL)
 					CONTINUE
 				DT_ROW_ADD "DT_CHARA_REL", "NO", LOCAL, "NAME", CSVNAME(LOCAL), "REL", ""
 			NEXT
@@ -2880,8 +2880,9 @@ SELECTCASE LOCAL
 		ページ数 = 0
 		表示モード = 3
 	CASE 9
-		PRINTL 一般情報・肉体情報・肉体設定画面の項目名の表示職を変更します
+		PRINTL 一般情報・肉体情報・肉体設定画面の項目名の表示色を変更します
 		PRINTL 下の一覧から選ぶ他、カラーコード（000000～FFFFFF）を直接入力もできます
+		LOCALS:1 '= ""
 		LOCALS:2 = 赤青黄緑紫
 		FOR LOCAL, 0, STRLENSU(LOCALS:2)
 			LOCALS:3 '= カラーパレット_HTML(CHARATU(LOCALS:2, LOCAL))
@@ -3090,7 +3091,7 @@ SELECTCASE LOCAL
 				SIF !EXISTCSV(LOCAL)
 					CONTINUE
 				;ランダムキャラ排除
-				SIF LOCAL == 999
+				SIF ランダムキャラ判定(LOCAL)
 					CONTINUE
 				DT_ROW_ADD "DT_CHARA", "NO", LOCAL, "NAME", CSVNAME(LOCAL), "VALUE", 0
 			NEXT
@@ -3567,19 +3568,21 @@ ENDSELECT
 
 SELECTCASE ARG
 	CASE 5
-		LOCALS = ボタンなどを外さなくても乳が露出出来るか？
+		LOCALS = ボタンなどを外さなくても、衣装をずらす等するだけで乳が露出出来るか？
 	CASE 6
-		LOCALS = 脱がさなくてもノーブラ時乳首がいじれるか？
+		LOCALS = 脱がさなくてもノーブラ時に手を差し込んで乳首がいじれるか？
 	CASE 7
 		LOCALS = 脱がさなくてもパイズリ出来るか？
 	CASE 10
 		LOCALS = 脱がさなくてもブラを取れるか？
 	CASE 14
-		LOCALS = スカートと書いてはあるけど前垂れとかも含む
+		LOCALS = スカートや前垂れのように、めくることでパンツや股間を触れるか？
 	CASE 15
-		LOCALS = レオタードやバニーガールなどのハイレグ形状を想定
+		LOCALS = レオタードなどのようにハイレグ形状で股間を覆っているが、ずらせば股間を触れるか？
 	CASE 18
 		LOCALS = 脱がさなくてもパンツを取れるか？
+	CASE 23
+		LOCALS = ミニスカや短パンなど、下半身衣装を着た状態で膝や太ももが顕になっているか？（靴下などは考慮しない）
 	CASEELSE
 		LOCALS '= ""
 ENDSELECT
@@ -3693,7 +3696,7 @@ VARSET 表示配列
 FOR CSV番号, 1, キャラクタ数上限
 	SIF EXISTCSV(CSV番号) == 0
 		CONTINUE
-	SIF CSV番号 == 999
+	SIF ランダムキャラ判定(CSV番号)
 		CONTINUE
 	IF フィルタフラグ
 		SIF STRCOUNT(キャラ一覧フィルタ:性別, @"性別：%GET_TALENTNAME(2, CSVTALENT(CSV番号, GETNUM(TALENT, "性別")))%")

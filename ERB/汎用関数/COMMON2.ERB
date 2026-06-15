@@ -423,14 +423,33 @@ RETURNF ((0 <= HOURS && HOURS <= 9) || IS_HALF) ? TOFULL(TOSTR(HOURS)) # TOSTR(H
 ;-------------------------------------------------
 @HAS_PENIS(ARG)
 #FUNCTION
-RETURNF GETBIT(TALENT:ARG:性別, 1)
+IF TALENT:ARG:Ｃ感度 != -2
+	RETURNF GETBIT(TALENT:ARG:性別, 1)
+ELSE
+	RETURNF 0
+ENDIF
+
+;-------------------------------------------------
+;ARG番のキャラにクリがあるかどうかを返す関数
+;-------------------------------------------------
+@HAS_CLITORIS(ARG)
+#FUNCTION
+IF TALENT:ARG:Ｃ感度 != -2
+	RETURNF !GETBIT(TALENT:ARG:性別, 1)
+ELSE
+	RETURNF 0
+ENDIF
 
 ;-------------------------------------------------
 ;ARG番のキャラに女性器があるかどうかを返す関数
 ;-------------------------------------------------
 @HAS_VAGINA(ARG)
 #FUNCTION
-RETURNF GETBIT(TALENT:ARG:性別, 0)
+IF TALENT:ARG:Ｖ感度 != -2
+	RETURNF GETBIT(TALENT:ARG:性別, 0)
+ELSE
+	RETURNF 0
+ENDIF
 
 ;-------------------------------------------------
 ;ARG番のキャラに睾丸があるかどうかを返す関数
@@ -728,6 +747,7 @@ FOR LOCAL, 1, CHARANUM
 		ENDIF
 	ENDIF
 	CFLAG:(TARGET:LOCAL):うふふ = 0
+	TCVAR:(TARGET:LOCAL):ダウン後いたずら = 0
 	CFLAG:(TARGET:LOCAL):うふふ開始時間記録 = 0
 	CALL 性欲ゲージ減少処理(TARGET:LOCAL)
 	TCVAR:(TARGET:LOCAL):初うふふフラグ = 0
@@ -943,6 +963,7 @@ CSTR:MASTER:オートコマンド履歴３ =
 CSTR:MASTER:オートコマンド履歴４ = 
 連れ込みパターン = 
 FLAG:イベントうふふ終了 = 1
+TFLAG:マッサージ_鬼灯の香使用時間 = 0
 
 ;オートコマンドもリセット
 TFLAG:オートコマンドフラグ = 0
@@ -1506,7 +1527,11 @@ IF 画像フォルダ数 > 0
 ELSE
 	; 修正候補 = ベースフォルダ
 	;フォルダ判定キーも入れ直す
-	CSTR:対象キャラ:フォルダ判定キー '= CALLNAME:対象キャラ
+	IF ランダムキャラ_独立CSV判定(NO:対象キャラ)
+		CSTR:対象キャラ:フォルダ判定キー '= SUBSTRING(NAME:対象キャラ, 1, STRFIND(NAME:対象キャラ, "]") - 1)
+	ELSE
+		CSTR:対象キャラ:フォルダ判定キー '= CALLNAME:対象キャラ
+	ENDIF
 	修正候補フォルダ '= GET_RESOURCES_BASE_FOLDER(対象キャラ)
 ENDIF
 ;- フォルダ設定の修正
@@ -1801,3 +1826,34 @@ SIF 判定個数 <= 1
 
 RETURNF LOCALS:(RAND:(判定個数 - 1))
 
+@ランダムキャラ判定(対象No)
+#FUNCTION
+#DIM 対象No
+
+; IF 対象No == 999
+; 	RETURNF 1
+; ENDIF
+
+;CSVの設定をチェック
+IF CSVCSTR(対象No, GETNUM(CSTR, "ランダムキャラ設定")) != ""
+	RETURNF 1
+ENDIF
+
+
+RETURNF 0
+
+
+@ランダムキャラ_独立CSV判定(対象No)
+#FUNCTION
+#DIM 対象No
+
+;画像関連の設定時に使う
+;999以外のランダムキャラの意味
+
+;CSVの設定をチェック
+IF CSVCSTR(対象No, GETNUM(CSTR, "ランダムキャラ設定")) != "" && 対象No != 999
+	RETURNF 1
+ENDIF
+
+
+RETURNF 0

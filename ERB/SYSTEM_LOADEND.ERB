@@ -16,6 +16,8 @@
 #DIM 得意武器記録
 #DIM 対象キャラ
 #DIM ループ番号
+#DIM ダミー番号, 100
+#DIM 削除回数
 
 #DIMS 比較用一時保存配列, 1000
 #DIMS 素材名分割用, 2
@@ -26,10 +28,16 @@ VARSET 同時モード_選択キャラ, -1
 
 VARSET 追加キャラ保存
 LOCAL:1 = 0
+VARSET ダミー番号
+削除回数 = 0
 
 ダンジョン表示モード = 
 
-
+IF STRFIND(LASTLOAD_TEXT, リゾート人気度全文字列()) >= 0
+	STR:セーブコメント保存 = %SUBSTRING(LASTLOAD_TEXT, STRFIND(LASTLOAD_TEXT, リゾート人気度全文字列()) + STRLENS(リゾート人気度全文字列()) + 1, -1)%
+ELSE
+	STR:セーブコメント保存 = 
+ENDIF
 REDRAW 0
 PRINTL ロード時対応中…
 
@@ -38,42 +46,48 @@ PRINTL ロード時対応中…
 FOR LOCAL, 0, CHARANUM
 	SIF LOCAL >= CHARANUM
 		BREAK
-	SIF NO:LOCAL == 999
+	IF NO:LOCAL == 3242 || NO:LOCAL == 3244  || NO:LOCAL == 3245
+		CFLAG:LOCAL:招待不可フラグ = 2
+		NO:LOCAL = 3242
 		CONTINUE
-	;ここVERUP処理より先に処理しないといけないので置く
-	;1.04で消すこと
-	IF メイデナフォロー == 0
-		SIF NO:LOCAL == 3027
-			NO:LOCAL = 3001
-	ENDIF
-	;CSVとNAMEが違う（＝後からCSVが上書きされた＆番号が動いた）
-	IF NAME:LOCAL != CSVNAME(NO:LOCAL)
-		FOR CSV番号, 1, キャラクタ数上限
-			SIF !EXISTCSV(CSV番号)
-				CONTINUE
-			SIF CSV番号 == 999
-				CONTINUE
-			IF NAME:LOCAL == CSVNAME(CSV番号)
-				;全く同じ名前のCSVがある場合、NOをそれに変更する
-				NO:LOCAL = CSV番号
-				BREAK
-			ENDIF
-		NEXT
 	ENDIF
 	IF !EXISTCSV(NO:LOCAL)
 		FOR CSV番号, 1, キャラクタ数上限
 			SIF !EXISTCSV(CSV番号)
 				CONTINUE
-			SIF CSV番号 == 999
+			SIF ランダムキャラ判定(CSV番号)
 				CONTINUE
 			IF NAME:LOCAL == CSVNAME(CSV番号)
 				;全く同じ名前のCSVがある場合
-				IF GETCHARA(CSV番号) >= 0
-					;流れとしては「CSVが存在しないキャラが先にいて、後からCSVのNOが変更されて
-					;変更された後のNOのキャラが追加された」のはずなのでこっちを削除する
-					DELCHARA GETCHARA(CSV番号)
-				ENDIF
+				;流れとしては「CSVが存在しないキャラが先にいて、後からCSVのNOが変更されて
+				;変更された後のNOのキャラが追加された」のはずなのでこっちをダミー化する
+				LOCAL:2 = GETCHARA(CSV番号)
 				NO:LOCAL = CSV番号
+				IF LOCAL:2 >= 0
+					NO:(LOCAL:2) = 3242
+					CFLAG:(LOCAL:2):招待不可フラグ = 2
+					CFLAG:(LOCAL:2):滞在期間 = -1
+					IF TALENT:(LOCAL:2):定住者 == 2
+						FOR ループ番号, 0, VARSIZE("同棲部屋割り配列")
+							IF 同棲部屋割り配列:ループ番号 == LOCAL:2
+								同棲部屋割り配列:ループ番号 = 0
+								BREAK
+							ENDIF
+						NEXT
+					ELSEIF TALENT:(LOCAL:2):定住者
+						CALL 滞在者部屋割り配列削除処理(LOCAL:2)
+					ELSEIF TALENT:(LOCAL:2):従業員
+						FOR ループ番号, 0, 従業員部屋数
+							IF 従業員部屋割り配列:ループ番号 == LOCAL:2
+								従業員部屋割り配列:ループ番号 = 0
+								BREAK
+							ENDIF
+						NEXT
+					ELSE
+						CALL 滞在者部屋割り配列削除処理(LOCAL:2)
+					ENDIF
+				ENDIF
+				LOCAL -= 1
 				BREAK
 			ENDIF
 		NEXT
@@ -90,30 +104,82 @@ FOR LOCAL, 0, CHARANUM
 			PRINTFORMW %NAME表示(LOCAL)%のCSVが存在しなかったのでCSV/キャラデータフォルダに仮のCSVファイルを出力しました
 			LOCAL:1 ++
 		ENDIF
+	;CSVとNAMEが違う（＝後からCSVが上書きされた＆番号が動いた）
+	ELSEIF NAME:LOCAL != CSVNAME(NO:LOCAL) && !ランダムキャラ判定(NO:LOCAL)
+		FOR CSV番号, 1, キャラクタ数上限
+			SIF !EXISTCSV(CSV番号)
+				CONTINUE
+			SIF ランダムキャラ判定(CSV番号)
+				CONTINUE
+			IF NAME:LOCAL == CSVNAME(CSV番号)
+				;全く同じ名前のCSVがある場合、NOをそれに変更する
+				NO:LOCAL = CSV番号
+				BREAK
+			ENDIF
+		NEXT
 	ENDIF
 NEXT
 SIF LOCAL:1
 	THROW CSVが存在しなかったキャラがいたのでゲームを終了します。CSV再読み込みのため再起動してください
 追加前キャラ数保存 = CHARANUM
 
+CALL ランダムCSVデータベースセット
+
 ;CSVを全部読んでキャラがADDってなければADDる
 FOR LOCAL, 1, キャラクタ数上限
 	SIF !EXISTCSV(LOCAL)
 		CONTINUE
-	SIF LOCAL == 999
+	SIF LOCAL == 3242 || LOCAL == 3244  || LOCAL == 3245
+		CONTINUE
+
+	;ついでにランダムキャラのCSVデータベースをチェック
+	IF CSVCSTR(LOCAL, GETNUM(CSTR, "ランダムキャラ設定")) != ""
+		IF DT_SELECT("ランダムCSVデータベース", @"CSV番号 = {LOCAL}") < 1
+			;データベースにない時登録
+			VARSET LOCALS
+			;追加文字列があるかチェック
+			SELECTCASE CSVCSTR(LOCAL, GETNUM(CSTR, "ランダムキャラ設定"))
+				CASE "デジモン"
+					;デジモンの場合はワクチン種やウィルス種などの種別を記録
+					FOR LOCAL:1, GETNUM(CSTR, "固有素質0"), GETNUM(CSTR, "固有素質9") + 1
+						IF GROUPMATCH(CSVCSTR(LOCAL, LOCAL:1), "フリー種", "データ種", "ワクチン種", "ウィルス種")
+							LOCALS '= CSVCSTR(LOCAL, LOCAL:1)
+							BREAK
+						ENDIF
+					NEXT
+			ENDSELECT
+			;データベースにセット
+			DT_ROW_ADD "ランダムCSVデータベース", "CSV番号", LOCAL, "ランダムキャラ設定", CSVCSTR(LOCAL, GETNUM(CSTR, "ランダムキャラ設定")), "フリー文字列１", LOCALS
+		ENDIF
+	ENDIF
+
+	SIF ランダムキャラ判定(LOCAL)
 		CONTINUE
 	SIF GETCHARA(LOCAL) >= 0
 		CONTINUE
 	ADDCHARA LOCAL
-	CALL ADD_PERSON_FROM_CHARA(CHARANUM - 1)
-
+	;ダミーキャラがいる場合入れ替え後ダミーキャラ削除
+	ダミー番号:削除回数 = GETCHARA(3242)
+	IF ダミー番号:削除回数 >= 0 && CFLAG:(ダミー番号:削除回数):招待不可フラグ == 2
+		SIF 削除回数 > 100
+			THROW ダミーキャラが多すぎて不具合が疑われるためゲームを終了します
+		SWAPCHARA ダミー番号:削除回数, CHARANUM - 1
+		DELCHARA CHARANUM - 1
+		CALL ADD_PERSON_FROM_CHARA(ダミー番号:削除回数)
+		削除回数 ++
+	ELSE
+		CALL ADD_PERSON_FROM_CHARA(CHARANUM - 1)
+	ENDIF
 NEXT
 
-SIF 追加前キャラ数保存 != CHARANUM
+SIF 追加前キャラ数保存 != CHARANUM + 削除回数
 	CALL コマンド存在チェック
 
 FOR LOCAL, 追加前キャラ数保存, CHARANUM
 	CALL キャラクター初期化(LOCAL)
+NEXT
+FOR LOCAL, 0, 削除回数
+	CALL キャラクター初期化(ダミー番号:LOCAL)
 NEXT
 
 PRINTL 追加CSVチェック完了
@@ -133,6 +199,9 @@ FOR LOCAL, 0, CHARANUM
 	IF !RELATION_VAL:0:0 && LOCAL < 追加前キャラ数保存
 		CALL INIT_RELATION(LOCAL)
 	ENDIF
+
+	;中出しリセット
+	VARSET 性交相手:LOCAL:0, -1
 
 	;追加同行キャラチェック
 	同行キャラ文字列一時保存 = %CSVCSTR(NO:LOCAL, GETNUM(CSTR, "同行キャラ"))%
@@ -170,7 +239,7 @@ FOR LOCAL, 0, CHARANUM
 	MAXBASE:LOCAL:警戒 = 1001
 
 	;画像フォルダは有効？
-	IF NO:LOCAL == 999
+	IF ランダムキャラ判定(NO:LOCAL)
 		IF CALLNAME:LOCAL == "ランダムキャラ"
 			SPLIT NAME:LOCAL, "]", RESULTS
 			CALLNAME:LOCAL '= RESULTS:1
@@ -259,6 +328,8 @@ FOR LOCAL:1, 0, 50
 		弱点コマンド枠:MASTER:(LOCAL:1) = %RESULTS%
 	ENDIF
 NEXT
+;あなたの衣装セット
+CALL CLOTHES_TODAY(MASTER)
 
 ;スイートルーム関係おかしくなってないかチェック
 FOR 部屋番号, 0, VARSIZE("スイートルーム部屋割り配列")
@@ -388,8 +459,16 @@ FOR 対象キャラ, 1, CHARANUM
 
 	CALL LOCADEND_CHARAEVENT_ETC(対象キャラ)
 
-	SIF CFLAG:対象キャラ:滞在期間 < 0
+	IF CFLAG:対象キャラ:滞在期間 < 0
+		;滞在期間なしなのに部屋が出来てないかチェック
+		FOR LOCAL:1, 0, 滞在部屋拡張上限
+			IF 滞在者部屋割り配列:(LOCAL:1) == 対象キャラ
+				滞在者部屋割り配列:(LOCAL:1) = 0
+				BREAK
+			ENDIF
+		NEXT
 		CONTINUE
+	ENDIF
 
 	CALL 部屋なしキャラチェック(対象キャラ)
 
@@ -410,7 +489,7 @@ FOR 対象キャラ, 1, CHARANUM
 				ENDIF
 			NEXT
 		ELSE
-			FOR LOCAL:1, 0, 100
+			FOR LOCAL:1, 0, 滞在部屋拡張上限
 				IF 滞在者部屋割り配列:(LOCAL:1) == 対象キャラ
 					IF LOCAL:2
 						滞在者部屋割り配列:(LOCAL:1) = 0
@@ -430,6 +509,19 @@ FOR 対象キャラ, 1, CHARANUM
 				BREAK
 			ELSEIF STRFIND(定住者部屋割り配列:(LOCAL:1), @"{対象キャラ}_") == 0
 				定住者部屋割り配列:(LOCAL:1) = %SUBSTRING(定住者部屋割り配列:(LOCAL:1), STRLENS(@"{対象キャラ}_"), -1)%
+				BREAK
+			ENDIF
+		NEXT
+	ELSEIF TALENT:対象キャラ:定住者 == 3
+		FOR LOCAL:1, 0, VARSIZE("飼育区部屋割り配列")
+			SIF 飼育区部屋割り配列:(LOCAL:1) == ""
+				CONTINUE
+			;部屋の居住者を見る
+			IF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_") > -1
+				飼育区部屋割り配列:(LOCAL:1) = %REPLACE(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_", "_")%
+				BREAK
+			ELSEIF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"{対象キャラ}_") == 0
+				飼育区部屋割り配列:(LOCAL:1) = %SUBSTRING(飼育区部屋割り配列:(LOCAL:1), STRLENS(@"{対象キャラ}_"), -1)%
 				BREAK
 			ENDIF
 		NEXT
@@ -469,6 +561,16 @@ FOR LOCAL, 0, 14
 		BATTLE_STATE:(LOCAL + 1):キャラ登録番号 = BATTLE_STATE:(LOCAL + 2):キャラ登録番号
 		BATTLE_STATE:(LOCAL + 2):キャラ登録番号 = BATTLE_STATE:(LOCAL + 3):キャラ登録番号
 		BATTLE_STATE:(LOCAL + 3):キャラ登録番号 = BATTLE_STATE:(LOCAL + 4):キャラ登録番号
+	ENDIF
+NEXT
+
+;恋慕対象被ってないかチェック
+FOR LOCAL, 0, VARSIZE("恋慕対象フラグ") - 1
+	SIF 恋慕対象フラグ:LOCAL == 0
+		CONTINUE
+	IF FINDELEMENT(恋慕対象フラグ, 恋慕対象フラグ:LOCAL, LOCAL + 1, VARSIZE("恋慕対象フラグ")) >= 0
+		;被ってるのでそこを削除
+		恋慕対象フラグ:(FINDELEMENT(恋慕対象フラグ, 恋慕対象フラグ:LOCAL, LOCAL + 1, VARSIZE("恋慕対象フラグ"))) = 0
 	ENDIF
 NEXT
 

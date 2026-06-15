@@ -102,6 +102,14 @@ DT_COLUMN_ADD "人物データベース", "経歴"
 #DIM EX_エシュネ
 #DIM EX_まほ
 #DIM EX_しほ
+#DIM EX_みほ
+#DIM EX_シロヱ
+#DIM EX_シロ
+#DIM EX_ダイア
+#DIM EX_ココア
+#DIM EX_リセット
+#DIM EX_ランス
+
 
 FOR LOCAL, 1, CHARANUM
 	SIF キャラ一致チェック(LOCAL, "[揺らぎの斬姫]ナルメア")
@@ -217,6 +225,21 @@ FOR LOCAL, 1, CHARANUM
 		EX_まほ = CFLAG:LOCAL:人物番号
 	SIF キャラ一致チェック(LOCAL, "[西住流戦車道・家元]西住しほ")
 		EX_しほ = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[あんこうチームの戦車長]西住みほ")
+		EX_みほ = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[ごく普通なボンバー主婦]シロヱ")
+		EX_シロヱ = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[ごく普通なボンバーガール]シロ")
+		EX_シロ = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[大三元ガール]ミツモト・ダイア")
+		EX_ダイア = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[小三ガール]ミツモト・ココア")
+		EX_ココア = CFLAG:LOCAL:人物番号
+
+	SIF キャラ一致チェック(LOCAL, "[ランスとパステルの娘]リセット・カラー")	
+		EX_リセット = CFLAG:LOCAL:人物番号
+	SIF キャラ一致チェック(LOCAL, "[鬼畜戦士]ランス")
+		EX_ランス = CFLAG:LOCAL:人物番号
 
 NEXT
 
@@ -252,25 +275,32 @@ CALL SET_PERSON_母親(EX_宇崎柳, EX_宇崎月)
 CALL SET_PERSON_母親(EX_古見硝子, EX_古見秀子)
 CALL SET_PERSON_母親(EX_エシュネ, EX_エノメ)
 CALL SET_PERSON_母親(EX_まほ, EX_しほ)
-
-
+CALL SET_PERSON_母親(EX_みほ, EX_しほ)
+CALL SET_PERSON_母親(EX_シロ, EX_シロヱ)
+CALL SET_PERSON_母親(EX_ココア, EX_ダイア)
+CALL SET_PERSON_父親(EX_リセット, EX_ランス)
 ;兄弟姉妹が居るキャラの出生順を設定
 ;・兄/姉の方に大きい数値を設定
-CALL SET_PERSON_出生順(ルシウス, 2)
-CALL SET_PERSON_出生順(ティナ, 1)
-CALL SET_PERSON_出生順(アグロヴァル, 3) ; 長男
-CALL SET_PERSON_出生順(パーシヴァル, 1) ; 三男
+;　わかりやすさや、作中で弟妹が新たに誕生したときに対応しやすくするため、長男は-1、次男は-2、三男は-3、のように負の値を用いることを推奨
+;Ｑ．じゃあなんで小さい順に並ぶようにしなかったんですか？
+;Ａ．出生順を持たない人物（＝リゾート内で生まれたキャラ）と混在しても並び替えがうまくいくように……
+CALL SET_PERSON_出生順(ルシウス, -1)
+CALL SET_PERSON_出生順(ティナ, -2)
+CALL SET_PERSON_出生順(アグロヴァル, -1) ; 長男
+CALL SET_PERSON_出生順(パーシヴァル, -3) ; 三男
 
-CALL SET_PERSON_出生順(EX_桂言葉, 2) ;
-CALL SET_PERSON_出生順(EX_桂心, 1) ; 
-CALL SET_PERSON_出生順(EX_アイ, 2) ;
-CALL SET_PERSON_出生順(EX_妹ちゃん, 1) ; 
+CALL SET_PERSON_出生順(EX_桂言葉, -1) ;
+CALL SET_PERSON_出生順(EX_桂心, -2) ; 
+CALL SET_PERSON_出生順(EX_アイ, -1) ;
+CALL SET_PERSON_出生順(EX_妹ちゃん, -2) ; 
+CALL SET_PERSON_出生順(EX_まほ, -1) ;
+CALL SET_PERSON_出生順(EX_みほ, -2) ; 
 
 
 ;覚え書き:キャラ増えた時に使いそうな親子関係/出生順設定
 ;CALL SET_PERSON_母親(シトリ, ミカボシ)
 ;CALL SET_PERSON_母親(ラモラック, ヘルツェロイデ)
-;CALL SET_PERSON_出生順(ラモラック, 2) ; 次男
+;CALL SET_PERSON_出生順(ラモラック, -2) ; 次男
 
 ;空のキャラを人物データベースに登録する
 @ADD_PERSON()
@@ -364,6 +394,9 @@ SIF GET_PERSON_父親(ID) != 0
 	RETURNF 1
 
 CHILD_COUNT = DT_SELECT("人物データベース", @"母親 = {ID}", , TMP_CHILDREN)
+SIF CHILD_COUNT > 0
+	RETURNF 1
+CHILD_COUNT = DT_SELECT("人物データベース", @"父親 = {ID}", , TMP_CHILDREN)
 SIF CHILD_COUNT > 0
 	RETURNF 1
 RETURNF 0

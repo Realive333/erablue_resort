@@ -15,7 +15,7 @@ IF GETMETH(@"固有COMABLE_プレイヤー側_{ARG}_{NO:PLAYER}", 1, PLAYER) == 
 ENDIF
 
 ;外出時条件
-IF FLAG:お出かけ先フラグ > 0
+IF FLAG:外出先番号 > 0
 	IF GETMETH(@"外出先_封印コマンド設定_{CFLAG:MASTER:現在マップ種別}", 1, @"{ARG}") == 0
 		RESULT = 0
 		RETURNF 1
@@ -23,7 +23,13 @@ IF FLAG:お出かけ先フラグ > 0
 ENDIF
 
 ;コマンドフィルタ
-IF ARG >= 370 && ARG <= 374
+IF FLAG:オートコマンド判定中フラグ
+	LOCALS = /{ARG}/
+	IF STRCOUNT(SAVESTR:3,LOCALS)
+		RESULT = 0
+		RETURNF 1
+	ENDIF
+ELSEIF ARG >= 370 && ARG <= 374
 	LOCALS = /{ARG}_{NO:TARGET}/
 	IF STRCOUNT(SAVESTR:1,LOCALS)
 		RESULT = 0
@@ -167,7 +173,7 @@ IF GETMETH(@"固有COMABLE_プレイヤー側_%ARGS%_{NO:PLAYER}", 1, PLAYER) ==
 ENDIF
 
 ;外出時条件
-IF FLAG:お出かけ先フラグ > 0
+IF FLAG:外出先番号 > 0
 	IF GETMETH(@"外出先_封印コマンド設定_{CFLAG:MASTER:現在マップ種別}", 1, @"%ARGS%") == 0
 		RESULT = 0
 		RETURNF 1
@@ -176,7 +182,12 @@ ENDIF
 
 ;コマンドフィルタ
 LOCALS = /%ARGS%/
-IF STRCOUNT(SAVESTR:2,LOCALS)
+IF FLAG:オートコマンド判定中フラグ
+	IF STRCOUNT(SAVESTR:3,LOCALS)
+		RESULT = 0
+		RETURNF 1
+	ENDIF
+ELSEIF STRCOUNT(SAVESTR:2,LOCALS)
 	RESULT = 0
 	RETURNF 1
 ENDIF
@@ -376,6 +387,7 @@ ELSE
 		IF 陥落チェック_性的＋疑似恋慕(TARGET) && 初体験日取得("初うふふ", TARGET, MASTER)
 		ELSEIF 陥落チェック(TARGET) && 知識素質:TARGET:性知識 < 0 && (GET_TARGETNUM() + GET_飲み会TARGETNUM()) == 1
 		ELSEIF TCVAR:TARGET:言いなり || TCVAR:TARGET:特殊言いなり
+		ELSEIF 睡眠フラグ == 2
 		ELSE
 			RESULT = 0
 			RETURNF 1
@@ -391,6 +403,10 @@ ELSE
 		ENDIF
 	CASE "探索"
 		IF TFLAG:調教モード > 1
+			RESULT = 0
+			RETURNF 1
+		ENDIF
+		IF TCVAR:TARGET:日帰りフラグ
 			RESULT = 0
 			RETURNF 1
 		ENDIF

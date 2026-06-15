@@ -151,7 +151,10 @@ IF 選択定住者番号 > -1
 	LOCALS += @"バストサイズ：%GET_TALENTNAME(205, TALENT:(定住者一覧:選択定住者番号):バストサイズ,,定住者一覧:選択定住者番号)%"
 	LOCALS += "<br>"
 	LOCALS += @"　性知識レベル：%性知識段階表示(知識素質:(定住者一覧:選択定住者番号):性知識, 定住者一覧:選択定住者番号)%"
-	IF TALENT:(定住者一覧:選択定住者番号):ランダムキャラ
+	IF CFLAG:(定住者一覧:選択定住者番号):性知識成長禁止
+		LOCALS += "（成長✕）"
+	ENDIF
+	IF ランダムキャラ判定(NO:(定住者一覧:選択定住者番号))
 		LOCALS += @"<br>　容姿：%GET_TALENTNAME(160, TALENT:(定住者一覧:選択定住者番号):容姿,,定住者一覧:選択定住者番号)%　　"
 		LOCALS += @"体格：%GET_TALENTNAME(161,TALENT:(定住者一覧:選択定住者番号):体格,,定住者一覧:選択定住者番号)%"
 		IF TALENT:(定住者一覧:選択定住者番号):性別 == 3
@@ -243,8 +246,8 @@ IF 選択定住者番号 > -1
 			LOCAL:2 = 0
 		ENDIF
 	NEXT
-	LOCALS += "<br>"
-	LOCALS += "<br>"
+	LOCALS += "</div>"
+	LOCALS += "<div rect='2125,2600,3675,200' color='#101010'>"
 	LOCALS += "<button value='1000'>[1000]このキャラを立ち退かせる</button>"
 ENDIF
 LOCALS += "</div>"
@@ -275,6 +278,8 @@ SELECTCASE LOCAL
 		INVERTBIT 動作モード, 0
 		RESTART
 	CASE 1000
+		SIF 選択定住者番号 < 0
+			RESTART
 		PRINTL
 		IF 動作モード == 0
 			PRINTFORML 本当に%NAME表示((定住者一覧:選択定住者番号))%を立ち退かせますか？

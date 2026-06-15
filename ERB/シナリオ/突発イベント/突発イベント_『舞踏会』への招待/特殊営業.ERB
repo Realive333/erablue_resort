@@ -51,7 +51,7 @@ CALL PRINT_STR(@"_H_")
 PRINTFORM %TEXTR("今晩の夜の華/本日のキャスト/本日の女の子/今夜の『シンデレラ』")%
 CALL PRINT_STRL(@"_H_")
 PRINTFORML %SUBSTRING(NAME:キャスト番号取得, STRFIND(NAME:キャスト番号取得, "]") + 1, -1)%
-IF キャスト番号取得 == 1415
+IF NO:キャスト番号取得 == 1415
 	PRINTFORM 年齢：永遠の１７歳　　
 ELSE
 	PRINTFORM 年齢：{BASE:キャスト番号取得:年齢}歳　　
@@ -96,6 +96,9 @@ SELECTCASE RESULT
 		IF CFLAG:キャスト番号取得:滞在期間 < 1
 			CFLAG:キャスト番号取得:滞在期間 = 1
 			CALL CLOTHES_TODAY(キャスト番号取得)
+		ENDIF
+		IF CFLAG:キャスト番号取得:招待不可フラグ
+			CFLAG:キャスト番号取得:招待不可フラグ = 0
 		ENDIF
 		PRINTFORML 中々楽しそうな催しだ。
 		PRINTFORMW %CALLNAME:PLAYER%は『招待状』に同封された筋書きをよく読み込むと、指示に従い目的地へと向かった……。

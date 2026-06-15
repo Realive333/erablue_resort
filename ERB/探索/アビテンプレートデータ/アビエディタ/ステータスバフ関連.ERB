@@ -1,5 +1,5 @@
 ﻿
-@アビエディタ_バフ効果追加(変更ID = 0, アビ段階 = 0)
+@アビエディタ_バフ効果追加(変更ID = 0, アビ段階 = 0, 取得条件)
 ;アビ文字列１ バフ対象のステータス
 ;アビ文字列２ バフ枠
 ;アビ文字列３ 持続種類（ターンや回数、行動回数など）
@@ -25,6 +25,10 @@
 #DIMS 枠保存
 #DIMS HTML文字列
 #DIMS 計算式タイプ
+#DIMS 取得条件
+
+#DIM 取得条件_Lv
+#DIMS 取得条件_陥落
 
 ;効果の最初かどうかを判定
 IF 変更ID == 0
@@ -79,19 +83,25 @@ DRAWLINE
 PRINTL バフ効果の設定を選択してください。
 DRAWLINE
 
+RSTR:表示設定受け渡し = 
+CALLF アビエディタ_ＭＰ自動計算_バフ種類(バフ対象能力)
 PRINTL ・現在の効果
 PRINT 　　
 PRINTFORM %バフ対象%に
-PRINT ［
-IF バフ倍率 > 0
-	PRINTFORM {バフ倍率}％
+IF STRFIND(RSTR:表示設定受け渡し, "［］") >= 0
+	PRINT ［
+	IF バフ倍率 > 0
+		PRINTFORM {バフ倍率}％
+	ENDIF
+	IF バフ固定値 > 0
+		SIF バフ倍率 > 0
+			PRINT ＋
+		PRINTFORM {バフ固定値}
+	ENDIF
+	PRINTFORM ］
+ELSE
 ENDIF
-IF バフ固定値 > 0
-	SIF バフ倍率 > 0
-		PRINT ＋
-	PRINTFORM {バフ固定値}
-ENDIF
-PRINTFORM ］（
+PRINT （
 IF STRFIND(バフ枠, バフ対象能力) == 0
 	PRINTFORM %TOFULL(REPLACE(バフ枠, バフ対象能力, ""))%枠
 ELSE
@@ -103,10 +113,10 @@ ENDIF
 IF STRFIND(オプション, "消去不可") >= 0
 	PRINT ・消去不可
 ENDIF
-IF GROUPMATCH(バフ対象能力, "ストレングス", "逆境", "再生", "高揚", "バリア")
-	PRINTFORM ）の%バフ能力表示変換(バフ対象能力)%効果を与える。
-ELSE
+IF STRFIND(RSTR:表示設定受け渡し, "上昇") >= 0
 	PRINTFORM ）の%バフ能力表示変換(バフ対象能力)%上昇効果を与える。
+ELSE
+	PRINTFORM ）の%バフ能力表示変換(バフ対象能力)%効果を与える。
 ENDIF
 PRINTL
 DRAWLINE
@@ -145,6 +155,35 @@ HTML文字列 += "<br>"
 HTML文字列 += "<br>"
 HTML文字列 += @"<button value='998'>[998] この設定で効果を決定する</button><br>"
 HTML文字列 += @"<button value='999'>[999] 保存せず戻る</button><br>"
+HTML文字列 += "</div>"
+
+;効果目安
+VARSET RESULTS
+取得条件_Lv = 0
+取得条件_陥落 = 
+SPLIT 取得条件, "***", RESULTS
+FOR LOCAL, 0, RESULT
+	IF STRFIND(RESULTS:LOCAL, "Lv") >= 0
+		取得条件_Lv = TOINT(REPLACE(RESULTS:LOCAL, "Lv_", ""))
+	ELSEIF STRFIND(RESULTS:LOCAL, "陥落") >= 0
+		取得条件_陥落 '= REPLACE(RESULTS:LOCAL, "陥落_", "")
+	ENDIF
+NEXT
+
+HTML文字列 += "<div rect='5100, 0, 3000, 3000' padding='50,25,50' color='#101010' border='31' bcolor='#C0C0C0'><nobr>"
+HTML文字列 += "■参考情報　　"
+IF 取得条件_Lv > 0 || 取得条件_陥落 != ""
+	HTML文字列 += @"Lv<font color='#%カラーパレット_HTML("黄")%'>{MAX(1, 取得条件_Lv), 2}"
+	IF 取得条件_陥落 != ""
+		HTML文字列 += "＋陥落時"
+	ENDIF
+	HTML文字列 += "</font> 時点<br>"
+	HTML文字列 += アビエディタ_効果目安_ステータスバフ種類(バフ対象能力, 取得条件_Lv, 取得条件_陥落)
+ELSE
+	HTML文字列 += @"Lv<font color='#%カラーパレット_HTML("黄")%'>1</font> 時点<br>"
+	HTML文字列 += アビエディタ_効果目安_ステータスバフ種類(バフ対象能力, 1, "")
+ENDIF
+HTML文字列 += "<br>"
 HTML文字列 += "</div>"
 
 
@@ -400,23 +439,43 @@ PRINTBUTTONLC "[305] 光属性耐性", 305
 PRINTBUTTONLC "[306] 闇属性耐性", 306
 PRINTL
 DRAWLINE
-PRINTL ・その他バフ
-PRINTBUTTONLC "[400] 与回復量", 400
-PRINTBUTTONLC "[401] 被回復量", 401
-PRINTBUTTONLC "[402] テンション", 402
-PRINTBUTTONLC "[403] ストレングス", 403
+PRINTL ・その他攻撃系バフ
+PRINTBUTTONLC "[400] テンション", 400
+PRINTBUTTONLC "[401] ストレングス", 401
+PRINTBUTTONLC "[402] 逆境", 402
+PRINTBUTTONLC "[403] 追撃", 403
 PRINTL
-PRINTBUTTONLC "[404] 逆境", 404
-PRINTBUTTONLC "[405] 再生", 405
-PRINTBUTTONLC "[406] 高揚", 406
-PRINTBUTTONLC "[407] バリア", 407
+PRINTBUTTONLC "[404] 奥義再発動", 404
+PRINTBUTTONLC "[405] 回避反撃", 405
+PRINTBUTTONLC "[406] カウンター", 406
+PRINTBUTTONLC "[407] ブレイクアサシン", 407
 PRINTL
-PRINTBUTTONLC "[408] 追撃", 408
-PRINTBUTTONLC "[409] ＨＰ転換", 409
-PRINTBUTTONLC "[410] ＭＰ転換", 410
-PRINTBUTTONLC "[411] 自動復活", 411
+PRINTBUTTONLC "[408] 再行動", 408
 PRINTL
-PRINTBUTTONLC "[499] その他バフ解説", 499
+PRINTBUTTONLC "[499] その他攻撃系バフ解説", 499
+PRINTL
+DRAWLINE
+PRINTL ・その他防御系バフ
+PRINTBUTTONLC "[500] 与回復量", 500
+PRINTBUTTONLC "[501] 被回復量", 501
+PRINTBUTTONLC "[502] 再生", 502
+PRINTBUTTONLC "[503] 高揚", 503
+PRINTL
+PRINTBUTTONLC "[504] バリア", 504
+PRINTBUTTONLC "[505] ＨＰ転換", 505
+PRINTBUTTONLC "[506] ＭＰ転換", 506
+PRINTBUTTONLC "[507] 自動復活", 507
+PRINTL
+PRINTBUTTONLC "[508] 弱体無効", 508
+PRINTBUTTONLC "[509] ディスペルガード", 509
+PRINTBUTTONLC "[510] 単体かばう", 510
+PRINTBUTTONLC "[511] 全体かばう", 511
+PRINTL
+PRINTBUTTONLC "[512] 反射", 512
+PRINTBUTTONLC "[513] ガッツ", 513
+PRINTBUTTONLC "[514] 潜伏", 514
+PRINTL
+PRINTBUTTONLC "[599] ・その他防御系バフ解説", 599
 PRINTL
 DRAWLINE
 PRINTL
@@ -448,30 +507,102 @@ SELECTCASE RESULT
 	CASE 301 TO 306
 		バフ対象能力 = 属性被ダメージ_%属性数値文字列変換(RESULT - 301)%
 	CASE 400
-		バフ対象能力 = 与回復量
-	CASE 401
-		バフ対象能力 = 被回復量
-	CASE 402
 		バフ対象能力 = テンション
-	CASE 403
+	CASE 401
 		バフ対象能力 = ストレングス
-	CASE 404
+	CASE 402
 		バフ対象能力 = 逆境
-	CASE 405
-		バフ対象能力 = 再生
-	CASE 406
-		バフ対象能力 = 高揚
-	CASE 407
-		バフ対象能力 = バリア
-	CASE 408
+	CASE 403
 		バフ対象能力 = 追撃
-	; CASE 409
-	; 	バフ対象能力 = ＨＰ転換
-	; CASE 410
-	; 	バフ対象能力 = ＭＰ転換
-	; CASE 411
-	; 	バフ対象能力 = 自動復活
+	CASE 404
+		バフ対象能力 = 奥義再発動
+	CASE 405
+		バフ対象能力 = 回避反撃
+	CASE 406
+		バフ対象能力 = カウンター
+	CASE 407
+		バフ対象能力 = ブレイクアサシン
+	CASE 408
+		バフ対象能力 = 再行動
 	CASE 499
+		DRAWLINE
+		PRINTL ・テンション
+		PRINTL 　　攻撃力を上昇させます。４段階存在し、同じ効果を掛けるたびに段階が加算されます。
+		PRINTL 　　効果量は以下の通りです。
+		PRINTL 　　１：110％　２：130％　３：160％　４：200％
+		PRINTL 　　効果固定値のみ効果を発揮します。５以上に増加しても効果は４と同じままです。
+		PRINTL
+		PRINTL ・ストレングス
+		PRINTL 　　攻撃力を上昇させます。効果の掛かったキャラのHPが高いほど効果が大きくなります。
+		PRINTL 　　効果割合のみ効果を発揮します。
+		PRINTL 　　計算式は「（（ＨＰ ✕ 200 / 最大ＨＰ）+ 100）✕（効果割合 / 3） / 100」％。
+		PRINTL
+		PRINTL ・逆境
+		PRINTL 　　攻撃力を上昇させます。効果の掛かったキャラの最大HPと現在HPの差が大きいほど効果が大きくなります。
+		PRINTL 　　効果割合のみ効果を発揮します。
+		PRINTL 　　計算式は「（（（最大ＨＰ - ＨＰ） ✕ 200 / 最大ＨＰ）+ 100）✕（効果割合 / 3） / 100」％。
+		PRINTL
+		PRINTL ・追撃
+		PRINTL 　　通常攻撃を行う際、追加のダメージが発生します。
+		PRINTL 　　効果割合は通常攻撃のダメージに対する％で追加ダメージを発生させます。
+		PRINTL 　　効果固定値は設定した値で追加ダメージを発生させます。
+		PRINTL
+		PRINTL ・奥義再発動
+		PRINTL 　　奥義を発動した時、もう一度奥義を発動させます。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・回避反撃
+		PRINTL 　　攻撃を回避した時、決められた威力で攻撃者へダメージを与えます。
+		PRINTL 　　効果割合は反撃時の威力を、反撃するキャラの攻撃力に対する割合で追加します。
+		PRINTL 　　効果固定値は反撃時の威力を、固定値で追加します。
+		PRINTL
+		PRINTL ・カウンター
+		PRINTL 　　攻撃を受けた時、決められた威力で攻撃者へダメージを与えます。
+		PRINTL 　　効果割合は反撃時の威力を、反撃するキャラの攻撃力に対する割合で追加します。
+		PRINTL 　　効果固定値は反撃時の威力を、固定値で追加します。
+		PRINTL
+		PRINTL ・ブレイクアサシン
+		PRINTL 　　攻撃対象のＣＴが０の時、与ダメが２．５倍になります。
+		PRINTL 　　条件を満たさない攻撃時でもバフ回数は消費されます。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL 
+		PRINTL ・再行動
+		PRINTL 　　行動終了時、更に行動出来るようになります。
+		PRINTL 　　効果固定値のみ効果を発揮します。効果固定値は１ラウンドに何回行動を追加出来るかを表します。
+		PRINTL
+		WAIT
+		RESTART
+	CASE 500
+		バフ対象能力 = 与回復量
+	CASE 501
+		バフ対象能力 = 被回復量
+	CASE 502
+		バフ対象能力 = 再生
+	CASE 503
+		バフ対象能力 = 高揚
+	CASE 504
+		バフ対象能力 = バリア
+	CASE 505
+		バフ対象能力 = ＨＰ転換
+	CASE 506
+		バフ対象能力 = ＭＰ転換
+	CASE 507
+		バフ対象能力 = 自動復活
+	CASE 508
+		バフ対象能力 = 弱体無効
+	CASE 509
+		バフ対象能力 = ディスペルガード
+	CASE 510
+		バフ対象能力 = 単体かばう
+	CASE 511
+		バフ対象能力 = 全体かばう
+	CASE 512
+		バフ対象能力 = 反射
+	CASE 513
+		バフ対象能力 = ガッツ
+	CASE 514
+		バフ対象能力 = 潜伏
+	CASE 599
 		DRAWLINE
 		PRINTL ・与回復量
 		PRINTL 　　効果の掛かったキャラが使用する回復効果が上下します。
@@ -479,53 +610,68 @@ SELECTCASE RESULT
 		PRINTL ・被回復量
 		PRINTL 　　効果の掛かったキャラが受ける回復効果が上下します。
 		PRINTL
-		PRINTL ・テンション
-		PRINTL 　　攻撃力を上昇させます。４段階存在し、同じ効果を掛けるたびに段階が加算されます。
-		PRINTL 　　効果量は以下の通りです。
-		PRINTL 　　１：110％　２：130％　３：160％　４：200％
-		PRINTL 　　バフ固定値のみ効果を発揮します。５以上に増加しても効果は４と同じままです。
-		PRINTL
-		PRINTL ・ストレングス
-		PRINTL 　　攻撃力を上昇させます。効果の掛かったキャラのHPが高いほど効果が大きくなります。
-		PRINTL 　　バフ割合のみ効果を発揮します。
-		PRINTL 　　計算式は「（（ＨＰ ✕ 200 / 最大ＨＰ）+ 100）✕（バフ効果量 / 3） / 100」％。
-		PRINTL
-		PRINTL ・逆境
-		PRINTL 　　攻撃力を上昇させます。効果の掛かったキャラの最大HPと現在HPの差が大きいほど効果が大きくなります。
-		PRINTL 　　バフ割合のみ効果を発揮します。
-		PRINTL 　　計算式は「（（（最大ＨＰ - ＨＰ） ✕ 200 / 最大ＨＰ）+ 100）✕（バフ効果量 / 3） / 100」％。
-		PRINTL
 		PRINTL ・再生
 		PRINTL 　　行動終了後にＨＰが回復します。
-		PRINTL 　　バフ固定値のみ設定可能にしています。割合は効果が大きすぎるため、アビエディタでは解放していません。
+		PRINTL 　　効果固定値のみ設定可能にしています。割合は効果が大きすぎるため、アビエディタでは解放していません。
 		PRINTL
 		PRINTL ・高揚
 		PRINTL 　　行動終了後に奥義ゲージが増加します。
-		PRINTL 　　バフ固定値のみ設定可能にしています。
+		PRINTL 　　効果固定値のみ設定可能にしています。
 		PRINTL 
 		PRINTL ・バリア
 		PRINTL 　　ダメージを受ける時、ＨＰの代わりに減少します。
 		PRINTL 　　残存する数値以上のダメージを受けた時、持続時間に関わらず消滅します。
 		PRINTL 　　バリアが残っている時、追撃効果が発生しません。
-		PRINTL 　　バフ固定値のみ効果を発揮します。
+		PRINTL 　　効果固定値のみ効果を発揮します。
 		PRINTL
-		PRINTL ・追撃
-		PRINTL 　　通常攻撃を行う際、追加のダメージが発生します。
-		PRINTL 　　効果割合は通常攻撃のダメージに対する％で追加ダメージを発生させます。
-		PRINTL 　　効果固定値は設定した値で追加ダメージを発生させます。
-		; PRINTL
-		; PRINTL ・ＨＰ転換
-		; PRINTL 　　ダメージを受ける時、代わりにＨＰを回復します。
-		; PRINTL 　　効果割合は受けるはずだったダメージに対する％で回復を発生させます。
-		; PRINTL 　　効果固定値は１回に回復する上限量を設定します。
-		; PRINTL
-		; PRINTL ・ＭＰ転換
-		; PRINTL 　　ダメージを受ける時、代わりにＭＰを回復します。
-		; PRINTL 　　効果割合は受けるはずだったダメージに対する％で回復を発生させます。
-		; PRINTL 　　効果固定値は１回に回復する上限量を設定します。
-		; PRINTL
-		; PRINTL ・自動復活
-		; PRINTL 　　
+		PRINTL ・ＨＰ転換
+		PRINTL 　　ダメージを受ける時、代わりにＨＰを回復します。
+		PRINTL 　　効果割合は受けるはずだったダメージに対する％で回復を発生させます。
+		PRINTL 　　効果固定値は１回に回復する上限量を設定します。０にすると効果を発揮しないので注意してください。
+		PRINTL
+		PRINTL ・ＭＰ転換
+		PRINTL 　　ダメージを受ける時、代わりにＭＰを回復します。
+		PRINTL 　　効果割合は受けるはずだったダメージに対する％で回復を発生させます。
+		PRINTL 　　効果固定値は１回に回復する上限量を設定します。０にすると効果を発揮しないので注意してください。
+		PRINTL
+		PRINTL ・自動復活
+		PRINTL 　　ＨＰが０になった時、自身のＨＰを回復して戦闘不能から復活します。
+		PRINTL 　　効果割合は最大ＨＰに対する％で回復量を決定します。
+		PRINTL 　　効果固定値は固定値で回復量を決定します。
+		PRINTL
+		PRINTL ・弱体無効
+		PRINTL 　　デバフ効果を与えられた時、それを無効化します。
+		PRINTL 　　弱体耐性貫通が付与されているデバフには機能しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・ディスペルガード
+		PRINTL 　　バフ消去効果を与えられた時、それを無効化します。
+		PRINTL 　　阻害無視が付与されているバフ消去には機能しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・単体かばう
+		PRINTL 　　全体攻撃以外の攻撃を味方が受けた時、それをかばって自分が受けます。
+		PRINTL 　　かばう無視が付与されている攻撃には機能しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・全体かばう
+		PRINTL 　　攻撃を味方が受けた時、それをかばって自分が受けます。
+		PRINTL 　　かばう無視が付与されている攻撃には機能しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・反射
+		PRINTL 　　攻撃を受けた時、その攻撃の対象を攻撃者に変更します。
+		PRINTL 　　阻害無視が付与されている攻撃には機能しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・ガッツ
+		PRINTL 　　ＨＰが０以下になる攻撃を受けた時、自身のＨＰを１に変更します。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
+		PRINTL
+		PRINTL ・潜伏
+		PRINTL 　　ランダムに対象を選択する時、対象になりません。
+		PRINTL 　　味方からの行動の場合、効果を発揮しません。
+		PRINTL 　　効果割合・効果固定値ともに無意味です。
 		PRINTL
 		WAIT
 		RESTART
@@ -587,96 +733,627 @@ RETURNF 返り文字列
 SELECTCASE バフ対象能力
 	CASE "攻撃力"
 		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "防御力"
 		RFLAG:アビMP係数 = 80
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "回復力"
 		RFLAG:アビMP係数 = 70
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "行動速度"
 		RFLAG:アビMP係数 = 60
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "ダメージ補正_通常攻撃ダメージ"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "ダメージ補正_アビリティダメージ"
 		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "ダメージ補正_奥義ダメージ"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "ダメージ補正_チェンバダメージ"
 		RFLAG:アビMP係数 = 80
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "与ダメージ"
 		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "属性与ダメージ_火", "属性与ダメージ_水", "属性与ダメージ_風", "属性与ダメージ_土", "属性与ダメージ_光", "属性与ダメージ_闇"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "被ダメージ"
 		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "属性被ダメージ_火", "属性被ダメージ_水", "属性被ダメージ_風", "属性被ダメージ_土", "属性被ダメージ_光", "属性被ダメージ_闇"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "与回復量"
 		RFLAG:アビMP係数 = 80
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "被回復量"
 		RFLAG:アビMP係数 = 80
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "青天井_割合_固定値"
 	CASE "追撃"
 		RFLAG:アビMP係数 = 110
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "青天井_割合_固定値"
 	CASE "ストレングス"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "青天井_割合"
 	CASE "逆境"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "青天井_割合"
+	CASE "回避反撃"
+		RFLAG:アビMP係数 = 25
+		RSTR:表示設定受け渡し = "［］"
+		RETURNF "青天井_割合_固定値"
+	CASE "カウンター"
+		RFLAG:アビMP係数 = 25
+		RSTR:表示設定受け渡し = "［］"
+		RETURNF "青天井_割合_固定値"
 	CASE "再生"
 		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "青天井_固定値"
 	CASE "バリア"
 		RFLAG:アビMP係数 = 60
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "青天井_固定値"
 	CASE "DA率"
 		RFLAG:アビMP係数 = 30
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_固定値"
 	CASE "TA率"
 		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_固定値"
 	CASE "連続攻撃率"
 		RFLAG:アビMP係数 = 120
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_固定値"
 	CASE "高揚"
 		RFLAG:アビMP係数 = 300
+		RSTR:表示設定受け渡し = "［］"
 		RETURNF "最大100_固定値"
 	CASE "ゲージ上昇効率"
 		RFLAG:アビMP係数 = 70
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_割合_固定値"
 	CASE "命中率"
 		RFLAG:アビMP係数 = 50
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_割合_固定値"
 	CASE "回避率"
 		RFLAG:アビMP係数 = 75
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_固定値"
 	CASE "クリティカル率"
 		RFLAG:アビMP係数 = 85
+		RSTR:表示設定受け渡し = "［］_上昇"
 		RETURNF "最大100_固定値"
 	CASE "クリティカルダメージ率"
+		RFLAG:アビMP係数 = 45
+		RSTR:表示設定受け渡し = "［］_上昇"
+		RETURNF "最大100_割合_固定値"
+	CASE "弱体成功率"
+		RFLAG:アビMP係数 = 50
+		RSTR:表示設定受け渡し = "［］_上昇"
+		RETURNF "最大100_割合_固定値"
+	CASE "弱体耐性"
+		RFLAG:アビMP係数 = 50
+		RSTR:表示設定受け渡し = "［］_上昇"
+		RETURNF "最大100_固定値"
+	CASE "テンション"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］"
+		;テンションは1～4しかないので計算タイプは特殊
+		RETURNF "テンション_固定値"
+	CASE "ＨＰ転換"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］"
+		;転換系は挙動が特殊なので計算タイプ別
+		RETURNF "転換_割合_固定値"
+	CASE "ＭＰ転換"
+		RFLAG:アビMP係数 = 200
+		RSTR:表示設定受け渡し = "［］"
+		;転換系は挙動が特殊なので計算タイプ別
+		RETURNF "転換_割合_固定値"
+	CASE "自動復活"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］"
+		;復活も一応特殊に
+		RETURNF "復活_割合_固定値"
+	CASE "弱体無効"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "ディスペルガード"
+		RFLAG:アビMP係数 = 80
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "単体かばう"
+		RFLAG:アビMP係数 = 50
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "全体かばう"
+		RFLAG:アビMP係数 = 90
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "奥義再発動"
+		RFLAG:アビMP係数 = 150
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "反射"
+		RFLAG:アビMP係数 = 300
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "ガッツ"
+		RFLAG:アビMP係数 = 150
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "ブレイクアサシン"
+		RFLAG:アビMP係数 = 75
+		RSTR:表示設定受け渡し = ""
+		;効果が持続効果のみ系
+		RETURNF "持続のみ"
+	CASE "再行動"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = "［］"
+		;特殊計算式
+		RETURNF "再行動"
+	CASE "潜伏"
+		RFLAG:アビMP係数 = 100
+		RSTR:表示設定受け渡し = ""
+		;特殊計算式
+		RETURNF "持続のみ"
+ENDSELECT
+
+
+
+@アビエディタ_効果目安_ステータスバフ種類(バフ対象能力, 取得条件_Lv, 取得条件_陥落)
+#FUNCTIONS
+#DIMS バフ対象能力
+#DIM 取得条件_Lv
+#DIMS 取得条件_陥落
+#DIMS HTML文字列
+
+;目安説明を返す
+
+HTML文字列 = 
+SELECTCASE バフ対象能力
+	CASE "攻撃力", "防御力", "回復力"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 20
+			CASE 20 TO 40
+				LOCAL = 30
+			CASE 40 TO 60
+				LOCAL = 35
+			CASEELSE
+				LOCAL = 40
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * (LOCAL * 3 / 2) / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "行動速度"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 30
+			CASE 20 TO 40
+				LOCAL = 50
+			CASE 40 TO 60
+				LOCAL = 60
+			CASEELSE
+				LOCAL = 70
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * (LOCAL * 3 / 2) / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "ダメージ補正_通常攻撃ダメージ", "ダメージ補正_アビリティダメージ", "ダメージ補正_奥義ダメージ"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 30
+			CASE 20 TO 40
+				LOCAL = 40
+			CASE 40 TO 60
+				LOCAL = 45
+			CASEELSE
+				LOCAL = 50
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "ダメージ補正_チェンバダメージ"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 100
+			CASE 20 TO 40
+				LOCAL = 130
+			CASE 40 TO 60
+				LOCAL = 160
+			CASEELSE
+				LOCAL = 180
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "与ダメージ", "属性与ダメージ_火", "属性与ダメージ_水", "属性与ダメージ_風", "属性与ダメージ_土", "属性与ダメージ_光", "属性与ダメージ_闇"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 20
+			CASE 20 TO 40
+				LOCAL = 30
+			CASE 40 TO 60
+				LOCAL = 35
+			CASEELSE
+				LOCAL = 40
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "被ダメージ", "属性被ダメージ_火", "属性被ダメージ_水", "属性被ダメージ_風", "属性被ダメージ_土", "属性被ダメージ_光", "属性被ダメージ_闇"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 15
+			CASE 20 TO 40
+				LOCAL = 20
+			CASE 40 TO 60
+				LOCAL = 25
+			CASEELSE
+				LOCAL = 30
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "与回復量"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 20
+			CASE 20 TO 40
+				LOCAL = 30
+			CASE 40 TO 60
+				LOCAL = 35
+			CASEELSE
+				LOCAL = 40
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>４～６ターン</font><br>"
+	CASE "被回復量"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 30
+			CASE 20 TO 40
+				LOCAL = 40
+			CASE 40 TO 60
+				LOCAL = 50
+			CASEELSE
+				LOCAL = 60
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>４～６ターン</font><br>"
+	CASE "追撃"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 15
+			CASE 20 TO 40
+				LOCAL = 20
+			CASE 40 TO 60
+				LOCAL = 25
+			CASEELSE
+				LOCAL = 30
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～４ターン</font><br>"
+	CASE "ストレングス"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 25
+			CASE 20 TO 40
+				LOCAL = 35
+			CASE 40 TO 60
+				LOCAL = 45
+			CASEELSE
+				LOCAL = 50
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "逆境"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 30
+			CASE 20 TO 40
+				LOCAL = 40
+			CASE 40 TO 60
+				LOCAL = 50
+			CASEELSE
+				LOCAL = 60
+		ENDSELECT
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL * 3 / 2, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "回避反撃"
+		SELECTCASE 取得条件_Lv
+			CASE 1 TO 10
+				LOCAL = 150
+			CASE 10 TO 20
+				LOCAL = 200
+			CASE 20 TO 30
+				LOCAL = 250
+			CASE 30 TO 40
+				LOCAL = 300
+			CASE 40 TO 50
+				LOCAL = 350
+			CASE 50 TO 60
+				LOCAL = 380
+			CASE 60 TO 70
+				LOCAL = 410
+			CASEELSE
+				LOCAL = 450
+		ENDSELECT
+		HTML文字列 += @"Lv<font color='#%カラーパレット_HTML("黄")%'>{MAX(1, 取得条件_Lv), 2}"
+		IF 取得条件_陥落 != ""
+			HTML文字列 += "＋陥落時"
+			LOCAL += 50
+		ENDIF
+		HTML文字列 += "</font> 時点<br>"
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font>％<br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL / 2, 4}</font>％<br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 / 2, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>２～４ターン</font><br>"
+	CASE "カウンター"
+		SELECTCASE 取得条件_Lv
+			CASE 1 TO 10
+				LOCAL = 150
+			CASE 10 TO 20
+				LOCAL = 200
+			CASE 20 TO 30
+				LOCAL = 250
+			CASE 30 TO 40
+				LOCAL = 300
+			CASE 40 TO 50
+				LOCAL = 350
+			CASE 50 TO 60
+				LOCAL = 380
+			CASE 60 TO 70
+				LOCAL = 410
+			CASEELSE
+				LOCAL = 450
+		ENDSELECT
+		HTML文字列 += @"Lv<font color='#%カラーパレット_HTML("黄")%'>{MAX(1, 取得条件_Lv), 2}"
+		IF 取得条件_陥落 != ""
+			HTML文字列 += "＋陥落時"
+			LOCAL += 50
+		ENDIF
+		HTML文字列 += "</font> 時点<br>"
+		HTML文字列 += @"　　単体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL, 4}</font>％<br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象　効果割合目安：<font color='#%カラーパレット_HTML("黄")%'>{LOCAL / 2, 4}</font>％<br>"
+		HTML文字列 += @"　　　　　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 20 + 80) / 4 * LOCAL / 100 / 2, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>２～４ターン</font><br>"
+	CASE "再生"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 10
+			CASE 20 TO 40
+				LOCAL = 12
+			CASE 40 TO 60
+				LOCAL = 15
+			CASEELSE
+				LOCAL = 17
+		ENDSELECT
+		HTML文字列 += @"　　単体対象効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 40 + 180) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 40 + 180) * LOCAL / 100 / 2, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～４ターン</font><br>"
+	CASE "バリア"
+		SELECTCASE 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)
+			CASE 1 TO 20
+				LOCAL = 30
+			CASE 20 TO 40
+				LOCAL = 40
+			CASE 40 TO 60
+				LOCAL = 50
+			CASEELSE
+				LOCAL = 55
+		ENDSELECT
+		HTML文字列 += @"　　単体対象効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 40 + 180) * LOCAL / 100, 4}</font><br>"
+		HTML文字列 += @"　　全体対象効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>{((取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0)) * 40 + 180) * LOCAL / 100 / 2, 4}</font><br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>３～５ターン</font><br>"
+	CASE "DA率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 30
+		RETURNF "最大100_固定値"
+	CASE "TA率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 90
+		RETURNF "最大100_固定値"
+	CASE "連続攻撃率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 120
+		RETURNF "最大100_固定値"
+	CASE "高揚"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 300
+		RETURNF "最大100_固定値"
+	CASE "ゲージ上昇効率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 70
+		RETURNF "最大100_割合_固定値"
+	CASE "命中率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 50
+		RETURNF "最大100_割合_固定値"
+	CASE "回避率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 75
+		RETURNF "最大100_固定値"
+	CASE "クリティカル率"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 85
+		RETURNF "最大100_固定値"
+	CASE "クリティカルダメージ率"
+		RETURNF "作成中"
 		RFLAG:アビMP係数 = 45
 		RETURNF "最大100_割合_固定値"
 	CASE "弱体成功率"
 		RFLAG:アビMP係数 = 50
 		RETURNF "最大100_割合_固定値"
 	CASE "弱体耐性"
+		RETURNF "作成中"
 		RFLAG:アビMP係数 = 50
 		RETURNF "最大100_固定値"
 	CASE "テンション"
+		RETURNF "作成中"
 		RFLAG:アビMP係数 = 100
 		;テンションは1～4しかないので計算タイプは特殊
 		RETURNF "テンション_固定値"
+	CASE "ＨＰ転換"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 100
+		;転換系は挙動が特殊なので計算タイプ別
+		RETURNF "転換_割合_固定値"
+	CASE "ＭＰ転換"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 200
+		;転換系は挙動が特殊なので計算タイプ別
+		RETURNF "転換_割合_固定値"
+	CASE "自動復活"
+		RETURNF "作成中"
+		RFLAG:アビMP係数 = 100
+		;復活も一応特殊に
+		RETURNF "復活_割合_固定値"
+	CASE "弱体無効"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 40
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　全体を推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "ディスペルガード"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 30
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　全体を推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "単体かばう"
+		HTML文字列 += "　　自己のみを推奨<br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１ターン</font><br>"
+	CASE "全体かばう"
+		HTML文字列 += "　　自己のみを推奨<br>"
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１ターン</font><br>"
+	CASE "奥義再発動"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 50
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　自己のみを推奨<br>"
+			HTML文字列 += "　　複数対象の場合、消費ＭＰを増やす・アビの効果数を減らすなどを推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "反射"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 50
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　自己のみを推奨<br>"
+			HTML文字列 += "　　複数対象の場合、消費ＭＰを増やす・アビの効果数を減らすなどを推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "ガッツ"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 50
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　自己のみを推奨<br>"
+			HTML文字列 += "　　複数対象の場合、消費ＭＰを増やす・アビの効果数を減らすなどを推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "ブレイクアサシン"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 50
+			HTML文字列 += "　　自己のみを推奨<br>"
+		ELSE
+			HTML文字列 += "　　自己のみを推奨<br>"
+			HTML文字列 += "　　複数対象の場合、消費ＭＰを増やす・アビの効果数を減らすなどを推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>１回</font><br>"
+	CASE "再行動"
+		HTML文字列 += @"　　効果固定値目安：<font color='#%カラーパレット_HTML("黄")%'>   1</font><br>"
+		IF 取得条件_Lv + (取得条件_陥落 != "" ? 20 # 0) < 50
+			HTML文字列 += "　　単体対象を推奨<br>"
+		ELSE
+			HTML文字列 += "　　単体対象を推奨<br>"
+			HTML文字列 += "　　複数対象の場合、消費ＭＰを増やす・アビの効果数を減らすなどを推奨<br>"
+		ENDIF
+		HTML文字列 += @"<br>"
+		HTML文字列 += @"　　　　　　　　　効果時間目安：<font color='#%カラーパレット_HTML("黄")%'>２～３ターン</font><br>"
+	CASE "潜伏"
+		RETURNF "作成中"
 ENDSELECT
+
+RETURNF HTML文字列

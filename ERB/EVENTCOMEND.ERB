@@ -223,12 +223,12 @@ FOR LOCAL, 0, CHARANUM
 				ENDIF
 			CASE "お風呂", "自室入浴"
 				;回復早い、回復遅い
-				BASE:LOCAL:体力 = MIN(MAXBASE:LOCAL:体力, BASE:LOCAL:体力 + ((TIME - TIME:2) * 30 / (3 - TALENT:LOCAL:回復速度)))
+				BASE:LOCAL:体力 = MIN(MAXBASE:LOCAL:体力, BASE:LOCAL:体力 + (((TIME < TIME:2 ? TIME + 1440 # TIME) - TIME:2) * 30 / (3 - TALENT:LOCAL:回復速度)))
 		ENDSELECT
 	ENDIF
 NEXT
 
-IF FLAG:お出かけ先フラグ > 0 && TIME > 1260
+IF FLAG:外出先番号 > 0 && TIME > 1260
 	TFLAG:オートコマンドフラグ = 0
 
 	PRINTW （そろそろ帰宅する時間だ…　一日を終了します）
@@ -255,7 +255,7 @@ ELSEIF CFLAG:MASTER:酔いすぎ == 1
 	CFLAG:MASTER:睡眠 = 1
 	CFLAG:MASTER:就寝時刻 = DAY * 1440 + TIME
 	IF TARGET > 0 && TALENT:恋慕 && BASE:体力 >= 1
-		IF FLAG:お出かけ先フラグ > 0
+		IF FLAG:外出先番号 > 0
 			PRINTFORMW なんとかリゾートまで帰り着くことが出来た……
 		ELSE
 			PRINTFORMW %CALLNAME%が%CALLNAME:MASTER%を私室へと運んでくれた…
@@ -271,7 +271,7 @@ ELSEIF CFLAG:MASTER:酔いすぎ == 1
 	CALL うふふ終了処理("あなた泥酔")
 	CALL 飲み会終了処理
 	FLAG:一日終了 = 1
-ELSEIF CFLAG:MASTER:起床予定時刻 > TIME && CFLAG:MASTER:起床予定時刻 - 120 < TIME
+ELSEIF CFLAG:MASTER:起床予定時刻 > TIME && CFLAG:MASTER:起床予定時刻 - 120 < TIME && FLAG:イベントうふふ中フラグ == 0
 	TFLAG:オートコマンドフラグ = 0
 
 	PRINTW （眠気が限界だ…　一日を終了します）
@@ -281,7 +281,7 @@ ELSEIF CFLAG:MASTER:起床予定時刻 > TIME && CFLAG:MASTER:起床予定時刻
 	CFLAG:MASTER:睡眠 = 1
 	CFLAG:MASTER:就寝時刻 = DAY * 1440 + TIME
 	IF TARGET > 0 && TALENT:恋慕 && BASE:体力 >= 1
-		IF FLAG:お出かけ先フラグ > 0
+		IF FLAG:外出先番号 > 0
 			PRINTFORMW なんとかリゾートまで帰り着くことが出来た……
 		ELSE
 			PRINTFORMW %CALLNAME%が%CALLNAME:MASTER%を私室へと運んでくれた…
@@ -368,6 +368,8 @@ FOR LOCAL, 1, CHARANUM
 	ENDIF
 	SIF !CFLAG:(TARGET:LOCAL):体力限界 && CFLAG:(TARGET:LOCAL):隠密 == CFLAG:MASTER:隠密
 		モード中キャラカウント += 1
+	SIF TCVAR:(TARGET:LOCAL):ダウン後いたずら
+		モード中キャラカウント += 1
 NEXT
 IF CFLAG:MASTER:うふふ && モード中キャラカウント == 0
 	CALL 呼び出す候補キャラ登録(表示候補)
@@ -379,18 +381,29 @@ IF CFLAG:MASTER:うふふ && モード中キャラカウント == 0
 		PRINTL
 		PRINTBUTTON "[1] いいえ", 1
 		PRINTL
+		PRINTBUTTON "[10] ダウンしたキャラにもう少しいたずらする", 10
+		PRINTL
 		BINPUT
-		IF RESULT == 0
-			CALL COM210
-			IF RESULT == -1
+		SELECTCASE RESULT
+			CASE 0
+				CALL COM210
+				IF RESULT == -1
+					CALL うふふ終了処理("全員ダウン")
+				ELSE
+					;呼び出した相手をTARGETに
+					TFLAG:TARGET変更用 = RFLAG:コマンド結果受渡し変数
+				ENDIF
+			CASE 10
+				FOR LOCAL, 1, CHARANUM
+					SIF TARGET:LOCAL < 1
+						BREAK
+					IF CFLAG:(TARGET:LOCAL):体力限界 && CFLAG:(TARGET:LOCAL):うふふ
+						TCVAR:(TARGET:LOCAL):ダウン後いたずら = 1
+					ENDIF
+				NEXT
+			CASEELSE
 				CALL うふふ終了処理("全員ダウン")
-			ELSE
-				;呼び出した相手をTARGETに
-				TFLAG:TARGET変更用 = RFLAG:コマンド結果受渡し変数
-			ENDIF
-		ELSE
-			CALL うふふ終了処理("全員ダウン")
-		ENDIF
+		ENDSELECT
 	ELSE
 		CALL うふふ終了処理("全員ダウン")
 	ENDIF
@@ -478,7 +491,7 @@ IF LOCAL > 0
 	PRINTL
 	PRINTFORML \@ LOCAL / 60 > 0?{LOCAL / 60}時間# \@{LOCAL % 60}分 経過
 ENDIF
-TIME:2 = TIME > 1440 ? TIME - 1440 # TIME
+TIME:2 = TIME >= 1440 ? TIME - 1440 # TIME
 
 WAIT
 
