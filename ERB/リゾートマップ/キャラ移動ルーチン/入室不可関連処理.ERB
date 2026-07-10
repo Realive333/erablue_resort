@@ -10,6 +10,7 @@
 #DIM 移動先マップ種別
 #DIM 自動移動フラグ
 #DIM ROOMSEX数値
+#DIM キャラSEX数値
 #DIM era番号
 
 ROOMSEX数値 = ROOM_SEX(移動先マップ種別, 移動先位置)
@@ -28,7 +29,16 @@ IF フィールド展開:異性施設侵入 == 0 && ROOMSEX数値
 			LOCAL:2 = CFLAG:(TARGET:LOCAL):現在マップ種別
 			LOCAL:3 = CFLAG:(TARGET:LOCAL):現在位置
 		ENDIF
-		SIF TALENT:(TARGET:LOCAL):性別 != ROOMSEX数値 && (TALENT:(TARGET:LOCAL):性別 != 0 && TALENT:(TARGET:LOCAL):性別 != 3)
+
+		RESULT = 0
+		TRYCALLFORMF 性別処理制御_{NO:(TARGET:LOCAL)}((TARGET:LOCAL), "入室性別")
+		IF RESULT
+			キャラSEX数値 = RESULT
+		ELSE
+			キャラSEX数値 = TALENT:(TARGET:LOCAL):性別
+		ENDIF
+		
+		SIF キャラSEX数値 != ROOMSEX数値 && (TALENT:(TARGET:LOCAL):性別 != 0 && TALENT:(TARGET:LOCAL):性別 != 3)
 			LOCAL:1 = 1
 	NEXT
 	IF LOCAL:1 && LOCALS != ""

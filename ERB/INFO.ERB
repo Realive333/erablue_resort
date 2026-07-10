@@ -294,6 +294,11 @@ FOR LOCAL,0,CHARANUM
 	ENDIF
 	IF CFLAG:LOCAL:体力限界
 		;ダウン時は（ｒｙ
+		;ダウン中、全ての服がなくなっているのなら全裸に切り替える
+		IF 全裸チェック(LOCAL) == 1
+			;全裸なら全裸に
+			CALL CLOTHES_CHANGE(LOCAL, "全裸")
+		ENDIF
 		CONTINUE
 	ENDIF
 	IF SAVESTR:ゲームフェイズ管理 == "マッサージモード"

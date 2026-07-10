@@ -342,6 +342,17 @@
 #DIM CHARADATA SAVEDATA 常駐業務経験値, 30 
 #DIM CHARADATA SAVEDATA 仕事経験値, 50
 #DIM CONST 仕事レベル経験値テーブル = 0, 5, 10, 25, 50, 100
+#DIM CHARADATA SAVEDATA 秘書起床経験
+#DIM CHARADATA SAVEDATA 秘書起床業務
+#DIM CONST 起こし方_騎乗位 = 8
+#DIM CONST 起こし方_Ａ騎乗位 = 7
+#DIM CONST 起こし方_授乳 = 6
+#DIM CONST 起こし方_フェラチオ = 5
+#DIM CONST 起こし方_パイズリ = 4
+#DIM CONST 起こし方_手コキ = 3
+#DIM CONST 起こし方_ペッティング = 2
+#DIM CONST 起こし方_キス = 1
+#DIM CONST 起こし方_ノーマル = 0
 
 ;従業員の制服設定
 #DIMS SAVEDATA CHARADATA 現在制服, 2

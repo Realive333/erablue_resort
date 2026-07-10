@@ -472,6 +472,7 @@ FOR 対象キャラ, 1, CHARANUM
 
 		CSTR:対象キャラ:服名称 = %CSVCSTR(NO:対象キャラ, GETNUM(CSTR, "服名称"))%
 		CSTR:対象キャラ:普段着解説 = %CSVCSTR(NO:対象キャラ, GETNUM(CSTR, "普段着解説"))%
+		TRYCALLFORM 特殊性別設定_{NO:対象キャラ}(対象キャラ)
 	ENDIF
 
 	CALL LOCADEND_CHARAEVENT_ETC(対象キャラ)

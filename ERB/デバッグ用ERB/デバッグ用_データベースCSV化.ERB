@@ -6,8 +6,8 @@
 #DIMS 出力先
 #DIM RESULT退避
 #DIM 列数
-#DIMS DYNAMIC 列名一覧, 30
-#DIM DYNAMIC 列型一覧, 30
+#DIMS DYNAMIC 列名一覧, 1000
+#DIM DYNAMIC 列型一覧, 1000
 #DIMS 出力文字列
 #DIM ループ用, 2
 
@@ -18,15 +18,23 @@ RESULT退避 = RESULT
 
 列数 = DT_COLUMN_NAMES(ＤＢ名, 列名一覧)
 
+LOCAL = 0
+PRINTL
 出力文字列 '= ""
 FOR ループ用:1, 0, 列数
 	SIF ループ用:1 > 0
 		出力文字列 += ","
 	出力文字列 += 列名一覧:(ループ用:1)
 	列型一覧:(ループ用:1) = DT_COLUMN_EXIST(ＤＢ名, 列名一覧:(ループ用:1))
+	IF ループ用:1  * 100 / 列数 > LOCAL
+		CLEARLINE 1
+		PRINTFORML 列生成中[{ループ用:1 * 100/列数}]％
+		LOCAL ++
+	ENDIF
 NEXT
 出力文字列 += UNICODE(0x0D) + UNICODE(0x0A)
 
+LOCAL = 0
 FOR ループ用:0, 0, DT_ROW_LENGTH(ＤＢ名)
 	FOR ループ用:1, 0, 列数
 		SIF ループ用:1 > 0
@@ -38,10 +46,17 @@ FOR ループ用:0, 0, DT_ROW_LENGTH(ＤＢ名)
 			出力文字列 += TOSTR(DT_CELL_GET(ＤＢ名, ループ用:0, 列名一覧:(ループ用:1)))
 		ENDIF
 	NEXT
+	IF ループ用:0  * 100 / DT_ROW_LENGTH(ＤＢ名) > LOCAL
+		CLEARLINE 1
+		PRINTFORML 行出力中[{ループ用:0 * 100/DT_ROW_LENGTH(ＤＢ名)}]％
+		LOCAL ++
+	ENDIF
 	出力文字列 += UNICODE(0x0D) + UNICODE(0x0A)
 NEXT
 
 SAVETEXT 出力文字列, 出力先
+CLEARLINE 1
+PRINTFORML ［%出力先%］出力完了
 
 RESULT = RESULT退避
 RETURNF 0

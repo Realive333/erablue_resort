@@ -771,6 +771,7 @@ IF 引き継ぎキャラフラグ == 0
 
 	;性別保存
 	CFLAG:ARG:元性別保存 = TALENT:ARG:性別
+	TRYCALLFORM 特殊性別設定_{NO:ARG}(ARG)
 
 	;知識素質
 	IF CSTR:ARG:知識素質設定 != ""

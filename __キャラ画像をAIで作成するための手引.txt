@@ -146,9 +146,13 @@ AI画像生成のローカル環境の構築や各種ウェブサイトの使い
 　Ｃ・Ｃ・Ｃ	bb \(swimsuit mooncancer\) \(second ascension\) \(fate\), bb \(swimsuit mooncancer\) \(second ascension\) \(fate\) \(cosplay\), bead bracelet, belt,purple bikini, bikini under clothes, black glove, black shorts, black thighhighs, choker, fingerless gloves, hair ribbon, halterneck, long ribbon, micro shorts, navel, highleg panties, sideboob, cleavage, star hairband, {dirk skin}, 
 　ユスティナ聖徒会礼装 (alternate costume:1.2), (justina follower (blue archive):1.2), cosplay, nun, shiny clothes, skin tight, black leotard, black veil, (short veil:1.2), halo, guimpe, highleg leotard, impossible leotard, latex, latex leotard, black glove, black thighhighss, ass visible through thighs, black boots, high heel boots, 
 　オルターエゴ・マリシャス	collarbone, alternate costume, alter ego malevolent \(granblue fantasy\), goth fashion, punk, navel,  camisole, black camisole, crop top, feather boa, choker, bare shoulders, black skirt, miniskirt, thigh strap, single fishnet legwear, fishnet thighhighs, black thighhighs, boots, black boots,
+　白いワンピース	alternate costume,  lyria (granblue fantasy) (cosplay), white dress, jewelry, choker,  bridal gauntlets,  golden bridal gauntlets, strapless, (collarbone:0.8), (bare shoulders:0.8), thigh strap, 
+　サキュバスギャル服     <lora:s-gal-clothes:1> succubus-gal \(clothes\), collar,cardigan, navel, loose socks,demon horns,demon wings, white cardigan, demon tail, bare shoulders, (microskirt:0.7), (pubic tattoo:0.8), {convenient censoring | (pussy:0.7), nipples},
+（https://civitai.red/models/1382150/bombergirlsuccubus-gyaruoutfit のLoraを使用しますが、それでも多少のガチャが必要）
 
-　サキュバスギャル服
-　サキュバスチアコス
+　サキュバスチアコス    <lora:succubus0cheer:0.8>cheerleader, breast cutout, (slingshot swimsuit:0.6), navel, ,skirt, microskirt, lowleg skirt, demon horns, wings, low wings, 
+   （https://civitai.com/models/1421698/costume-succubus-cheer-bomber-girl のLoraを使用）
+ 
 
 ・改定記録
 　・2025/10/22	作成
@@ -159,3 +163,4 @@ AI画像生成のローカル環境の構築や各種ウェブサイトの使い
 　・2026/04/19	微調整及びオルターエゴ・マリシャスの追加
 　・2026/05/04	普通のオーバーオール、裸ミニスカオーバーオールの追加
 　・2026/05/20	スーパーセクシー巫女服の追加
+　・2026/07/10	白いワンピース、サキュバスギャル服、サキュバスチアコスの追加

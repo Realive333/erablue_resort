@@ -483,10 +483,11 @@ RETURNF HAS_VAGINA(ARG)
 #FUNCTION
 #DIM 対象キャラ
 
-RFLAG:利用性別 = 0
-TRYCALLFORMF 施設利用性別登録_{NO:対象キャラ}(対象キャラ)
-SIF RFLAG:利用性別
-	RETURNF RFLAG:利用性別
+RESULT = 0
+TRYCALLFORMF 性別処理制御_{NO:対象キャラ}(対象キャラ, "入室性別")
+IF RESULT
+	RETURNF RESULT
+ENDIF
 
 ;男は男、それ以外は全部女性側がデフォルト
 IF TALENT:対象キャラ:性別 == 2
@@ -1857,3 +1858,53 @@ ENDIF
 
 
 RETURNF 0
+
+;-------------------------------------------------
+;ON/OFFによって色が切り替わるボタンをHTML構文で出力する式中関数
+;単ボタン化が0以外の場合、[XXXX] YYYYというボタンではなく[YYYY]というボタンが表示される。押した場合の返り値は同じ。
+;ボタン化条件が0の場合、グレーアウトしてボタンでは無くなる
+;隠蔽フラグが0以外の場合、[----] ----のようにボタンの値や表示文が隠され、ツールチップが表示されなくなる
+;-------------------------------------------------
+@HTMLボタン_条件付き(ONOFF条件, ボタン値 = "", 表示文 = "", 解説文 = "", 単ボタン化 = 0, ボタン化条件 = 1, 隠蔽フラグ = 0)
+#FUNCTIONS
+#DIM ONOFF条件
+#DIMS ボタン値
+#DIMS 表示文
+#DIMS 解説文
+#DIM 単ボタン化
+#DIM ボタン化条件
+#DIM 隠蔽フラグ
+
+SIF ボタン値 == "" || 表示文 == ""
+	RETURNF
+
+VARSET LOCALS, ""
+
+IF 隠蔽フラグ
+	ボタン化条件 = 0
+	解説文 '= ""
+	表示文 = %"-" * STRLENS(表示文)%
+	ボタン値 = %"-" * STRLENS(ボタン値)%
+ENDIF
+
+SIF 解説文 != ""
+	LOCALS:1 '= @" title='%解説文%'"
+
+IF 単ボタン化
+	LOCALS:3 '= @"[%表示文%]"
+ELSE
+	LOCALS:3 '= @"[%ボタン値%] %表示文%"
+ENDIF
+
+IF !ボタン化条件
+	;グレーアウトして押せなくする
+	LOCALS '= @"<nonbutton%LOCALS:1%><font color='#%カラーパレット_HTML("グレーアウト")%'>" + LOCALS:3 + "</font></nonbutton>"
+ELSEIF ONOFF条件
+	;現在ONの時
+	LOCALS '= @"<button value='%ボタン値%'%LOCALS:1%><font color='#%カラーパレット_HTML("黄")%'>" + LOCALS:3 + "</font></button>"
+ELSE
+	;現在OFFの時
+	LOCALS '= @"<button value='%ボタン値%'%LOCALS:1%><font color='#%カラーパレット_HTML("銀")%'>" + LOCALS:3 + "</font></button>"
+ENDIF
+
+RETURNF LOCALS

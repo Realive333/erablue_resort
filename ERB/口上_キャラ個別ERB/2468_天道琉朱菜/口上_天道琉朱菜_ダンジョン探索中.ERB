@@ -16,7 +16,7 @@
 CALL 口上変数初期化
 LOCAL = キャラ隊列検索(対象キャラ)
 
-SELECTCASE RAND:7
+SELECTCASE RAND:11
 	CASE 0
 		KSTR:(K++) = ｢おなかすいたー！｣
 	CASE 1
@@ -24,13 +24,25 @@ SELECTCASE RAND:7
 	CASE 2
 		KSTR:(K++) = ｢なにかないっかな～♪｣
 	CASE 3
-		KSTR:(K++) = ｢弾？　ココにいっぱいあるからだいじょーぶっ♪｣
+		IF TALENT:対象キャラ:恋慕
+			KSTR:(K++) = ｢弾？　見る？　ほら_H_　いっぱいあるよ……っ_H_｣
+		ELSE
+			KSTR:(K++) = ｢弾？　ココにいっぱいあるからだいじょーぶっ♪｣
+		ENDIF
 	CASE 4
 		KSTR:(K++) = ｢見たことないものばっかりだ～……｣
 	CASE 5
 		KSTR:(K++) = ｢この辺は平和なんだね～｣
 	CASE 6
 		KSTR:(K++) = ｢んん～っ……眠くなってきちゃった……｣
+	CASE 7
+		KSTR:(K++) = ｢つかれたー！　おんぶしてー｣
+	CASE 8
+		KSTR:(K++) = ｢なんだろこれ？　あ……触っちゃダメなやつ？｣
+	CASE 9
+		KSTR:(K++) = ｢ん……？　……あ、ゴメン気のせいだったー♪｣
+	CASE 10 && TALENT:対象キャラ:恋慕
+		KSTR:(K++) = ｢心配いらないからねー♪　_一人称_が守るっ！｣
 ENDSELECT
 
 CALL メッセージ欄表示用関数(@"探索用_{LOCAL}_顔", CALLNAME:対象キャラ,,0,,対象キャラ)
@@ -123,13 +135,15 @@ CALL メッセージ欄表示用関数(@"探索用_{LOCAL}_顔", CALLNAME:対象
 CALL 口上変数初期化
 LOCAL = キャラ隊列検索(対象キャラ)
 
-SELECTCASE RAND:3
+SELECTCASE RAND:4
 	CASE 0
 		KSTR:(K++) = ｢イェイ♪｣
 	CASE 1
 		KSTR:(K++) = ｢命中♪｣
 	CASE 2
 		KSTR:(K++) = ｢まだ戦る？｣
+	CASE 3
+		KSTR:(K++) = ｢ふぅっ……！｣
 ENDSELECT
 
 CALL メッセージ欄表示用関数(@"探索用_{LOCAL}_顔", CALLNAME:対象キャラ, , , , 対象キャラ)
@@ -165,13 +179,15 @@ CALL メッセージ欄表示用関数(,,,0)
 CALL 口上変数初期化
 LOCAL = キャラ隊列検索(対象キャラ)
 
-SELECTCASE RAND:3
+SELECTCASE RAND:4
 	CASE 0
 		KSTR:(K++) = ｢おつかれっ！｣
 	CASE 1
 		KSTR:(K++) = ｢やったぁーっ♪｣
 	CASE 2
 		KSTR:(K++) = ｢勝ったーっ！｣
+	CASE 3
+		KSTR:(K++) = ｢ぃよっし！｣
 ENDSELECT
 
 CALL メッセージ欄表示用関数(@"探索用_{LOCAL}_顔", CALLNAME:対象キャラ, , , , 対象キャラ)
@@ -198,6 +214,11 @@ CALL メッセージ欄表示用関数(,,,0)
 CALL 口上変数初期化
 LOCAL = キャラ隊列検索(対象キャラ)
 
-KSTR:(K++) = ｢にっげろ～！｣
+SELECTCASE RAND:2
+	CASE 0
+		KSTR:(K++) = ｢にっげろ～！｣
+	CASE 1
+		KSTR:(K++) = ｢たいさん～っ！｣
+ENDSELECT
 
 CALL メッセージ欄表示用関数(@"探索用_{LOCAL}_顔", CALLNAME:対象キャラ, , , , 対象キャラ)

@@ -747,7 +747,7 @@ SELECTCASE 選択番号
 		ENDIF
 		;もしも一番上に来た効果の位置が最初、かつ対象が「上と同じ」だった場合、入れ替え対象だったものと効果対象を入れ替える
 		LOCALS '= DT_CELL_GETS("アビエディタデータベース", RESULT:1, "アビ対象", 1)
-		IF LOCAL - 1 == 0 && LOCALS == "上と同じ相手"
+		IF LOCAL == 0 && LOCALS == "上と同じ相手"
 			LOCALS '= DT_CELL_GETS("アビエディタデータベース", アビID:(選択番号 - 500), "アビ対象", 1)
 			DT_CELL_SET "アビエディタデータベース", アビID:(選択番号 - 500), "アビ対象", DT_CELL_GETS("アビエディタデータベース", RESULT:1, "アビ対象", 1), 1
 			DT_CELL_SET "アビエディタデータベース", RESULT:1, "アビ対象", LOCALS, 1
@@ -762,23 +762,35 @@ GOTO 動作LOOP
 
 
 
-@アビエディタ_対象選択(ダメージ対象, 効果順番 = 0)
+@アビエディタ_対象選択(ダメージ対象, 効果順番 = 0, 奥義基礎前 = "")
 #DIMS REF ダメージ対象
 #DIM ランダム被りなし
 #DIM ランダム体数記録
 #DIM 効果順番
+#DIM 対象指定不可
+#DIMS 奥義基礎前
 
 SIF ランダム体数記録 < 1
 	ランダム体数記録 = 1
 
+対象指定不可 = 0
 
 DRAWLINE
 PRINTFORML 対象を選択してください。 現在：%ダメージ対象%
-IF 効果順番 > 0
-	PRINTL 最初の効果以外の時、対象指定操作を挟む対象は選択出来ません。
+IF 奥義基礎前 == ""
+	IF 効果順番 > 0
+		PRINTL 最初の効果以外の時、対象指定操作を挟む対象は選択出来ません。
+		対象指定不可 = 1
+	ENDIF
+ELSEIF 奥義基礎前 == "前"
+	PRINTL 奥義前効果の時、対象指定操作を挟む対象は選択出来ません。
+	対象指定不可 = 1
+ELSEIF 奥義基礎前 == "奥義基礎攻撃"
+	;基礎攻撃時は順番関係なく対象指定可能、直前と同じは不可
+	PRINTL 奥義基礎攻撃の時、直前の効果と同じ は選択出来ません。
 ENDIF
 PRINTL
-IF 効果順番 < 1
+IF 効果順番 < 1 || 奥義基礎前 == "奥義基礎攻撃"
 	SETCOLOR カラーパレット("グレーアウト")
 	PRINTPLAIN [-1] 直前の効果と同じ
 	RESETCOLOR
@@ -788,7 +800,7 @@ ENDIF
 PRINTL
 PRINTBUTTON "[0] 自身", 0
 PRINTL
-IF 効果順番 > 0
+IF 対象指定不可
 	SETCOLOR カラーパレット("グレーアウト")
 	PRINTPLAIN [1] 味方単体
 	RESETCOLOR
@@ -798,7 +810,7 @@ ENDIF
 PRINTL
 PRINTBUTTON "[2] 味方全体", 2
 PRINTL
-IF 効果順番 > 0
+IF 対象指定不可
 	SETCOLOR カラーパレット("グレーアウト")
 	PRINTPLAIN [10] 敵単体
 	RESETCOLOR
@@ -806,7 +818,7 @@ ELSE
 	PRINTBUTTON "[10] 敵単体", 10
 ENDIF
 PRINTL
-IF 効果順番 > 0
+IF 対象指定不可
 	SETCOLOR カラーパレット("グレーアウト")
 	PRINTPLAIN [11] 敵横列
 	RESETCOLOR
@@ -814,7 +826,7 @@ ELSE
 	PRINTBUTTON "[11] 敵横列", 11
 ENDIF
 PRINTL
-IF 効果順番 > 0
+IF 対象指定不可
 	SETCOLOR カラーパレット("グレーアウト")
 	PRINTPLAIN [12] 敵縦列
 	RESETCOLOR
@@ -1407,7 +1419,7 @@ SELECTCASE 対象文字列
 	CASE "敵全体"
 		RETURNF "CALL アビ対象選択テンプレート_敵全体_生者のみ<br>"
 	CASE "奥義対象と同じ"
-		RETURNF "CALL アビ対象選択テンプレート_指定(アビテンプレート用_奥義使用先保存:0)<br>"
+		RETURNF "CALL アビ対象選択テンプレート_奥義対象()<br>"
 	CASEELSE
 		IF STRFIND(対象文字列, "敵ランダム") >= 0
 			対象数 = TOINT(REPLACE(REPLACE(REPLACE(対象文字列, "敵ランダム", ""), "体", ""), "（重複なし）", ""))

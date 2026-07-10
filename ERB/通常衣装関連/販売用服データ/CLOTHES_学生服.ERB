@@ -35,7 +35,9 @@ SIF CSTR:キャラ番号:着せ替え服 != "学生服"
 CSTR:キャラ番号:着せ替え服 = 学生服
 CSTR:キャラ番号:着せ替え服追加名 = 
 
-IF TALENT:キャラ番号:性別 == 2
+RESULT = 0
+TRYCALLFORM 性別処理制御_{NO:キャラ番号}(キャラ番号, "服着用性別")
+IF (TALENT:キャラ番号:性別 == 2 && RESULT != 1) || RESULT == 2
 	SELECTCASE LOCAL
 		CASE 0
 			TEQUIP:キャラ番号:上半身鎧あり = 0

@@ -51,7 +51,9 @@ SELECTCASE ARGS
 		;お祭り開催で服入手
 		CALL 制服登録処理("ミニスカサンタ")
 		;女性のみ
-		IF GETBIT(TALENT:対象キャラ:性別, 0)
+		RESULT = 0
+		TRYCALLFORMF 性別処理制御_{NO:対象キャラ}(対象キャラ, "服着用性別")
+		IF GETBIT(TALENT:対象キャラ:性別, 0) || RESULT == 1
 			IF TALENT:対象キャラ:従業員
 				;従業員は全員着る
 			ELSEIF TALENT:対象キャラ:目立ちたがり

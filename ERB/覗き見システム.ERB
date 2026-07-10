@@ -231,9 +231,13 @@ SIF RAND:100 < 30
 	セクハラフラグ = 1
 	
 ;男ならフラグを折る
-SIF GETBIT(TALENT:ARG:性別, 0) == 0
-	セクハラフラグ = 0
-		
+IF GETBIT(TALENT:ARG:性別, 0) == 0
+	RESULT = 0
+	TRYCALLFORMF 性別処理制御_{NO:ARG}(ARG, "業務中セクハラ")
+	SIF RESULT == 0
+		セクハラフラグ = 0
+ENDIF
+
 ;現在の行動と場所を取得
 現在の行動 = %移動スケジュール文字列:ARG:(スケジュール状態:ARG:現在スケジュール):スケジュール%
 

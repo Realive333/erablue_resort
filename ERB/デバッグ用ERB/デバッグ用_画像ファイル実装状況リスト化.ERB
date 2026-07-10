@@ -1,0 +1,284 @@
+[IF_DEBUG]
+;---------------------------------------------------------------------
+;【デバッグ用】チェック対象の衣装と行為差分の画像実装状況を表にして出力する
+;---------------------------------------------------------------------
+
+@デバッグ用_画像ファイル実装状況出力(FOLDER_NAME, ARG, BASE_FOLDER)
+#DIMS FOLDER_NAME
+#DIMS BASE_FOLDER
+#DIMS DYNAMIC CLTH_LIST , VARSIZE("RESULTS")
+#DIMS DYNAMIC DEF_LIST , VARSIZE("RESULTS")
+#DIMS DYNAMIC COM_LIST , VARSIZE("RESULTS")
+#DIM CLTH_CNT
+#DIM DEF_CNT
+#DIM COM_CNT
+#DIM L_CNT
+#DIM L_CNT_C
+#DIM L_CNT_D
+#DIM パターン取得済
+#DIMS REGEX_衣装名
+#DIMS REGEX_衣装名_BASE
+#DIMS REGEX_差分名
+#DIMS REGEX_差分名_BASE
+#DIMS FOLDER_NAME_NOW
+
+DEBUGCLEAR
+
+IF !パターン取得済
+	パターン取得済 = 1
+	; 衣装名パターン
+	REGEX_衣装名_BASE '=       デバッグ用_GET_REGEX("衣装名定義")
+	;REGEX_衣装名_BASE += "|" + デバッグ用_GET_REGEX("衣装名定義_EX")
+	; 差分名パターン
+	REGEX_差分名_BASE '=       デバッグ用_GET_REGEX("差分名定義")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ｖ")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ａ")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_マッサージ")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ｖ", "膣内射精")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ｖ", "", "攻め")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ａ", "腸内射精")
+	REGEX_差分名_BASE += "|" + デバッグ用_GET_REGEX("差分名定義_Ａ", "", "攻め")
+ENDIF
+
+;- キャラ固有設定の正規表現パターンの取得
+; 対象フォルダが切り替わったらキャラ固有の要素を更新
+IF FOLDER_NAME != FOLDER_NAME_NOW
+	REGEX_衣装名 '= REGEX_衣装名_BASE
+	REGEX_衣装名 += "|" + デバッグ用_GET_REGEX_キャラ固有設定("衣装", FOLDER_NAME)
+	REGEX_差分名 '= REGEX_差分名_BASE
+	REGEX_差分名 += "|" + デバッグ用_GET_REGEX_キャラ固有設定("差分", FOLDER_NAME)
+	FOLDER_NAME_NOW '= FOLDER_NAME
+ENDIF
+
+SPLIT REGEX_差分名, "|", DEF_LIST
+DEF_CNT = RESULT
+
+;出力用データベースを作成
+DT_CREATE FOLDER_NAME
+DT_COLUMN_ADD FOLDER_NAME, "衣装名"
+;最初の方に使用頻度の高そうな差分を持ってくる
+DT_COLUMN_ADD FOLDER_NAME, "ベース", 1
+DT_COLUMN_ADD FOLDER_NAME, "表情", 1
+DT_COLUMN_ADD FOLDER_NAME, "欲情", 1
+DT_COLUMN_ADD FOLDER_NAME, "絶頂", 1
+DT_COLUMN_ADD FOLDER_NAME, "正常位", 1
+DT_COLUMN_ADD FOLDER_NAME, "後背位", 1
+DT_COLUMN_ADD FOLDER_NAME, "騎乗位", 1
+DT_COLUMN_ADD FOLDER_NAME, "Ａ正常位", 1
+DT_COLUMN_ADD FOLDER_NAME, "Ａ後背位", 1
+DT_COLUMN_ADD FOLDER_NAME, "フェラチオ", 1
+DT_COLUMN_ADD FOLDER_NAME, "パイズリ", 1
+DT_COLUMN_ADD FOLDER_NAME, "膣内射精", 1
+DT_COLUMN_ADD FOLDER_NAME, "腸内射精", 1
+DT_COLUMN_ADD FOLDER_NAME, "口内射精", 1
+DT_COLUMN_ADD FOLDER_NAME, "乳内射精", 1
+DT_COLUMN_ADD FOLDER_NAME, "顔射", 1
+;差分リストから追記
+FOR L_CNT_D, 0, DEF_CNT
+	SIF DEF_LIST:L_CNT_D == ""
+		CONTINUE
+	DT_COLUMN_ADD FOLDER_NAME, @"%DEF_LIST:L_CNT_D%", 1
+NEXT
+
+FOR L_CNT_D, 0, VARSIZE("デバッグ用_差分名定義_秘書朝起こし")
+	DT_COLUMN_ADD FOLDER_NAME, @"秘書朝起こし_%デバッグ用_差分名定義_秘書朝起こし:L_CNT_D%", 1
+NEXT
+
+;コマンド実行時リストを作成
+COM_CNT = 0
+TARGET = 0
+PLAYER = 0
+MASTER = 0
+FOR LOCAL, 0, ENUMFUNCBEGINSWITH("COMNAME")
+	TRYCALLFORMF COMNAME{LOCAL}
+	LOCALS '= TSTR:コマンド名受渡
+	SIF LOCALS == ""
+		CONTINUE
+	DEBUGPRINTFORM コマンド[%LOCALS%]のファイルが
+	IF GET_RESOURCES_FILES(FOLDER_NAME, @"コマンド実行時*_%LOCALS%*.webp") == 0
+		DEBUGPRINTFORML 無いのでスキップ
+		CONTINUE
+	ENDIF
+	DEBUGPRINTFORML あるので列追加
+	DT_COLUMN_ADD FOLDER_NAME, @"コマンド実行時_%LOCALS%", 1
+	COM_LIST:COM_CNT '= LOCALS
+	COM_CNT ++
+NEXT
+
+;衣装リストを作成
+SPLIT REGEX_衣装名, "|", CLTH_LIST
+CLTH_CNT = RESULT
+LOCAL = CLTH_CNT
+FOR L_CNT_C, 0, CLTH_CNT
+	IF CLTH_LIST:L_CNT_C == ""
+		;DEBUGPRINTFORM [%CLTH_LIST:L_CNT_C%]{L_CNT_C}番目
+		CONTINUE
+	ENDIF
+	;着用条件を満たしていない衣装はスキップ
+	DO
+		TRYCCALLFORM CLOTHES_着用条件_%CLTH_LIST:L_CNT_C%(ARG)
+			IF !RESULT
+				;DEBUGPRINTFORM [%CLTH_LIST:L_CNT_C%]は着れないので除外して
+				ARRAYREMOVE CLTH_LIST, L_CNT_C, 1
+				;DEBUGPRINTFORML %CLTH_LIST:L_CNT_C%になる
+				LOCAL --
+			ELSE
+				;DEBUGPRINTFORM [%CLTH_LIST:L_CNT_C%]
+				BREAK
+			ENDIF
+		CATCH
+			;DEBUGPRINTFORM [%CLTH_LIST:L_CNT_C%]
+			BREAK
+		ENDCATCH
+	LOOP 1
+	IF GROUPMATCH(CLTH_LIST:L_CNT_C, "デフォルト", "水着", "おしゃれ着", "浴衣" ,"バスローブ", "リゾート従業員制服")
+		;今日の服装で複数からランダム取得できる衣装は別Verも探す
+		LOCAL:1 = GET_RESOURCES_FILES(FOLDER_NAME, @"短冊_%CLTH_LIST:L_CNT_C%*_差分_*.webp")
+		LOCAL:2 = GET_RESOURCES_FILES(FOLDER_NAME, @"短冊_%CLTH_LIST:L_CNT_C%*.webp")
+		;DEBUGPRINTFORML [%CLTH_LIST:L_CNT_C%]の差分数{LOCAL:1} / 総数{LOCAL:2}
+		IF LOCAL:1 < LOCAL:2
+			FOR L_CNT, 0, LOCAL:2
+				;DEBUGPRINTFORM %RESULTS:L_CNT%は
+				IF STRCOUNT(RESULTS:L_CNT, "差分")
+					;DEBUGPRINTL 差分の文字を含むので除外
+					CONTINUE
+				ENDIF
+				LOCALS '= REPLACE(RESULTS:L_CNT, "短冊_", "")
+				;DEBUGPRINTFORM %LOCALS%→
+				LOCALS '= REPLACE(LOCALS, "\.webp", "")
+				;DEBUGPRINTFORM %LOCALS%→
+				IF MATCH(CLTH_LIST, LOCALS)
+					;DEBUGPRINTL 同じなので除外
+					CONTINUE
+				ENDIF
+				WHILE CLTH_LIST:(LOCAL-1) == ""
+					LOCAL --
+				WEND
+				;DEBUGPRINTFORM ［%CLTH_LIST:LOCAL%］の欄に
+				CLTH_LIST:LOCAL '= LOCALS
+				;DEBUGPRINTFORML %CLTH_LIST:LOCAL%として登録
+				LOCAL ++
+			NEXT
+		ENDIF
+	ELSEIF CLTH_LIST:L_CNT_C == "全裸"
+		;全裸は全裸（おしゃれ着）のように脱衣前の衣装による分岐があるのでそれを探す
+		LOCAL:1 = GET_RESOURCES_FILES(FOLDER_NAME, @"短冊_全裸（*_差分_*.webp")
+		LOCAL:2 = GET_RESOURCES_FILES(FOLDER_NAME, @"短冊_全裸（*.webp")
+		IF LOCAL:1 < LOCAL:2
+			FOR L_CNT, 0, LOCAL:2
+				;DEBUGPRINTFORM %RESULTS:L_CNT%は
+				IF STRCOUNT(RESULTS:L_CNT, "差分")
+					;DEBUGPRINTL 差分の文字を含むので除外
+					CONTINUE
+				ELSEIF FINDELEMENT(RESULTS, @"短冊_全裸(（(%REGEX_衣装名%)）)\.webp", , , 1) < 0
+					;DEBUGPRINTL （）内が既存の衣装ではないので除外
+					CONTINUE
+				ENDIF
+				LOCALS '= REPLACE(RESULTS:L_CNT, "短冊_", "")
+				;DEBUGPRINTFORM %LOCALS%→
+				LOCALS '= REPLACE(LOCALS, "\.webp", "")
+				;DEBUGPRINTFORM %LOCALS%→
+				IF MATCH(CLTH_LIST, LOCALS)
+					;DEBUGPRINTL 同じなので除外
+					CONTINUE
+				ENDIF
+				WHILE CLTH_LIST:(LOCAL-1) == ""
+					LOCAL --
+				WEND
+				;DEBUGPRINTFORM ［%CLTH_LIST:LOCAL%］の欄に
+				CLTH_LIST:LOCAL '= LOCALS
+				;DEBUGPRINTFORML %CLTH_LIST:LOCAL%として登録
+				LOCAL ++
+			NEXT
+		ENDIF
+	ENDIF
+NEXT
+WHILE CLTH_LIST:(LOCAL-1) == ""
+	LOCAL --
+WEND
+;CLTH_CNT = LOCAL
+
+;妊娠差分追加
+FOR L_CNT_C, 0, CLTH_CNT
+	SIF CLTH_LIST:L_CNT_C == ""
+		CONTINUE
+	SIF MATCH(CLTH_LIST, "妊娠" + CLTH_LIST:L_CNT_C)
+		CONTINUE
+	SIF STRCOUNT(CLTH_LIST:L_CNT_C, "妊娠")
+		CONTINUE
+	;DEBUGPRINTFORM ［%CLTH_LIST:LOCAL%］の欄に
+	CLTH_LIST:LOCAL '= "妊娠" + CLTH_LIST:L_CNT_C
+	;DEBUGPRINTFORML %CLTH_LIST:LOCAL%として登録
+	LOCAL ++
+NEXT
+CLTH_CNT = LOCAL
+
+;衣装ごとの差分数をカウントして記録
+LOCAL:1 = 0
+FOR L_CNT_C, 0, CLTH_CNT
+	DT_ROW_ADD FOLDER_NAME, "衣装名", CLTH_LIST:L_CNT_C
+	LOCAL = GET_RESOURCES_FILES(FOLDER_NAME, @"短冊_%CLTH_LIST:L_CNT_C%.webp", 1)
+	DT_CELL_SET FOLDER_NAME, L_CNT_C, "ベース", LOCAL
+	;時短のため、ベースが存在しない衣装はカウントしない
+	SIF LOCAL == 0
+		CONTINUE
+	FOR L_CNT_D, 0, DEF_CNT
+		;短冊画像をカウント
+		LOCALS '= "短冊_" + CLTH_LIST:L_CNT_C + "_差分_" + DEF_LIST:L_CNT_D
+		LOCAL = GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*.*", 1)
+		IF !STRCOUNT(DEF_LIST:L_CNT_D, "射精")
+			LOCAL -= GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*射精*.*", 1)
+		ENDIF
+		DT_CELL_SET FOLDER_NAME, L_CNT_C, DEF_LIST:L_CNT_D, LOCAL
+		CALL デバッグ用_チェック用ウェイト処理(@"%FOLDER_NAME%内の%CLTH_LIST:L_CNT_C%の短冊画像カウント中")
+	NEXT
+	FOR L_CNT_D, 0, VARSIZE("デバッグ用_差分名定義_秘書朝起こし")
+		;秘書朝起こし画像をカウント
+		LOCALS '= "秘書朝起こし_" + CLTH_LIST:L_CNT_C + "_" + デバッグ用_差分名定義_秘書朝起こし:L_CNT_D
+		LOCAL = GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*.*", 1)
+		IF !STRCOUNT(デバッグ用_差分名定義_秘書朝起こし:L_CNT_D, "射精")
+			LOCAL -= GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*射精*.*", 1)
+		ENDIF
+		DT_CELL_SET FOLDER_NAME, L_CNT_C, @"秘書朝起こし_%デバッグ用_差分名定義_秘書朝起こし:L_CNT_D%", LOCAL
+		CALL デバッグ用_チェック用ウェイト処理(@"%FOLDER_NAME%内の%CLTH_LIST:L_CNT_C%の秘書朝起こし画像カウント中")
+	NEXT
+	FOR L_CNT_D, 0, COM_CNT
+		;コマンド実行時画像をカウント
+		LOCALS '= "コマンド実行時_" + CLTH_LIST:L_CNT_C + "_" + COM_LIST:L_CNT_D
+		LOCAL = GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*.*", 1)
+		IF !STRCOUNT(COM_LIST:L_CNT_D, "射精")
+			LOCAL -= GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*射精*.*", 1)
+		ENDIF
+		DT_CELL_SET FOLDER_NAME, L_CNT_C, "コマンド実行時_" + COM_LIST:L_CNT_D, LOCAL
+		CALL デバッグ用_チェック用ウェイト処理(@"%FOLDER_NAME%内の%CLTH_LIST:L_CNT_C%のコマンド実行時画像カウント中")
+		LOCAL:1 += LOCAL
+	NEXT
+NEXT
+IF GET_RESOURCES_FILES(FOLDER_NAME, "コマンド実行時_*.*", 1) > LOCAL:1
+	LOCALS:1 '= "コマンド実行時（衣装指定なし）"
+	DT_ROW_ADD FOLDER_NAME, "衣装名", LOCALS:1
+	FOR L_CNT_D, 0, COM_CNT
+		;コマンド実行時画像をカウント
+		LOCALS '= "コマンド実行時_" + COM_LIST:L_CNT_D
+		LOCAL = GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*.*", 1)
+		IF !STRCOUNT(COM_LIST:L_CNT_D, "射精")
+			LOCAL -= GET_RESOURCES_FILES(FOLDER_NAME, LOCALS + "*射精*.*", 1)
+		ENDIF
+		DT_CELL_SET FOLDER_NAME, L_CNT_C, "コマンド実行時_" + COM_LIST:L_CNT_D, LOCAL
+		CALL デバッグ用_チェック用ウェイト処理(@"%FOLDER_NAME%内のコマンド実行時画像（衣装指定なし）カウント中")
+	NEXT
+ENDIF
+
+LOCALS '= BASE_FOLDER + SUBSTRING(FOLDER_NAME, STRLENS(BASE_FOLDER)+1 , -1)
+SIF STRLENS(FOLDER_NAME) > STRLENS(BASE_FOLDER)
+	LOCALS '= BASE_FOLDER + "￥" + SUBSTRING(FOLDER_NAME, STRLENS(BASE_FOLDER)+1 , -1)
+
+LOCAL = データベースCSV出力(FOLDER_NAME, "debug/" + LOCALS + ".csv")
+DT_CLEAR FOLDER_NAME
+
+CALL CHOICE(@"%FOLDER_NAME%フォルダの画像実装状況をdebug/%LOCALS%.txtとして出力しました。処理を中断しますか？", "いいえ", "はい")
+IF RESULT
+	RETURN 1
+ENDIF
+RETURN 0
+[ENDIF]

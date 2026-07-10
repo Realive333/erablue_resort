@@ -257,6 +257,7 @@ IF FOLDER_NAME != FOLDER_NAME_NOW
 	FOLDER_NAME_NOW '= FOLDER_NAME
 ENDIF
 
+
 ;- 正規表現でパターンと一致するかチェック
 ; まとめてやろうとするとパターンテキストが煩雑になるので分けてチェックする
 
@@ -328,6 +329,8 @@ IF リスト名 == "衣装名定義"
 
 	リスト結合テキスト = デフォルト|おしゃれ着
 	FOR L_CNT, 0, ENUMFUNCBEGINSWITH("CLOTHES_CHANGE_")
+		SIF STRCOUNT(RESULTS:L_CNT, "湯上がり")
+			CONTINUE
 		リスト結合テキスト += @"|%接頭テキスト%%REPLACE(RESULTS:L_CNT, "CLOTHES_CHANGE_", "")%%接尾テキスト%"
 	NEXT
 ELSE

@@ -34,10 +34,10 @@ IF 変更ID == 0
 	LOCAL = DT_SELECT("アビエディタデータベース", @"アビ段階 = {アビ段階}")
 	効果順番 = LOCAL
 ELSE
-	;既存効果変更の場合、行数を見る
+	;既存効果変更の場合、効果順番を見る
 	FOR LOCAL, 0, DT_ROW_LENGTH("アビエディタデータベース")
 		IF DT_CELL_GET("アビエディタデータベース", LOCAL, "id") == 変更ID
-			効果順番 = LOCAL
+			効果順番 = DT_CELL_GET("アビエディタデータベース", LOCAL, "効果順番")
 			BREAK
 		ENDIF
 	NEXT
@@ -108,6 +108,7 @@ DRAWLINE
 
 HTML文字列 = 
 HTML文字列 += "<div rect='50, 0, 5000, 3000' padding='50,25,50' color='#101010' border='31' bcolor='#C0C0C0'><nobr>"
+
 HTML文字列 += @"<button value='1'>[1] ダメージ対象を変更する</button>　　　　現在：%ダメージ対象%<br>"
 IF ダメージモード == 0
 	HTML文字列 += @"<button value='2'>[2] 使用する能力値を変更する</button>　　　現在：%ダメージ能力値%<br>"
