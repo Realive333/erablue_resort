@@ -1,4 +1,4 @@
-﻿;==================================================================================================
+;==================================================================================================
 @覗き見一覧表示
 ;--------------------------------------------------------------------------------------------------
 #DIM 終了フラグ
@@ -12,8 +12,8 @@ FOR ループ用, 0, 4
 		DRAWLINE
 		PRINTFORMW %CALLNAME:(覗き見対象:ループ用)%の滞在期間が過ぎた為、つけていた使い魔が戻ってきた。
 		
+		CFLAG:(覗き見対象:ループ用):使い魔対象 = 0
 		覗き見対象:ループ用 = 0
-		TCVAR:(覗き見対象:ループ用):使い魔対象 = 0
 	ENDIF
 NEXT
 
@@ -44,9 +44,13 @@ SELECTCASE LOCAL
 			;各イベント
 			
 			CALL 覗き見イベント(LOCAL)
-			SIF RESULT
-				CALL 覗き見対象選択(LOCAL)
-			
+			SELECTCASE RESULT
+				CASE 1 
+					CALL 覗き見対象選択(LOCAL)
+				CASE 2 ;覗き見は即閉じる
+					VARSET 表示用ステータス格納配列:0:0
+					RETURN -1
+			ENDSELECT
 			RESTART
 		ELSE
 			CALL 覗き見対象選択(LOCAL)
@@ -175,14 +179,15 @@ ELSEIF IS_ゆきずりセックス中(キャラ番号)
 	PRINTFORML 
 	RESETCOLOR
 	
-	;ゆきずりセックスの覗き処理を行う
-	CALL ゆきずりセックス_覗く(キャラ番号)
+	;ゆきずりセックスの行為中描写処理を行う
+	CALL ゆきずりセックス_行為中描写(キャラ番号)
 	
-	;経過時間を表示しておく
-	PRINTFORML 
-	PRINTFORML 
-	PRINTFORML {TIME_PROGRESS(TFLAG:行動前時刻)}分 経過
-
+	PRINTFORML
+	PRINTFORML
+	
+	ボタン文字列 = <button value='9997'>[9997]しばらく眺める</button>
+	HTML_PRINT ボタン文字列, 0
+	
 ELSEIF STRFIND(移動ルーチン:キャラ番号:ルーチンID,"業務_") >= 0
 	;業務別のイベントへ
 	CALL 覗き見業務イベント(キャラ番号)
@@ -208,8 +213,26 @@ DRAWLINE
 HTML_PRINT ボタン文字列, 0
 
 BINPUT
+
+;「このまま眺める」
+IF RESULT == 9997
+	;もし同行者がいるならキャンセル
+	IF 同行者がいる？()
+		PRINTFORMW 誰かが一緒のときはやめておこう……
+		RETURN 0
+	ENDIF
+	
+	;「使い魔覗き状態」に対象のIDを設定して遠隔覗きモードに移行する
+	CFLAG:MASTER:使い魔覗き状態 = キャラ番号
+	;覗かれフラグを立てる
+	TCVAR:キャラ番号:ゆきずりセックス_覗かれ中 = 1
+	
+	RETURN 2
+ENDIF
+;「対象を変更する」
 SIF RESULT == 9998
 	RETURN 1
+;「戻る」
 SIF RESULT == 9999
 	RETURN 0
 
@@ -275,7 +298,7 @@ SELECTCASE 現在の行動
 				
 			ENDIF
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 	
 	CASE "学校で勉強" 
@@ -283,7 +306,7 @@ SELECTCASE 現在の行動
 			PRINTFORML %CALLNAME:ARG%は勉学に励んでいる
 			
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 			
 		ENDIF
 	
@@ -294,7 +317,7 @@ SELECTCASE 現在の行動
 			;雑務と警備員とで文章を変える
 			IF 移動ルーチン:ARG:ルーチンID == "業務_雑務"
 				;雑務
-				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%で雑務をこなしている
+				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%で雑務をこなしている
 				
 				IF セクハラフラグ
 					SETCOLOR カラーパレット("えっちな色")
@@ -304,15 +327,15 @@ SELECTCASE 現在の行動
 				
 			ELSEIF 移動ルーチン:ARG:ルーチンID == "業務_警備員"
 				;警備員
-				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%で警備の目を光らせている
+				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%で警備の目を光らせている
 				
 			ELSE
 				;秘書
-				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%で業務状況をまとめている
+				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%で業務状況をまとめている
 				
 			ENDIF
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 		
 	CASE "常駐業務" ;"業務_常駐業務"
@@ -333,14 +356,14 @@ SELECTCASE 現在の行動
 		IF 目的地に到着してる？(ARG)
 			PRINTFORML %CALLNAME:ARG%は訓練場で汗を流している
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 	
 	CASE "調理業務" ;"業務_調理師"
 		IF 目的地に到着してる？(ARG)
 			PRINTFORML %CALLNAME:ARG%は厨房で料理を作っている
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 	
 	CASE "食堂業務" ;"業務_給仕"
@@ -354,7 +377,7 @@ SELECTCASE 現在の行動
 			ENDIF
 			
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 		
 	;***********************************************************************************************
@@ -370,7 +393,7 @@ SELECTCASE 現在の行動
 		IF 目的地に到着してる？(ARG)
 			PRINTFORML %CALLNAME:ARG%は食事を摂っている
 		ELSE
-			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, スケジュール状態:ARG:目的地)%へ向かっているようだ
+			PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, スケジュール状態:ARG:目的地)%へ向かっているようだ
 		ENDIF
 		
 	CASE "お風呂", "自室入浴"
@@ -381,7 +404,7 @@ SELECTCASE 現在の行動
 				PRINTFORML %CALLNAME:ARG%は脱衣所で着替えている……
 			ELSE
 				;風呂
-				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(CFLAG:ARG:現在マップ種別, CFLAG:ARG:現在位置)%で一日の疲れを癒している
+				PRINTFORML %CALLNAME:ARG%は%GETPLACENAME(スケジュール状態:ARG:目的マップ, CFLAG:ARG:現在位置)%で一日の疲れを癒している
 			ENDIF
 		ELSE
 			PRINTFORML %CALLNAME:ARG%は風呂へ向かっているようだ
@@ -433,6 +456,9 @@ FOR LOCAL, 1, CHARANUM
 		CONTINUE
 	;滞在者でない場合はスキップ
 	SIF CFLAG:LOCAL:滞在期間 < 0
+		CONTINUE
+	;生成NPCなどのステルスキャラはスキップ
+	SIF TCVAR:LOCAL:ステルス
 		CONTINUE
 	表示候補:候補人数 = LOCAL
 	候補人数 ++
@@ -538,6 +564,8 @@ IF ページ数 < ページ数:1
 ENDIF
 HTML_PRINT LOCALS:2
 DRAWLINE
+CALL フィルタソートボタンセット表示(2000, 3000, 3100, 4000, 2001)
+DRAWLINE
 
 PRINTBUTTONLC "[9999]戻る", 9999
 PRINTL
@@ -545,49 +573,49 @@ PRINTL
 ;●入力処理
 $INPUT_LOOP
 BINPUT
-IF RESULT == 9999
-	RETURN 0
-ELSEIF RESULT == 9000
-	ページ数 = MAX(ページ数 - 1, 0)
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9001
-	ページ数 = MIN(ページ数 + 1, 候補人数 / 表示人数)
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9002
-	ページ数 = 0
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9003
-	ページ数 = MAX(ページ数 - 5, 0)
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9004
-	ページ数 = MIN(ページ数 + 5, 候補人数 / 表示人数)
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9005
-	ページ数 = ページ数:1
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9006
-	PRINTFORML 飛びたいページ数を入力してください（1～{1+ページ数:1}）
-	INPUT
-	SIF INRANGE(RESULT, 1, 1+ページ数:1)
-		ページ数 = RESULT - 1
-	GOTO 表示処理_LOOP
-ELSEIF RESULT == 9007
-	PRINTFORML 1ページ辺りに表示したい人数を入力してください（1～100）
-	INPUT
-	IF INRANGE(RESULT, 1, 100)
-		表示人数 = RESULT
+SELECTCASE RESULT
+	CASE 2000, 3000, 3100, 3101, 3102, 4000
+		CALL フィルタソートボタンセット実行部(RESULT, 2000, 3000, 3100, 4000)
 		ページ数 = 0
-	ENDIF
-	GOTO 表示処理_LOOP
-;例外処理
-ELSEIF RESULT < 0 || RESULT >= CHARANUM
-	REUSELASTLINE 
-	GOTO INPUT_LOOP
-ELSE
-	CALL 覗き見対象適用処理(ARG,RESULT)
-	RETURN 0
-	
-ENDIF
+		RESTART
+	CASE 9999
+		RETURN 0
+	CASE 9000
+		ページ数 = MAX(ページ数 - 1, 0)
+		GOTO 表示処理_LOOP
+	CASE 9001
+		ページ数 = MIN(ページ数 + 1, 候補人数 / 表示人数)
+		GOTO 表示処理_LOOP
+	CASE 9002
+		ページ数 = 0
+		GOTO 表示処理_LOOP
+	CASE 9003
+		ページ数 = MAX(ページ数 - 5, 0)
+		GOTO 表示処理_LOOP
+	CASE 9004
+		ページ数 = MIN(ページ数 + 5, 候補人数 / 表示人数)
+		GOTO 表示処理_LOOP
+	CASE 9005
+		ページ数 = ページ数:1
+		GOTO 表示処理_LOOP
+	CASE 9006
+		PRINTFORML 飛びたいページ数を入力してください（1～{1+ページ数:1}）
+		INPUT
+		SIF INRANGE(RESULT, 1, 1+ページ数:1)
+			ページ数 = RESULT - 1
+		GOTO 表示処理_LOOP
+	CASE 9007
+		PRINTFORML 1ページ辺りに表示したい人数を入力してください（1～100）
+		INPUT
+		IF INRANGE(RESULT, 1, 100)
+			表示人数 = RESULT
+			ページ数 = 0
+		ENDIF
+		GOTO 表示処理_LOOP
+	CASEELSE
+		CALL 覗き見対象適用処理(ARG,RESULT)
+		RETURN 0
+ENDSELECT
 
 
 GOTO 表示処理_LOOP
@@ -603,11 +631,11 @@ GOTO 表示処理_LOOP
 ;選択した枠に既に人がいるならその人のフラグを消す
 IF 覗き見対象:ARG
 	;対象位置にいるキャラの使い魔対象のフラグを消す
-	TCVAR:(覗き見対象:ARG):使い魔対象 = 0
+	CFLAG:(覗き見対象:ARG):使い魔対象 = 0
 ENDIF
 
 ;すでに他の位置に存在しているなら元居た位置を空にする
-FOR ループ用, 0, 7
+FOR ループ用, 0, 4
 	SIF 覗き見対象:ループ用 == キャラ番号
 		覗き見対象:ループ用 = 0
 NEXT
@@ -616,6 +644,6 @@ NEXT
 覗き見対象:ARG = キャラ番号
 
 ;使い魔対象のフラグを立てる
-TCVAR:キャラ番号:使い魔対象 = 1
+CFLAG:キャラ番号:使い魔対象 = 1
 
 RETURN 0

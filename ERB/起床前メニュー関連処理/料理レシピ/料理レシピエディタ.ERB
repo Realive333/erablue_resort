@@ -1,8 +1,478 @@
 ﻿@料理レシピエディタ()
+#DIM DYNAMIC 初期動作
+#DIMS DYNAMIC 料理名
+#DIMS DYNAMIC 設定食材, 10
+#DIMS DYNAMIC その他設定, 10
+#DIM DYNAMIC 収入補正値, 2
+#DIM DYNAMIC 収入補正マニュアル化, 2
+#DIM 食材メニュー開閉
+#DIMS ジャンル登録, 50
+#DIMS 特殊効果表示文字列
+#DIMS DYNAMIC 特殊効果保存
+
+IF 初期動作 == 0
+	;必要なデータベースをセット
+	VARSET 使用食材
+	VARSET ジャンル登録
+	CALL 素材アイテムデータベースセット
+	CALL 素材アイテム登録処理
+	収入補正値:0 = 3
+	収入補正値:1 = 1
+	LOCAL:1 = 0
+	特殊効果表示文字列 = なし
+	FOR LOCAL, 0, DT_ROW_LENGTH("所持素材データベース")
+		IF DT_CELL_GETS("所持素材データベース", LOCAL, "食材分類") != ""
+			IF MATCH(ジャンル登録, DT_CELL_GETS("所持素材データベース", LOCAL, "食材分類")) == 0
+				ジャンル登録:(LOCAL:1) '= DT_CELL_GETS("所持素材データベース", LOCAL, "食材分類")
+				LOCAL:1 ++
+			ENDIF
+		ENDIF
+	NEXT
+	初期動作 = 1
+ENDIF
+
+IF 収入補正マニュアル化:0 == 0
+	SELECTCASE GROUPMATCH("", 設定食材:0, 設定食材:1, 設定食材:2, 設定食材:3)
+		CASE 0
+			収入補正値:0 = 8
+		CASE 1
+			収入補正値:0 = 6
+		CASE 2
+			収入補正値:0 = 3
+		CASEELSE
+			収入補正値:0 = 1
+	ENDSELECT
+ENDIF
+IF 収入補正マニュアル化:1 == 0
+	SELECTCASE GROUPMATCH("", 設定食材:0, 設定食材:1, 設定食材:2, 設定食材:3)
+		CASE 0
+			収入補正値:1 = 3
+		CASE 1
+			収入補正値:1 = 2
+		CASEELSE
+			収入補正値:1 = 1
+	ENDSELECT
+ENDIF
+
+LOCALS = 
+LOCALS += "<div rect='81,375,1937,3312' padding='25,50,25' border='31' bcolor='#C0C0C0'>"
+
+LOCALS += "<br>"
+LOCALS += "<button value='100'>[100] 料理名を設定する</button>"
+LOCALS += "<br>"
+LOCALS += "<button value='110'>[110] 食材を設定する</button>"
+LOCALS += "<br>"
+IF 食材メニュー開閉 == 0
+	LOCALS += "<button value='110'><font color='#808080'>└ 展開する</font></button>"
+	LOCALS += "<br>"
+ELSE
+	LOCALS += "<button value='111'>├[111] メイン食材を設定する</button>"
+	LOCALS += "<br>"
+	LOCALS += "│　<button value='121'>└[121] 食材ジャンルを設定</button>"
+	LOCALS += "<br>"
+	LOCALS += "<button value='112'>├[112] 追加食材１を設定する</button>"
+	LOCALS += "<br>"
+	LOCALS += "│　<button value='122'>└[122] 食材ジャンルを設定</button>"
+	LOCALS += "<br>"
+	LOCALS += "<button value='113'>├[113] 追加食材２を設定する</button>"
+	LOCALS += "<br>"
+	LOCALS += "│　<button value='123'>└[123] 食材ジャンルを設定</button>"
+	LOCALS += "<br>"
+	LOCALS += "<button value='114'>└[114] 追加食材３を設定する</button>"
+	LOCALS += "<br>"
+	LOCALS += " 　<button value='124'>└[124] 食材ジャンルを設定</button>"
+	LOCALS += "<br>"
+ENDIF
+LOCALS += " <button value='115'>[115] 調理器具を設定する</button>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += " <button value='999'>[999] 作成せず戻る</button>"
+LOCALS += "</div>"
+
+LOCALS += "<div rect='2050,375,3875,3312' padding='25,50,25' border='31' bcolor='#C0C0C0'>"
+
+LOCALS += "<br>"
+IF 料理名 == ""
+	LOCALS += @"■<button value='100'>（未定）</button>"
+ELSE
+	LOCALS += @"■<button value='100'>%料理名%</button>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "　　メイン食材："
+IF 設定食材:0 == ""
+	LOCALS += @"<button value='111'>[--------------------]</button>"
+ELSE
+	IF 使用食材:0 > 0
+		LOCALS:1 = %属性数値文字色変換_HTML(DT_CELL_GET("所持素材データベース", 使用食材:0, "素材属性", 1))%
+		LOCALS += @"<font color='#%LOCALS:1%'><button value='111'>[ランク%TOFULL(TOSTR(DT_CELL_GET("所持素材データベース", 使用食材:0, "素材ランク", 1)))%：%設定食材:0%]</button></font>"
+	ELSE
+		;IDがないならジャンルが入ってるはず
+		LOCALS += @"<button value='111'>[%設定食材:0% 系食材]</button>"
+	ENDIF
+ENDIF
+LOCALS += "<br>"
+LOCALS += "　　追加食材１："
+IF 設定食材:1 == ""
+	LOCALS += @"<button value='112'>[--------------------]</button>"
+ELSE
+	IF 使用食材:1 > 0
+		LOCALS:1 = %属性数値文字色変換_HTML(DT_CELL_GET("所持素材データベース", 使用食材:1, "素材属性", 1))%
+		LOCALS += @"<font color='#%LOCALS:1%'><button value='112'>[ランク%TOFULL(TOSTR(DT_CELL_GET("所持素材データベース", 使用食材:1, "素材ランク", 1)))%：%設定食材:1%]</button></font>"
+	ELSE
+		;IDがないならジャンルが入ってるはず
+		LOCALS += @"<button value='112'>[%設定食材:1% 系食材]</button>"
+	ENDIF
+ENDIF
+LOCALS += "<br>"
+LOCALS += "　　追加食材２："
+IF 設定食材:2 == ""
+	LOCALS += @"<button value='113'>[--------------------]</button>"
+ELSE
+	IF 使用食材:2 > 0
+		LOCALS:1 = %属性数値文字色変換_HTML(DT_CELL_GET("所持素材データベース", 使用食材:2, "素材属性", 1))%
+		LOCALS += @"<font color='#%LOCALS:1%'><button value='113'>[ランク%TOFULL(TOSTR(DT_CELL_GET("所持素材データベース", 使用食材:2, "素材ランク", 1)))%：%設定食材:2%]</button></font>"
+	ELSE
+		;IDがないならジャンルが入ってるはず
+		LOCALS += @"<button value='113'>[%設定食材:2% 系食材]</button>"
+	ENDIF
+ENDIF
+LOCALS += "<br>"
+LOCALS += "　　追加食材３："
+IF 設定食材:3 == ""
+	LOCALS += @"<button value='114'>[--------------------]</button>"
+ELSE
+	IF 使用食材:3 > 0
+		LOCALS:1 = %属性数値文字色変換_HTML(DT_CELL_GET("所持素材データベース", 使用食材:3, "素材属性", 1))%
+		LOCALS += @"<font color='#%LOCALS:1%'><button value='114'>[ランク%TOFULL(TOSTR(DT_CELL_GET("所持素材データベース", 使用食材:3, "素材ランク", 1)))%：%設定食材:3%]</button></font>"
+	ELSE
+		;IDがないならジャンルが入ってるはず
+		LOCALS += @"<button value='114'>[%設定食材:3% 系食材]</button>"
+	ENDIF
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "　　調理器具　："
+IF 設定食材:9 == ""
+	LOCALS += @"<button value='115'>[--------------------]</button>"
+ELSE
+	LOCALS += @"<button value='115'>[%設定食材:9%]</button>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += @"　ルピ収入補正：%\@収入補正値:0 >= 0 ? ＋ # \@%%TOFULL(TOSTR(収入補正値:0))%"
+IF 収入補正マニュアル化:0
+	LOCALS += "　<button value='200'>[↑]</button> <button value='201'>[↓]</button> <button value='210'>[自動化]</button>"
+ELSE
+	LOCALS += "　自動設定中 <button value='210'>[手動化]</button>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += @"　ＺＰ収入補正：%\@収入補正値:1 >= 0 ? ＋ # \@%%TOFULL(TOSTR(収入補正値:1))%"
+IF 収入補正マニュアル化:1
+	LOCALS += "　<button value='202'>[↑]</button> <button value='203'>[↓]</button> <button value='211'>[自動化]</button>"
+ELSE
+	LOCALS += "　自動設定中 <button value='211'>[手動化]</button>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "　　特殊効果名："
+IF その他設定:0 == ""
+	LOCALS += @"<button value='300'>[--------------------]</button>"
+ELSE
+	LOCALS += @"<button value='300'>[%その他設定:0%]</button>"
+ENDIF
+LOCALS += "<br>"
+LOCALS += @"　　特殊効果　：%特殊効果表示文字列%"
+LOCALS += "<br>"
+LOCALS += "<button value='301'>　　　　　　　　[効果変更]</button>"
+LOCALS += "<br>"
+
+LOCALS += "</div>"
+
+LOCALS += "<div rect='4650,375,1500,3312' padding='56'>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "<button value='121'>[ジャンル設定]</button>"
+LOCALS += " <button value='131'>[外す]</button>"
+LOCALS += "<br>"
+LOCALS += "<button value='122'>[ジャンル設定]</button>"
+LOCALS += " <button value='132'>[外す]</button>"
+LOCALS += "<br>"
+LOCALS += "<button value='123'>[ジャンル設定]</button>"
+LOCALS += " <button value='133'>[外す]</button>"
+LOCALS += "<br>"
+LOCALS += "<button value='124'>[ジャンル設定]</button>"
+LOCALS += " <button value='134'>[外す]</button>"
+LOCALS += "</div>"
+
+HTML_PRINT LOCALS
+
+FOR LOCAL, 0, 33
+	PRINTL
+NEXT
+
+BINPUT
+LOCAL = RESULT
+
+SELECTCASE LOCAL
+	CASE 999
+		RETURN 0
+	CASE 100
+		PRINTL
+		PRINTL
+		PRINTL
+		DRAWLINE
+		PRINTL 料理名を入力してください。
+		DRAWLINE
+		INPUTS
+		料理名 '= RESULTS
+	CASE 110
+		INVERTBIT 食材メニュー開閉, 0
+	CASE 111 TO 114
+		CALL 素材アイテム一覧表示("食材分類 <> ''", 1, 1)
+		IF RESULT == -2
+			使用食材:(LOCAL - 111) = 0
+		ELSEIF RESULT != -1
+			使用食材:(LOCAL - 111) = RESULT
+		ENDIF
+
+		;名前だけ別に保存
+		設定食材:(LOCAL - 111) '= DT_CELL_GETS("所持素材データベース", 使用食材:(LOCAL - 111), "素材アイテム名", 1)
+	CASE 121 TO 124
+		PRINTL
+		PRINTL
+		PRINTL
+		DRAWLINE
+		PRINTL 食材のジャンルを選んでください。
+		DRAWLINE
+		FOR LOCAL:1, 0, VARSIZE("ジャンル登録")
+			SIF ジャンル登録:(LOCAL:1) == ""
+				BREAK
+
+			PRINTBUTTON @"[{LOCAL:1}] %ジャンル登録:(LOCAL:1)%", LOCAL:1
+			PRINTL
+		NEXT
+		PRINTL
+		PRINTBUTTON @"[999] 変更せず戻る", 999
+		PRINTL
+		BINPUT
+		SELECTCASE RESULT
+			CASE 999
+				RESTART
+			CASEELSE
+				設定食材:(LOCAL - 121) '= ジャンル登録:RESULT
+				使用食材:(LOCAL - 121) = 0
+		ENDSELECT
+	CASE 131 TO 134
+		使用食材:(LOCAL - 131) = 0
+		設定食材:(LOCAL - 131) = 
+	CASE 115
+		CALL 調理道具選択処理
+		SIF RESULT != -1
+			設定食材:9 '= 調理器具名:RESULT
+	CASE 200
+		収入補正値:0 ++
+	CASE 201
+		収入補正値:0 --
+	CASE 202
+		収入補正値:1 ++
+	CASE 203
+		収入補正値:1 --
+	CASE 210 TO 211
+		INVERTBIT 収入補正マニュアル化:(LOCAL - 210), 0
+	CASE 300
+		PRINTL
+		PRINTL
+		PRINTL
+		DRAWLINE
+		PRINTL 特殊効果名を入力してください。
+		DRAWLINE
+		INPUTS
+		料理名 '= RESULTS
+	CASE 301
+		CALL 料理エディタ_特殊効果設定(特殊効果保存, 特殊効果表示文字列)
+ENDSELECT
+
+RESTART
+
+
+@料理エディタ_特殊効果設定(特殊効果保存, 特殊効果表示文字列)
+#DIMS REF 特殊効果表示文字列
+#DIMS REF 特殊効果保存
+#DIMS 発動タイミング
+#DIMS 発動先効果
+#DIMS 発動効果量
+
+
+発動タイミング =
+発動先効果 =
+発動効果量 =
+
+;現在設定の読み込み
+IF 特殊効果保存 != ""
+	VARSET RESULTS
+	SPLIT 特殊効果保存, "_", RESULTS
+	発動タイミング '= RESULTS:0
+	発動先効果 '= RESULTS:1
+	発動効果量 '= RESULTS:2
+ENDIF
+
+$動作ループ
+
+DRAWLINE
+PRINTL 特殊効果の内容を設定してください。
+DRAWLINE
+
+LOCALS = 
+LOCALS += "<div rect='81,0,3875,3312' padding='25,50,25' border='31' bcolor='#C0C0C0'>"
+LOCALS += "<br>"
+
+IF 発動タイミング != ""
+	LOCALS += @"■発動タイミング：%発動タイミング%"
+ELSE
+	LOCALS += @"■発動タイミング：なし"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<button value='100'>[100] 変更する</button>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+
+IF 発動先効果 != ""
+	LOCALS += @"■発動先効果：%発動先効果%"
+ELSE
+	LOCALS += @"■発動先効果：なし"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<button value='200'>[200] 変更する</button>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+
+IF 発動効果量 != ""
+	LOCALS += @"■発動効果量：%発動効果量%"
+ELSE
+	LOCALS += @"■発動効果量：なし"
+ENDIF
+LOCALS += "<br>"
+LOCALS += "<button value='300'>[300] 変更する</button>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "<br>"
+LOCALS += "<button value='998'>[998] 変更せず戻る</button>"
+LOCALS += "<br>"
+LOCALS += "<button value='999'>[999] これで決定する</button>"
+LOCALS += "</div>"
+
+
+
+HTML_PRINT LOCALS
+
+FOR LOCAL, 0, 33
+	PRINTL
+NEXT
+
+BINPUT
+LOCAL = RESULT
+
+SELECTCASE LOCAL
+	CASE 998
+		RETURN 0
+	CASE 100
+		CALL 料理エディタ_発動タイミング変更(発動タイミング)
+		IF RESULTS != 発動タイミング
+			発動タイミング '= RESULTS
+			発動先効果 = 
+			発動効果量 = 
+		ENDIF
+	CASE 200
+		CALL 料理エディタ_発動先効果変更(発動先効果, 発動タイミング)
+		IF RESULTS != 発動先効果
+			発動先効果 '= RESULTS
+			発動効果量 = 
+		ENDIF
+	CASE 300
+		CALL 料理エディタ_発動効果量変更(発動効果量, 発動先効果)
+ENDSELECT
+
+GOTO 動作ループ
 
 
 
 
 
+@料理エディタ_発動タイミング変更(発動タイミング)
+#DIMS 発動タイミング
+
+RESULTS = 
+
+DRAWLINE
+PRINTL 料理効果が発動するタイミングを選択してください。
+PRINT 現在の設定：
+IF 発動タイミング != ""
+	PRINTFORM %発動タイミング%
+ELSE
+	PRINT なし
+ENDIF
+PRINTL
+DRAWLINE
+
+PRINTL
+PRINTBUTTON "[0] メニューによる収入算出時", 0
+PRINTL
+PRINTBUTTON "[1] 装備ステータス算出時", 1
+PRINTL
+PRINTBUTTON "[2] 戦闘勝利時", 2
+PRINTL
+PRINTL
+PRINTL
+
+BINPUT
+SELECTCASE RESULT
+	CASE 0
+		RESULTS = メニューによる収入算出時
+	CASE 1
+		RESULTS = 装備ステータス算出時
+	CASE 2
+		RESULTS = 戦闘勝利時
+ENDSELECT
+
+@料理エディタ_発動先効果変更(発動先効果, 発動タイミング)
+#DIMS 発動先効果
+#DIMS 発動タイミング
+
+DRAWLINE
+PRINTL 料理効果の内容を選択してください。
+PRINT 現在の設定：
+IF 発動先効果 != ""
+	PRINTFORM %発動先効果%
+ELSE
+	PRINT なし
+ENDIF
+PRINTL
+DRAWLINE
+
+SELECTCASE 発動タイミング
+	CASE "メニューによる収入算出時"
+		PRINTL
+		PRINTBUTTON "[0] ルピ収入増加", 0
+		PRINTL
+		PRINTBUTTON "[1] ZP収入増加", 1
+		PRINTL
+		PRINTL
+		PRINTL
+	CASE "装備ステータス算出時"
+		PRINTL
+		PRINTBUTTON "[10] ルピ収入増加", 10
+		PRINTL
+		PRINTBUTTON "[11] ZP収入増加", 11
+		PRINTL
+		PRINTL
+		PRINTL
+	CASE "戦闘勝利時"
+ENDSELECT
 
 
+
+@料理エディタ_発動効果量変更(発動効果量, 発動先効果)
+#DIMS 発動先効果
+#DIMS REF 発動効果量

@@ -497,6 +497,9 @@ SELECTCASE RESULT
 	CASE 1014 TO 1020
 		ソートフラグ = RESULT - 1014
 		RESTART
+	CASE 1021
+		INVERTBIT 履歴表示順保存, 0
+		RESTART
 ENDSELECT
 LOOP 1
 
@@ -686,7 +689,7 @@ LOCALS += @"　LvUPまで："
 IF 基礎BATTLE_STATE:ARG:Lv >= 80
 	LOCALS += @"Lv上限です<br>"
 ELSE
-	LOCALS += @"{戦闘経験値テーブル:(基礎BATTLE_STATE:ARG:Lv - 1) - 基礎BATTLE_STATE:ARG:蓄積EXP, 5}<br>"
+	LOCALS += @"{戦闘経験値テーブル:(MAX(基礎BATTLE_STATE:ARG:Lv - 1, 0)) - 基礎BATTLE_STATE:ARG:蓄積EXP, 5}<br>"
 ENDIF
 IF 装備ステータス補正保存:ARG:属性
 	LOCALS:1 = %属性数値文字色変換_HTML(装備ステータス補正保存:ARG:属性 - 10)%
@@ -1672,6 +1675,8 @@ VARSET LOCAL
 IF CSTR:ARG:着せ替え服 != ""
 	IF CSTR:ARG:着せ替え服 == "浴衣"
 		LOCALS += "　■ユカタヴィラ"
+	ELSEIF ISNUMERIC(CSTR:ARG:着せ替え服)
+		LOCALS += @"%CSVCSTR(TOINT(CSTR:ARG:着せ替え服), GETNUM(CSTR, "服名称"))%"
 	ELSE
 		LOCALS += @"　■%CSTR:ARG:着せ替え服%"
 	ENDIF
@@ -1690,6 +1695,11 @@ IF CSTR:ARG:着せ替え服 != ""
 			SIF RESULTS:1 != ""
 				LOCALS += @"出典元：%RESULTS:1%'>"
 			LOCALS += "<br>"
+		ENDIF
+		IF ISNUMERIC(CSTR:ARG:着せ替え服)
+			SIF LOCALS == ""
+				LOCALS += "<br>"
+			LOCALS += @"元の持ち主：%CSVNAME(TOINT(CSTR:ARG:着せ替え服))%<br>"
 		ENDIF
 	ENDIF
 ELSE
@@ -2115,21 +2125,26 @@ RESULTS = %LOCALS%
 RETURN STRCOUNT(LOCALS, "<br>") - 2
 
 
-@PRINT_STATE_弱点コマンド(対象キャラ, 全て表示ボタン番号 = "")
+@PRINT_STATE_弱点コマンド(対象キャラ, 全て表示ボタン番号 = "", 表示数変更 = 0)
 #DIM  対象キャラ
 #DIMS 全て表示ボタン番号
 #DIM  弱点コマンド数
 #DIM  L_CNT
 #DIMS HTML_TEXT
 #DIM  グレーアウト中
-#DIMS 弱点コマンドリスト, 8
-#DIM  看破状態リスト    , 8
+#DIMS 弱点コマンドリスト, 30
+#DIM  看破状態リスト    , 30
 #DIM  弱点コマンド表示数
+#DIM  表示数変更
 
 HTML_TEXT = □ 弱点コマンド □---------------------<br>
 
 弱点コマンド数 = GET_WEAKCOMMAND_LIST(対象キャラ, 弱点コマンドリスト, 看破状態リスト)
-弱点コマンド表示数 = VARSIZE("弱点コマンドリスト")
+IF 表示数変更 < 1
+	弱点コマンド表示数 = VARSIZE("弱点コマンドリスト")
+ELSE
+	弱点コマンド表示数 = 表示数変更
+ENDIF
 グレーアウト中 = 0
 FOR L_CNT, 0, 弱点コマンド表示数
 	; 途中で空になったら終了

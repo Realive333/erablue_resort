@@ -28,6 +28,13 @@
 REDRAW_TEMP = CURRENTREDRAW()
 REDRAW 0
 
+;ソート用データベース
+DT_CREATE "ソート用データベース"
+DT_COLUMN_ADD "ソート用データベース", "対象キャラ番号", 3
+DT_COLUMN_ADD "ソート用データベース", "ソート変数１", 3
+DT_COLUMN_ADD "ソート用データベース", "ソート変数２", 3
+DT_COLUMN_ADD "ソート用データベース", "ソート変数３", 3
+
 VARSET 返し配列, 配列初期値
 候補人数 = 0
 VARSET 弱点フィルタマッチ配列
@@ -306,15 +313,26 @@ FOR 配列番号, 0, CHARANUM
 	SIF 合致フラグ == 0
 		CONTINUE
 
-	返し配列:候補人数 = 対象キャラ
-	ソート基準値:候補人数 = ソート情報登録(返し配列:候補人数, 候補人数)
-	候補人数 += 1
+	DT_ROW_ADD "ソート用データベース", "対象キャラ番号", 対象キャラ, "ソート変数１", ソート情報登録(対象キャラ), "ソート変数２", ソート情報登録(対象キャラ, 2), "ソート変数３", ソート情報登録(対象キャラ, 4)
+
+	; 返し配列:候補人数 = 対象キャラ
+	; ソート基準値:候補人数 = ソート情報登録(返し配列:候補人数, 候補人数)
+	; 候補人数 += 1
 NEXT
 
 ;ソート実行
-ARRAYMSORT ソート基準値, 返し配列
+; ARRAYMSORT ソート基準値, 返し配列
 
-ARRAYCOPY "返し配列", "対象キャラ配列"
+; ARRAYCOPY "返し配列", "対象キャラ配列"
+
+VARSET RESULT
+VARSET 対象キャラ配列, -1
+DT_SELECT "ソート用データベース", "", "ソート変数１ ASC, ソート変数２ ASC, ソート変数３ ASC"
+候補人数 = RESULT
+FOR LOCAL, 1, 候補人数 + 1
+	対象キャラ配列:(LOCAL - 1) = DT_CELL_GET("ソート用データベース", RESULT:LOCAL, "対象キャラ番号", 1)
+NEXT
+DT_RELEASE "ソート用データベース"
 
 CLEARLINE 1
 PRINTL フィルタ処理進行度……100%
@@ -923,7 +941,11 @@ FOR LOCAL, 0, 1000
 				SIF LOCAL:1 < 1 || LOCAL:1 > 2
 					CONTINUE
 			ENDIF
-			SIF MATCH(キャラ一覧素質絞り込み, @"{LOCAL}_{LOCAL:1}")
+			;時空移動は１のみ
+			IF LOCAL == 255 && LOCAL:1 > 1
+				CONTINUE
+			ENDIF
+			SIF STRFIND(キャラ一覧素質絞り込み, @"{LOCAL}_{LOCAL:1}") >= 0
 				SETCOLOR カラーパレット("黄")
 			LOCALS = [%GET_TALENTNAME(LOCAL, LOCAL:1)%]
 			IF マイナス検索フラグ
@@ -1097,7 +1119,7 @@ PRINTS " " * (SPACE_CNT - STRLENS(ボタンテキスト))
 PRINT 現在のソート設定　：
 IF キャラ一覧ソート:0 != ""
 	ソート設定 '= @"%キャラ一覧ソート:0%(%キャラ一覧ソート:1%)"
-	PRINTFORM %ソート設定, 21, LEFT%
+	PRINTFORM %ソート設定%
 	IF STRCOUNT(キャラ一覧ソート:1, "昇順")
 		PRINTBUTTON "[降順にする]", ソート順ボタン番号
 	ELSEIF STRCOUNT(キャラ一覧ソート:1, "降順")
@@ -1105,6 +1127,30 @@ IF キャラ一覧ソート:0 != ""
 	ENDIF
 ELSE
 	PRINT なし(キャラ番号順)
+ENDIF
+PRINT  / 
+IF キャラ一覧ソート:2 != ""
+	ソート設定 '= @"%キャラ一覧ソート:2%(%キャラ一覧ソート:3%)"
+	PRINTFORM %ソート設定%
+	IF STRCOUNT(キャラ一覧ソート:3, "昇順")
+		PRINTBUTTON "[降順にする]", ソート順ボタン番号 + 1
+	ELSEIF STRCOUNT(キャラ一覧ソート:3, "降順")
+		PRINTBUTTON "[昇順にする]", ソート順ボタン番号 + 1
+	ENDIF
+ELSE
+	PRINT なし
+ENDIF
+PRINT  / 
+IF キャラ一覧ソート:4 != ""
+	ソート設定 '= @"%キャラ一覧ソート:2%(%キャラ一覧ソート:5%)"
+	PRINTFORM %ソート設定%
+	IF STRCOUNT(キャラ一覧ソート:5, "昇順")
+		PRINTBUTTON "[降順にする]", ソート順ボタン番号 + 2
+	ELSEIF STRCOUNT(キャラ一覧ソート:5, "降順")
+		PRINTBUTTON "[昇順にする]", ソート順ボタン番号 + 2
+	ENDIF
+ELSE
+	PRINT なし
 ENDIF
 PRINTL
 ;素質絞り込みボタン
@@ -1132,7 +1178,13 @@ SELECTCASE 入力ボタン番号
 		CALL ソート設定画面表示()
 	CASE ソート順ボタン番号
 		;- キャラソート順設定
-		CALL ソート順反転処理()
+		CALL ソート順反転処理(1)
+	CASE ソート順ボタン番号 + 1
+		;- キャラソート順設定
+		CALL ソート順反転処理(3)
+	CASE ソート順ボタン番号 + 2
+		;- キャラソート順設定
+		CALL ソート順反転処理(5)
 	CASE 素質絞込ボタン番号
 		;- キャラフィルタ設定：素質絞り込み
 		CALL 素質絞り込み設定画面表示()

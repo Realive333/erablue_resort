@@ -55,6 +55,21 @@ ELSE
 	ENDIF
 ENDIF
 
+;ゆきずりセックス覗き中は"観察する"と"接続を切る"、"物陰から出る"以外はぜーんぶ表示しない
+IF ゆきずり覗き中？(TARGET)
+	IF ARG != 405 && ARG != 421 && ARG != 419
+		RESULT = 0
+		RETURNF 1
+	ENDIF
+ENDIF
+;使い魔覗き中は"観察する"と"接続を切る"以外はぜーんぶ表示しない
+IF CFLAG:MASTER:使い魔覗き状態
+	IF ARG != 405 && ARG != 421
+		RESULT = 0
+		RETURNF 1
+	ENDIF
+ENDIF
+
 ;複数モード対応か否か
 同時モード許可 = 0
 同時モード拡張許可 = 0
@@ -168,6 +183,11 @@ IF GETMETH(@"固有COMABLE_ターゲット側_%ARGS%_{NO:TARGET}", 1, TARGET) ==
 	RETURNF 1
 ENDIF
 IF GETMETH(@"固有COMABLE_プレイヤー側_%ARGS%_{NO:PLAYER}", 1, PLAYER) == 0
+	RESULT = 0
+	RETURNF 1
+ENDIF
+;ゆきずり覗き・使い魔覗き中は派生コマンドも使用不可
+IF ゆきずり覗き中？(TARGET) || CFLAG:MASTER:使い魔覗き状態
 	RESULT = 0
 	RETURNF 1
 ENDIF

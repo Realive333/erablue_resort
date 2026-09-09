@@ -7,7 +7,7 @@ IF ABL:ARG:指テク < 5
 	LOCAL = EXP:ARG:手淫経験
 	LOCAL:1 = 10 + ABL:ARG:技巧 / 2 + TALENT:ARG:器用な指 * 2 + TALENT:ARG:習得速度
 	LOCAL:2 = ABL:ARG:指テク
-	WHILE LOCAL * LOCAL:1 / 10 > EXPLV:(ABL:ARG:指テク + 3) / 2 && EXP_UP(24,ARG)
+	WHILE LOCAL * LOCAL:1 / 10 > EXPLV:(ABL:ARG:指テク + 3) / 2
 		ABL:ARG:指テク ++
 		SIF ABL:ARG:指テク >= 5
 			BREAK
@@ -24,7 +24,7 @@ IF ABL:ARG:舌技 < 5
 	LOCAL = EXP:ARG:口淫経験
 	LOCAL:1 = 10 + ABL:ARG:技巧 / 2 + TALENT:ARG:舌使い * 2 + TALENT:ARG:習得速度
 	LOCAL:2 = ABL:ARG:舌技
-	WHILE LOCAL * LOCAL:1 / 10 > EXPLV:(ABL:ARG:舌技 + 3) && EXP_UP(25,ARG)
+	WHILE LOCAL * LOCAL:1 / 10 > EXPLV:(ABL:ARG:舌技 + 3)
 		ABL:ARG:舌技 ++
 		SIF ABL:ARG:舌技 >= 5
 			BREAK

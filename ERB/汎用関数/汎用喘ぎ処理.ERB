@@ -19,6 +19,8 @@ ENDIF
 #DIMS 自称単語
 #DIMS 他称単語
 #DIM 実行者番号
+#DIM 候補配列, 100
+#DIM 候補数
 
 
 基準快楽量 = CUP:キャラ番号:快Ｃ + CUP:キャラ番号:快Ｂ + CUP:キャラ番号:快Ｖ + CUP:キャラ番号:快Ａ + CUP:キャラ番号:快Ｓ
@@ -107,6 +109,22 @@ CATCH
 	SIF INRANGE(実行者番号, 0, CHARANUM-1)
 		他称単語 '= CALLNAME:実行者番号
 ENDCATCH
+
+IF CFLAG:キャラ番号:キャラ同士うふふ
+	VARSET 候補配列
+	候補数 = 0
+	FOR LOCAL, 1, CHARANUM
+		SIF TARGET:LOCAL < 1
+			BREAK
+		IF MODE_取得_完全一致(TARGET:LOCAL, キャラ番号) != ""
+			候補配列:候補数 = (TARGET:LOCAL)
+			候補数 ++
+		ENDIF
+	NEXT
+	IF 候補数 > 0
+		他称単語 '= CALLNAME:(候補配列:(RAND:候補数))
+	ENDIF
+ENDIF
 
 ;DEBUGPRINTFORML 　%自称単語%/%他称単語%
 KSTR:(K++) = %汎用喘ぎ基礎文節(文節数, 喘ぎレベル, 自称単語, 他称単語, キャラ番号)%

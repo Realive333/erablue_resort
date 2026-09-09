@@ -1,4 +1,4 @@
-﻿;時間経過処理
+;時間経過処理
 @CHARA_MOVEMENT(追従モード = 0)
 #DIM DYNAMIC 追従モード
 #DIM 追い出し先
@@ -163,9 +163,13 @@ FOR LOCAL,0,CHARANUM
 		あなた追従中 = 1
 	ENDIF
 
-	;うふふ中ではない、かつ同行終わったら隠密消去
-	SIF !CFLAG:LOCAL:同行 && !CFLAG:LOCAL:うふふ && LOCAL > 0 && 連れ込みパターン == ""
+	;その場ゆきずり中は隠密を維持
+	IF IS_ゆきずりセックス中(LOCAL) && !GETBIT(TCVAR:LOCAL:ゆきずりセックス_誘い, 1)
+		CFLAG:LOCAL:隠密 = 1
+	;うふふ中ではなく、同行が終わったら隠密消去
+	ELSEIF !CFLAG:LOCAL:同行 && !CFLAG:LOCAL:うふふ && LOCAL > 0 && 連れ込みパターン == ""
 		CFLAG:LOCAL:隠密 = 0
+	ENDIF
 
 	;性欲
 	SIF !CFLAG:LOCAL:睡眠
@@ -192,16 +196,24 @@ FOR LOCAL,0,CHARANUM
 			PRINTFORML %CALLNAME:LOCAL%は遊びに満足したようだ。
 		ENDIF
 	ENDIF
-
-	;Add ahyanosia
+	
 	;ゆきずりセックス処理
-	IF 性癖素質:LOCAL:ゆきずりセックス > 0 && !CFLAG:LOCAL:うふふ
+	;すでにゆきずり中なら、スケジュールだけ進行させる
+	IF IS_ゆきずりセックス中(LOCAL)
+		CALL RUN_SCHEDULE(LOCAL)
+		
+		;終了後なら通常の移動処理へ進ませる
+		SIF IS_ゆきずりセックス中(LOCAL)
+			CONTINUE
+		
+	;まだゆきずり中でなければ発生判定
+	ELSEIF !CFLAG:LOCAL:うふふ && 性癖素質:LOCAL:ゆきずりセックス > 0
 		CALL ゆきずりセックス判定(LOCAL)
-		;性行為中は移動しない
+		
 		SIF IS_ゆきずりセックス中(LOCAL)
 			CONTINUE
 	ENDIF
-
+	
 	;野外オナニー処理
 	IF 性癖素質:LOCAL:野外オナニー > 0 && !CFLAG:LOCAL:うふふ
 		CALL 野外オナニー判定(LOCAL)
@@ -648,24 +660,38 @@ IF !CFLAG:ARG:睡眠
 			CFLAG:ARG:現在マップ種別 = 部屋検索_マップ種別
 		ENDIF
 	ELSEIF CFLAG:ARG:体力限界 && TALENT:ARG:分身 == 0
-		;部屋へ戻る、分身は移動しない
-		IF CFLAG:MASTER:酔いすぎ != 1 && CFLAG:MASTER:現在位置 == CFLAG:ARG:現在位置
-			;あなたがいる場合は部屋へと運ぶ
-			LOCAL = キャラクター部屋検索(ARG)
+		IF TCVAR:ARG:ゆきずりセックス_終了理由 == 1
+			;ゆきずりによる体力切れ専用の介抱描写
 			IF 自由利用BEDROOM(CFLAG:ARG:現在マップ種別, CFLAG:ARG:現在位置)
-				PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%をベッドに寝かせ、布団を掛けた。
-			ELSEIF CFLAG:ARG:現在位置 == LOCAL && CFLAG:ARG:現在マップ種別 == 部屋検索_マップ種別
-				PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%をベッドに寝かせ、布団を掛けた。
+				PRINTFORMW 疲れ果ててしまった%CALLNAME:ARG%はゆきずりの相手によって部屋へ運ばれた……
 			ELSE
-				CFLAG:ARG:現在位置 = LOCAL
+				CFLAG:ARG:現在位置 = キャラクター部屋検索(ARG)
 				CFLAG:ARG:現在マップ種別 = 部屋検索_マップ種別
-				PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%を部屋へと運びました。
+				PRINTFORMW 疲れ果ててしまった%CALLNAME:ARG%はゆきずりの相手によって部屋へ運ばれた……
 			ENDIF
+			;終了理由を初期化
+			TCVAR:ARG:ゆきずりセックス_終了理由 = 0
 		ELSE
-			;同室じゃない場合は勝手に戻る
-			CFLAG:ARG:現在位置 = キャラクター部屋検索(ARG)
-			CFLAG:ARG:現在マップ種別 = 部屋検索_マップ種別
+			;部屋へ戻る、分身は移動しない
+			IF CFLAG:MASTER:酔いすぎ != 1 && IS_SAME_ROOM(ARG, MASTER)
+				;あなたがいる場合は部屋へと運ぶ
+				LOCAL = キャラクター部屋検索(ARG)
+				IF 自由利用BEDROOM(CFLAG:ARG:現在マップ種別, CFLAG:ARG:現在位置)
+					PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%をベッドに寝かせ、布団を掛けた。
+				ELSEIF CFLAG:ARG:現在位置 == LOCAL && CFLAG:ARG:現在マップ種別 == 部屋検索_マップ種別
+					PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%をベッドに寝かせ、布団を掛けた。
+				ELSE
+					CFLAG:ARG:現在位置 = LOCAL
+					CFLAG:ARG:現在マップ種別 = 部屋検索_マップ種別
+					PRINTFORMW %CALLNAME:MASTER%は疲れ果ててしまった%CALLNAME:ARG%を部屋へと運びました。
+				ENDIF
+			ELSE
+				;同室じゃない場合は勝手に戻る
+				CFLAG:ARG:現在位置 = キャラクター部屋検索(ARG)
+				CFLAG:ARG:現在マップ種別 = 部屋検索_マップ種別
+			ENDIF
 		ENDIF
+		
 	ELSEIF CFLAG:MASTER:現在位置 == CFLAG:ARG:現在位置 && CFLAG:MASTER:現在マップ種別 == CFLAG:ARG:現在マップ種別
 		IF 睡眠場所指定
 			IF CFLAG:MASTER:現在位置 == 睡眠場所 && CFLAG:MASTER:現在マップ種別 == 睡眠マップ

@@ -132,6 +132,11 @@ SELECTCASE 動作モード
 	CASE "コマンド条件"
 		;コマンドの表示条件を処理する
 		;表示するなら1を返す
+		
+		;使い魔覗き中は表示しない
+		SIF CFLAG:MASTER:使い魔覗き状態
+			RETURN 0
+		
 		IF イベント完了フラグ確認("使い魔の創造")
 			RETURN 1
 		ELSE
@@ -145,112 +150,112 @@ SELECTCASE 動作モード
 ENDSELECT
 
 
-@USERCOM関数_840(動作モード)
-#DIMS 動作モード
-#DIM 同行者フラグ
+; @USERCOM関数_840(動作モード)
+; #DIMS 動作モード
+; #DIM 同行者フラグ
 
-SELECTCASE 動作モード
-	CASE "コマンド名"
-		TSTR:コマンド名受渡 = 物陰に隠れる
-	CASE "コマンド表示"
-		同行者フラグ = 0
-		FOR LOCAL, 1, CHARANUM
-			SIF TARGET:LOCAL < 1
-				BREAK
-			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
-				同行者フラグ = 1
-		NEXT
+; SELECTCASE 動作モード
+; 	CASE "コマンド名"
+; 		TSTR:コマンド名受渡 = 物陰に隠れる
+; 	CASE "コマンド表示"
+; 		同行者フラグ = 0
+; 		FOR LOCAL, 1, CHARANUM
+; 			SIF TARGET:LOCAL < 1
+; 				BREAK
+; 			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
+; 				同行者フラグ = 1
+; 		NEXT
 
-		SIF !同行者フラグ && !CFLAG:MASTER:隠密
-			PRINTC 物陰に隠れる[840]
-		SIF 同行者フラグ && !CFLAG:MASTER:隠密
-			PRINTC 一緒に隠れる[840]
-	CASE "コマンド条件"
-		;コマンドの表示条件を処理する
-		;表示するなら1を返す
-		IF CFLAG:MASTER:隠密
-			RETURN 0
-		ELSE
-			RETURN 1
-		ENDIF
-	CASE "コマンド動作"
-		;コマンド選択時の動作を処理する
-		CFLAG:MASTER:隠密 = 1
-		FOR LOCAL, 1, CHARANUM
-			SIF TARGET:LOCAL < 1
-				BREAK
-			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
-				CFLAG:(TARGET:LOCAL):隠密 = 1
-		NEXT
-		RETURN 1
-ENDSELECT
-
-
-@USERCOM関数_841(動作モード)
-#DIMS 動作モード
-#DIM 同行者フラグ
-
-SELECTCASE 動作モード
-	CASE "コマンド名"
-		TSTR:コマンド名受渡 = 物陰から出る
-	CASE "コマンド表示"
-		PRINTC 物陰から出る[841]
-	CASE "コマンド条件"
-		;コマンドの表示条件を処理する
-		;表示するなら1を返す
-		同行者フラグ = 0
-		FOR LOCAL, 1, CHARANUM
-			SIF TARGET:LOCAL < 1
-				BREAK
-			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
-				同行者フラグ = 1
-		NEXT
-
-		IF CFLAG:MASTER:隠密 && (!CFLAG:うふふ || GET_TARGETNUM() == 同行者フラグ)
-			RETURN 1
-		ELSE
-			RETURN 0
-		ENDIF
-	CASE "コマンド動作"
-		;コマンド選択時の動作を処理する
-		IF 連れ込みパターン != ""
-			PRINTFORMW %CALLNAME:TARGET%が離してくれない…
-			CALL KOJO_EVENT, 13, TARGET, 1
-		ELSE
-			CFLAG:MASTER:隠密 = 0
-			FOR LOCAL, 1, CHARANUM
-				SIF TARGET:LOCAL < 1
-					BREAK
-				SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
-					CFLAG:(TARGET:LOCAL):隠密 = 0
-			NEXT
-			PREVCOM = 841
-		ENDIF
-		RETURN 1
-ENDSELECT
+; 		SIF !同行者フラグ && !CFLAG:MASTER:隠密
+; 			PRINTC 物陰に隠れる[840]
+; 		SIF 同行者フラグ && !CFLAG:MASTER:隠密
+; 			PRINTC 一緒に隠れる[840]
+; 	CASE "コマンド条件"
+; 		;コマンドの表示条件を処理する
+; 		;表示するなら1を返す
+; 		IF CFLAG:MASTER:隠密
+; 			RETURN 0
+; 		ELSE
+; 			RETURN 1
+; 		ENDIF
+; 	CASE "コマンド動作"
+; 		;コマンド選択時の動作を処理する
+; 		CFLAG:MASTER:隠密 = 1
+; 		FOR LOCAL, 1, CHARANUM
+; 			SIF TARGET:LOCAL < 1
+; 				BREAK
+; 			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
+; 				CFLAG:(TARGET:LOCAL):隠密 = 1
+; 		NEXT
+; 		RETURN 1
+; ENDSELECT
 
 
-@USERCOM関数_850(動作モード)
-#DIMS 動作モード
+; @USERCOM関数_841(動作モード)
+; #DIMS 動作モード
+; #DIM 同行者フラグ
 
-SELECTCASE 動作モード
-	CASE "コマンド名"
-		TSTR:コマンド名受渡 = アイテム使用
-	CASE "コマンド表示"
-		IF TARGET
-			PRINTC アイテム使用[850]
-		ELSE
-			PRINTC 自分にアイテム使用[850]
-		ENDIF
-	CASE "コマンド条件"
-		;コマンドの表示条件を処理する
-		;表示するなら1を返す
-		RETURN 1
-	CASE "コマンド動作"
-		;コマンド選択時の動作を処理する
-		CALL ITEM_PROTO(TARGET)
-		RETURN 1
-ENDSELECT
+; SELECTCASE 動作モード
+; 	CASE "コマンド名"
+; 		TSTR:コマンド名受渡 = 物陰から出る
+; 	CASE "コマンド表示"
+; 		PRINTC 物陰から出る[841]
+; 	CASE "コマンド条件"
+; 		;コマンドの表示条件を処理する
+; 		;表示するなら1を返す
+; 		同行者フラグ = 0
+; 		FOR LOCAL, 1, CHARANUM
+; 			SIF TARGET:LOCAL < 1
+; 				BREAK
+; 			SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
+; 				同行者フラグ = 1
+; 		NEXT
+
+; 		IF CFLAG:MASTER:隠密 && (!CFLAG:うふふ || GET_TARGETNUM() == 同行者フラグ)
+; 			RETURN 1
+; 		ELSE
+; 			RETURN 0
+; 		ENDIF
+; 	CASE "コマンド動作"
+; 		;コマンド選択時の動作を処理する
+; 		IF 連れ込みパターン != ""
+; 			PRINTFORMW %CALLNAME:TARGET%が離してくれない…
+; 			CALL KOJO_EVENT, 13, TARGET, 1
+; 		ELSE
+; 			CFLAG:MASTER:隠密 = 0
+; 			FOR LOCAL, 1, CHARANUM
+; 				SIF TARGET:LOCAL < 1
+; 					BREAK
+; 				SIF CFLAG:(TARGET:LOCAL):同行 || CFLAG:(TARGET:LOCAL):うふふ
+; 					CFLAG:(TARGET:LOCAL):隠密 = 0
+; 			NEXT
+; 			PREVCOM = 841
+; 		ENDIF
+; 		RETURN 1
+; ENDSELECT
+
+
+; @USERCOM関数_850(動作モード)
+; #DIMS 動作モード
+
+; SELECTCASE 動作モード
+; 	CASE "コマンド名"
+; 		TSTR:コマンド名受渡 = アイテム使用
+; 	CASE "コマンド表示"
+; 		IF TARGET
+; 			PRINTC アイテム使用[850]
+; 		ELSE
+; 			PRINTC 自分にアイテム使用[850]
+; 		ENDIF
+; 	CASE "コマンド条件"
+; 		;コマンドの表示条件を処理する
+; 		;表示するなら1を返す
+; 		RETURN 1
+; 	CASE "コマンド動作"
+; 		;コマンド選択時の動作を処理する
+; 		CALL ITEM_PROTO(TARGET)
+; 		RETURN 1
+; ENDSELECT
 
 
 @USERCOM関数_856(動作モード)
@@ -421,7 +426,7 @@ SELECTCASE 動作モード
 	CASE "コマンド条件"
 		;コマンドの表示条件を処理する
 		;表示するなら1を返す
-		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会
+		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会 && !CFLAG:MASTER:使い魔覗き状態
 			RETURN 1
 		;移動先が0になることはないのでこれで良いはず
 	CASE "コマンド動作"
@@ -466,7 +471,7 @@ SELECTCASE 動作モード
 	CASE "コマンド条件"
 		;コマンドの表示条件を処理する
 		;表示するなら1を返す
-		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会
+		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会 && !CFLAG:MASTER:使い魔覗き状態
 			RETURN 1
 		;移動先が0になることはないのでこれで良いはず
 	CASE "コマンド動作"
@@ -511,7 +516,7 @@ SELECTCASE 動作モード
 	CASE "コマンド条件"
 		;コマンドの表示条件を処理する
 		;表示するなら1を返す
-		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会
+		SIF !CFLAG:PLAYER:うふふ && !CFLAG:PLAYER:飲み会 && !CFLAG:MASTER:使い魔覗き状態
 			RETURN 1
 		;移動先が0になることはないのでこれで良いはず
 	CASE "コマンド動作"
@@ -566,6 +571,10 @@ ENDIF
 @登録移動処理(移動マップ, 移動位置)
 #DIM 移動マップ
 #DIM 移動位置
+
+;使い魔覗き中は登録先への移動を行わない
+SIF CFLAG:MASTER:使い魔覗き状態
+	RETURN 1
 
 TFLAG:SELECTCOM受け渡し = 400
 SELECTCOM = 400

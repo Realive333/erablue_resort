@@ -36,6 +36,9 @@ RETURN RESULT
 ;実行判定
 SIF SAVESTR:ゲームフェイズ管理 != "通常モード"
 	RETURN 0
+;ゆきずり覗き・使い魔覗き中は使用不可
+SIF ゆきずり覗き中？(TARGET) || CFLAG:MASTER:使い魔覗き状態
+	RETURN 0
 ;個別のABLEを呼ぶ
 TRYCCALLFORM COM_ABLE380_{CFLAG:MASTER:現在マップ種別}_{CFLAG:MASTER:現在位置}
 SIF RESULT == 0

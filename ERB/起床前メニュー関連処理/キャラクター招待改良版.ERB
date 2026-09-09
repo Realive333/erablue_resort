@@ -10,6 +10,28 @@ PRINTL リゾート地の広告を出します
 PRINTL どのような広告を出しますか？
 PRINTFORML ・現在の所持金：%NUM_FORMAT(MONEY)%ルピ　所持ZP：%ZP所持量全文字列()%
 DRAWLINE
+PRINT ・現在の自動広告：
+IF OPTION変数:自動広告停止
+	PRINT 停止中
+ELSE
+	IF 自動広告文字列 == ""
+		PRINT なし
+	ELSE
+		SETCOLOR カラーパレット("黄")
+		PRINTFORM %自動広告文字列%
+		RESETCOLOR
+	ENDIF
+ENDIF
+PRINT 　　　
+IF OPTION変数:自動広告停止
+	PRINTBUTTON "[停止を解除]", 996
+ELSE
+	PRINTBUTTON "[停止する]", 996
+ENDIF
+PRINTL
+PRINTL 　※実行した広告が自動広告に設定されます。翌日以降、広告を実行していない時、自動で実行されます。
+PRINTL 　※スイートルーム招待、ＤＭ送付など対象を指定する広告は自動実行されません。
+DRAWLINE
 
 左側表示文字列 = 
 IF 通常キャラ招待:0 || ＤＭキャラ招待
@@ -194,6 +216,8 @@ SELECTCASE RESULT
 		CALL 広告システムチュートリアル
 		DRAWLINE
 		RESTART
+	CASE 996
+		INVERTBIT OPTION変数:自動広告停止, 0
 	CASE IS < 100
 		;特殊広告間の切り替え
 		表示キー_左 = %特殊広告関数保存:(RESULT - 10)%
@@ -215,26 +239,7 @@ SELECTCASE 表示キー_左
 				表示キー_右 = 空域全体
 				RESTART
 			CASE 103
-				PRINTL
-				PRINTL
-				SELECTCASE 表示キー_右
-					CASE "近くの島"
-						PRINTW 近くの島に広告を出しました。
-						MONEY -= 3000
-						CALL 人気上昇処理(3000)
-						集客人数 = RAND:2 + 2 + 招待キャラ数補正算出()
-					CASE "広範囲"
-						PRINTW 遠くの島まで広告を出しました。
-						MONEY -= 5000
-						CALL 人気上昇処理(5000)
-						集客人数 = RAND:3 + 3 + 招待キャラ数補正算出()
-					CASE "空域全体"
-						PRINTW 奮発して空域全体に広告を出しました！
-						MONEY -= 10000
-						CALL 人気上昇処理(10000)
-						集客人数 = RAND:3 + 5 + 招待キャラ数補正算出()
-				ENDSELECT
-				CALL 通常招待_実処理
+				CALL 通常広告
 				表示キー_左 = 
 				表示キー_右 = 
 				RESTART
@@ -265,6 +270,50 @@ SELECTCASE 表示キー_左
 ENDSELECT
 
 RETURN 1
+
+
+@通常広告
+PRINTL
+PRINTL
+SELECTCASE 表示キー_右
+	CASE "近くの島"
+		IF MONEY < 3000
+			PRINTW ルピが不足しています。広告を中断しました。
+			自動広告文字列 = 
+			RETURN 0
+		ENDIF
+
+		PRINTW 近くの島に広告を出しました。
+		MONEY -= 3000
+		CALL 人気上昇処理(3000)
+		集客人数 = RAND:2 + 2 + 招待キャラ数補正算出()
+		自動広告文字列 = 通常の広告-近くの島
+	CASE "広範囲"
+		IF MONEY < 5000
+			PRINTW ルピが不足しています。広告を中断しました。
+			自動広告文字列 = 
+			RETURN 0
+		ENDIF
+
+		PRINTW 遠くの島まで広告を出しました。
+		MONEY -= 5000
+		CALL 人気上昇処理(5000)
+		集客人数 = RAND:3 + 3 + 招待キャラ数補正算出()
+		自動広告文字列 = 通常の広告-広範囲
+	CASE "空域全体"
+		IF MONEY < 10000
+			PRINTW ルピが不足しています。広告を中断しました。
+			自動広告文字列 = 
+			RETURN 0
+		ENDIF
+
+		PRINTW 奮発して空域全体に広告を出しました！
+		MONEY -= 10000
+		CALL 人気上昇処理(10000)
+		集客人数 = RAND:3 + 5 + 招待キャラ数補正算出()
+		自動広告文字列 = 通常の広告-空域全体
+ENDSELECT
+CALL 通常招待_実処理
 
 
 
@@ -442,7 +491,7 @@ BINPUT
 
 ;広告対象のINPUT
 SELECTCASE RESULT
-	CASE 9020, 9030, 9031, 9040
+	CASE 9020, 9030, 9031, 9032, 9033, 9040
 		CALL フィルタソートボタンセット実行部(RESULT, 9020, 9030, 9031, 9040)
 		現在ページ = 0
 		RESTART

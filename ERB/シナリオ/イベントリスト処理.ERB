@@ -11,6 +11,8 @@ VARSET LOCAL
 VARSET LOCALS
 VARSET NEWフラグ用リスト
 
+;画像リソースを全解放
+SPRITEDISPOSEALL 0
 TFLAG:口上用画像表示番号 = 0
 表示候補数 = DT_ROW_LENGTH("各イベント用変数配列")
 SPLIT TSTR:NEWイベントフラグ, "_", NEWフラグ用リスト
@@ -346,16 +348,8 @@ FOR LOCAL, 0, DT_ROW_LENGTH("各イベント用変数配列")
 				DRAWLINE
 			ENDIF
 			IF DT_CELL_GET("各イベント用変数配列", LOCAL, "イベント完了フラグ") == 0
-				SELECTCASE DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")
-					CASE "メインシナリオ"
-						PRINTFORML メインシナリオ［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が新たに発生した！
-					CASE "サブイベント"
-						PRINTFORML サブイベント［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が新たに発生した！
-					CASE "キャライベント"
-						PRINTFORML キャライベント［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が新たに発生した！
-					CASE "突発イベント"
-						PRINTFORML 突発イベント［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が新たに発生した！
-				ENDSELECT
+				TRYCALLFORM イベントメッセージ_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%("発生時")
+				PRINTFORML %DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が新たに発生した！
 				FORCEWAIT
 				LOCAL:1 = 1
 				TSTR:NEWイベントフラグ += @"EVENT{LOCAL}_"
@@ -377,6 +371,7 @@ FOR LOCAL, 0, DT_ROW_LENGTH("各イベント用変数配列")
 			PRINTL
 			DRAWLINE
 		ENDIF
+		TRYCALLFORM イベントメッセージ_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%("再発生時")
 		PRINTFORML %DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベントカテゴリ")%［%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%］が再発生した！
 		FORCEWAIT
 		;再発生済みと再発生前を区別するためにCTに-2を入れる
@@ -439,6 +434,7 @@ NEXT
 FOR LOCAL, 0, DT_ROW_LENGTH("エンディング用変数配列")
 	IF DT_CELL_GET("エンディング用変数配列", LOCAL, "イベント発生フラグ") == 0
 		RESULT = 0
+		TRYCALLFORM イベントメッセージ_エンディングイベント_%DT_CELL_GETS("各イベント用変数配列", LOCAL, "イベント名")%("発生時")
 		TRYCALLFORM イベント関数_エンディングイベント_%DT_CELL_GETS("エンディング用変数配列", LOCAL, "イベント名")%("発生条件", LOCAL)
 		IF RESULT
 			DT_CELL_SET "エンディング用変数配列", LOCAL, "イベント発生フラグ", 1
@@ -447,7 +443,7 @@ FOR LOCAL, 0, DT_ROW_LENGTH("エンディング用変数配列")
 				PRINTL
 				DRAWLINE
 			ENDIF
-				PRINTFORML エンディング［%DT_CELL_GETS("エンディング用変数配列", LOCAL, "イベント名")%］が新たに発生した！
+			PRINTFORML エンディング［%DT_CELL_GETS("エンディング用変数配列", LOCAL, "イベント名")%］が新たに発生した！
 			FORCEWAIT
 			LOCAL:1 = 1
 			TSTR:NEWイベントフラグ += @"ENDHING{DT_CELL_GET("エンディング用変数配列", LOCAL, "id")}_"

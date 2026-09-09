@@ -847,11 +847,15 @@ IF 対象キャラ == MASTER
 	RETURNF CFLAG:MASTER:自室位置
 ENDIF
 
-IF TFLAG:外出中フラグ > 0 && CFLAG:対象キャラ:滞在期間 > 0
-	RESULT:1 = -1
-	TRYCALLFORMF 外出先_自宅設定_{FLAG:外出先番号}
-	部屋検索_マップ種別 = FLAG:外出先番号
-	RETURNF RESULT:1
+IF TFLAG:外出中フラグ > 0
+	IF CFLAG:対象キャラ:滞在期間 > 0
+		RESULT:1 = -1
+		TRYCALLFORMF 外出先_自宅設定_{FLAG:外出先番号}
+		部屋検索_マップ種別 = FLAG:外出先番号
+		RETURNF RESULT:1
+	ELSE
+		RETURNF -1
+	ENDIF
 ENDIF
 
 ;eraの部屋
@@ -965,14 +969,7 @@ ENDIF
 
 ;部屋がない場合のフォロー
 IF CFLAG:対象キャラ:滞在期間 > 0 && TALENT:対象キャラ:分身 < 1 && !TCVAR:対象キャラ:日帰りフラグ
-	IF TALENT:対象キャラ:従業員
-		FOR LOCAL, 0, 従業員部屋数
-			IF 従業員部屋割り配列:(LOCAL) < 1
-				従業員部屋割り配列:(LOCAL) = 対象キャラ
-				RETURNF LOCAL + 1000
-			ENDIF
-		NEXT
-	ELSEIF TALENT:対象キャラ:定住者 == 1
+	IF TALENT:対象キャラ:定住者 == 1
 		FOR LOCAL, 0, VARSIZE("定住者部屋割り配列")
 			IF 定住者部屋割り配列:(LOCAL) == ""
 				定住者部屋割り配列:(LOCAL) = {対象キャラ}_
@@ -983,6 +980,13 @@ IF CFLAG:対象キャラ:滞在期間 > 0 && TALENT:対象キャラ:分身 < 1 &
 		FOR LOCAL, 0, VARSIZE("飼育区部屋割り配列")
 			IF 飼育区部屋割り配列:(LOCAL) == ""
 				飼育区部屋割り配列:(LOCAL) = {対象キャラ}_
+				RETURNF LOCAL + 1000
+			ENDIF
+		NEXT
+	ELSEIF TALENT:対象キャラ:従業員
+		FOR LOCAL, 0, 従業員部屋数
+			IF 従業員部屋割り配列:(LOCAL) < 1
+				従業員部屋割り配列:(LOCAL) = 対象キャラ
 				RETURNF LOCAL + 1000
 			ENDIF
 		NEXT
@@ -1223,7 +1227,30 @@ SIF NO:対象キャラ == 998
 ;部屋の無いキャラがいないかチェック
 部屋セットチェック = 0
 IF キャラクター部屋検索(対象キャラ) == -1 && CFLAG:対象キャラ:スイートルーム滞在フラグ == 0
-	IF TALENT:対象キャラ:従業員
+	IF TALENT:対象キャラ:定住者 == 3
+		;家に突っ込む
+		FOR LOCAL, 0, 特別飼育区広さ()
+			IF 飼育区部屋割り配列:LOCAL == ""
+				飼育区部屋割り配列:LOCAL = {対象キャラ}_
+				CFLAG:対象キャラ:現在マップ種別 = 大規模番号_牧場エリア
+				CFLAG:対象キャラ:現在位置 = LOCAL + 1000
+				部屋セットチェック = 1
+				BREAK
+			ENDIF
+		NEXT
+		IF 部屋セットチェック == 0
+			PRINTL 想定しない挙動により、部屋が無い飼育キャラが存在しています。
+			PRINTFORMW 対象キャラ：%NAME表示(対象キャラ)%
+			PRINTW 特別飼育区がいっぱいのため、該当キャラから定住フラグを外し一旦島の外へと移動させます。
+			PRINTW 手間ですが、再びキャラクターを招待してください。
+			PRINTW 詫びルピとして１万ルピを増加させました。
+			MONEY += 10000
+			CFLAG:対象キャラ:滞在期間 = -1
+			TALENT:対象キャラ:従業員 = 0
+			TALENT:対象キャラ:定住者 = 0
+			CALL 滞在終了時初期化(対象キャラ)
+		ENDIF
+	ELSEIF TALENT:対象キャラ:従業員
 		FOR LOCAL, 0, 従業員部屋数
 			IF 従業員部屋割り配列:(LOCAL) < 1
 				従業員部屋割り配列:(LOCAL) = 対象キャラ

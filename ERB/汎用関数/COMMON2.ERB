@@ -668,6 +668,7 @@ RETURNF MAX(CFLAG:対象キャラ:恋慕レベル, 性愛_好感度レベル)
 #DIM 対象キャラ
 #DIMS シチュ記録
 #DIMS 場所登録
+#DIM EXP番号
 ;MASTER相手なので相手キャラは取らない
 
 ;初回フラグに記録
@@ -679,6 +680,11 @@ ENDIF
 
 CFLAG:対象キャラ:うふふ = 1
 CSTR:対象キャラ:うふふシチュ記録 '= シチュ記録
+
+;うふふ開始時のEXP数値を記録
+FOR EXP番号, 0, 200
+	EXP記録_うふふ開始時:対象キャラ:EXP番号 = EXP:対象キャラ:EXP番号
+NEXT
 
 IF 場所登録 == ""
 	場所登録 '= GETPLACENAME(CFLAG:MASTER:現在マップ種別, CFLAG:MASTER:現在位置)
@@ -739,6 +745,10 @@ FOR LOCAL, 1, CHARANUM
 	ELSEIF CFLAG:(TARGET:LOCAL):うふふ
 		;うふふ終了口上
 		TRYCALLFORM KOJO_EVENT_うふふ終了_{NO:(TARGET:LOCAL)}(TARGET:LOCAL, 終了原因)
+		;うふふ開始時EXPリセット
+		FOR EXP番号, 0, 200
+			EXP記録_うふふ開始時:(TARGET:LOCAL):EXP番号 = 0
+		NEXT
 
 		;うふふ時間で履歴登録
 		時間保存 = (TIME + 1440 * DAY) - CFLAG:(TARGET:LOCAL):うふふ開始時間記録
@@ -997,7 +1007,13 @@ FOR LOCAL, 0, 分身最大数
 	FOR EXP番号, 0, 200
 		EXP:(分身登録:LOCAL:1):EXP番号 += EXP:(分身登録:LOCAL:0):EXP番号 - 分身EXP保存:LOCAL:EXP番号
 	NEXT
-	DELCHARA 分身登録:LOCAL:0
+	;DELCHARA 分身登録:LOCAL:0
+
+	;一日終了時にまとめて消すので異空間に幽閉
+	CFLAG:(分身登録:LOCAL:0):滞在期間 = -1
+	CFLAG:(分身登録:LOCAL:0):現在位置 = 999
+	CFLAG:(分身登録:LOCAL:0):現在マップ種別 = 0
+	CFLAG:(分身登録:LOCAL:0):招待不可フラグ = 2
 NEXT
 VARSET 分身登録:0:0
 VARSET 分身EXP保存:0:0
@@ -1022,7 +1038,12 @@ NEXT
 FOR EXP番号, 0, 200
 	EXP:(分身登録:分身番号:1):EXP番号 += EXP:(分身登録:分身番号:0):EXP番号 - 分身EXP保存:分身番号:EXP番号
 NEXT
-DELCHARA 対象キャラ
+; DELCHARA 対象キャラ
+
+;一日終了時にまとめて消すので異空間に幽閉
+CFLAG:(分身登録:LOCAL:0):滞在期間 = -1
+CFLAG:(分身登録:LOCAL:0):現在位置 = 999
+CFLAG:(分身登録:LOCAL:0):現在マップ種別 = 0
 
 ;キャラ番号をズラしておく
 FOR LOCAL, 0, 分身最大数
@@ -1038,6 +1059,24 @@ FOR LOCAL, 分身番号, 分身最大数 - 1
 NEXT
 CALL SORT_CHARALIST()
 CALL TARGET_SET()
+
+
+
+@一日終了時_分身削除()
+#DIM 消去実行フラグ
+消去実行フラグ = 0
+
+;生成NPC本人をキャラ番号の降順で削除
+FOR LOCAL, CHARANUM - 1, -1, -1
+	IF TALENT:LOCAL:分身 > 0
+		DELCHARA LOCAL
+		消去実行フラグ = 1
+	ENDIF
+NEXT
+
+IF 消去実行フラグ
+	CALL SORT_CHARALIST()
+ENDIF
 
 
 
@@ -1118,14 +1157,21 @@ RETURNF CSVNAME(NO:対象キャラ) == キャラNAME
 
 @キャラ検索(キャラNAME)
 #FUNCTION
-#DIM 対象キャラ
+#DIMS 登録番号
 #DIMS キャラNAME
 
-FOR 対象キャラ, 0, CHARANUM
-	SIF キャラ一致チェック(対象キャラ, キャラNAME)
-		RETURNF 対象キャラ
-NEXT
-RETURNF -1
+登録番号 '= MAP_GET("キャラ検索", キャラNAME)
+IF ISNUMERIC(登録番号)
+	RETURNF TOINT(登録番号)
+ELSE
+	RETURNF -1
+ENDIF
+
+; FOR 対象キャラ, 0, CHARANUM
+; 	SIF キャラ一致チェック(対象キャラ, キャラNAME)
+; 		RETURNF 対象キャラ
+; NEXT
+; RETURNF -1
 
 @滞在キャラランダム選出(除外キャラ)
 #FUNCTION
@@ -1302,6 +1348,7 @@ RETURNF LOCAL
 	"業務訪問_装飾品店店員", 
 	"業務訪問_土産物屋店員", 
 	"業務訪問_道具屋店員", 
+	"業務訪問_直売所店員", 
 	"仕事訪問", 
 	"自室訪問簡易承諾", 
 	"自室訪問承諾", 

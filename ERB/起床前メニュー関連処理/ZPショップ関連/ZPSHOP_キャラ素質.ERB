@@ -235,7 +235,7 @@ BINPUT
 入力値 = RESULT
 RETURN_VAL = 0
 SELECTCASE 入力値
-	CASE フィルタボタン番号, ソートボタン番号, ソート順ボタン番号, 素質絞込ボタン番号
+	CASE フィルタボタン番号, ソートボタン番号, ソート順ボタン番号, ソート順ボタン番号 + 1, ソート順ボタン番号 + 2, 素質絞込ボタン番号
 		CALL フィルタソートボタンセット実行部(入力値, フィルタボタン番号, ソートボタン番号, ソート順ボタン番号, 素質絞込ボタン番号)
 		現在ページ = 0
 		リスト生成フラグ = 1
@@ -374,6 +374,10 @@ IF あなた特殊能力:ハーレム >= 2
 	ENDIF
 	PRINTL
 ENDIF
+IF 性癖素質:キャラ番号:ゆきずりセックス
+	PRINTBUTTONLC "[11]ゆきずりセックスの制御", 11
+	PRINTL
+ENDIF
 IF フレーバー素質:キャラ番号:フレーバー素質_素質表示設定 == 0 || フレーバー素質:キャラ番号:フレーバー素質_素質表示設定 == 1
 	PRINTBUTTONLC "[20]フレーバー素質を再設定する", 20
 	PRINTL
@@ -442,6 +446,9 @@ SELECTCASE RESULT
 		RESTART
 	CASE 10
 		CALL ハーレムの心得素質設定(キャラ番号)
+		RESTART
+	CASE 11
+		CALL ゆきずりセックス制御設定(キャラ番号)
 		RESTART
 	CASE 20
 		CALL フレーバー素質再設定(キャラ番号)
@@ -879,6 +886,10 @@ IF TALENT:対象キャラ:射精不可
 	PRINTBUTTON @"[10] 射精を可能にさせる（{COST_TO_射精可能}）", 10
 	PRINTL
 ENDIF
+IF TALENT:対象キャラ:希釈精液 == 0
+	PRINTBUTTON @"[20] 希釈精液を付与する（{COST_TO_射精可能}）", 20
+	PRINTL （中出ししても妊娠しなくなる）
+ENDIF
 PRINTL 
 PRINTBUTTON "[999]戻る", 999
 $INPUT_LOOP3
@@ -927,6 +938,23 @@ SELECTCASE LOCAL:1
 			FLAG:ZP所持量 -= COST_TO_射精可能
 			PRINTFORMW %CALLNAME:対象キャラ%が射精可能になりました。
 			TALENT:対象キャラ:射精不可 = 0
+		ENDIF
+		RETURN 0
+	CASE 20
+		;ZP足りる？
+		IF FLAG:ZP所持量 < COST_TO_射精可能
+			PRINTW ZPが足りません
+		GOTO INPUT_LOOP3
+		ENDIF
+		PRINTFORML {COST_TO_射精可能}ZPを支払い、［希釈精液］を付与しますか？
+		PRINTFORML （所持ZP：{FLAG:ZP所持量}）
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTBUTTONLC "[1]いいえ", 1
+		INPUT
+		IF RESULT == 0
+			FLAG:ZP所持量 -= COST_TO_射精可能
+			PRINTFORMW %CALLNAME:対象キャラ%の精液が妊娠能力を失いました。
+			TALENT:対象キャラ:希釈精液 = 1
 		ENDIF
 		RETURN 0
 	CASEELSE
@@ -1980,6 +2008,8 @@ ENDSELECT
 PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
 DRAWLINE
 
+CALL PRINT_STATE_弱点コマンド(対象キャラ, "9998", 15)
+HTML_PRINT @"<div rect = '5400, 0, 2500, 4375'>%RESULTS%</div>", 1
 CALL 弱点の欠片表示画面(フィルタフラグ, 対象キャラ, グレーアウト閾値, 1)
 VARSET 表示ID配列
 ARRAYCOPY "RESULT", "表示ID配列"
@@ -1994,6 +2024,8 @@ SELECTCASE 入力値
 		表示種別 = 
 		能力表示現在ページ = 0
 		RETURN 0
+	CASE 9998
+		CALL 弱点コマンド全表示(対象キャラ)
 	CASE 900
 		能力表示現在ページ --
 	CASE 901
@@ -2250,4 +2282,218 @@ SELECTCASE LOCAL
 		PRINTL
 		PRINTL
 		PRINTFORMW %NAME表示(対象キャラ)% がハーレムの心得を取得しました！
+ENDSELECT
+
+
+;==================================================================================================
+@ゆきずりセックス制御設定(対象キャラ)
+#DIM 対象キャラ
+#DIM 消費ZP
+
+#DIM 変更前_火遊び抑制
+#DIM 変更前_ナンパ傾向
+#DIM 描画開始行
+
+;変更前の素質を保存
+変更前_火遊び抑制 = TALENT:対象キャラ:火遊び抑制
+変更前_ナンパ傾向 = TALENT:対象キャラ:ナンパ傾向
+
+
+$表示部分
+描画開始行 = LINECOUNT
+DRAWLINE
+PRINTFORML %NAME表示(対象キャラ)% のゆきずりセックスを制御します。
+PRINTFORML 所持ZP:{FLAG:ZP所持量}.{(ZP小数点以下所持量 % 1000) / 100}{(ZP小数点以下所持量 % 100) / 10}{(ZP小数点以下所持量 % 10)}
+DRAWLINE
+
+;消費ZPを初期化
+消費ZP = 0
+
+;*****************************************************
+; 火遊び抑制
+PRINTFORML ■火遊び抑制
+;●ボタン
+SETCOLOR カラーパレット("赤")
+IF TALENT:対象キャラ:火遊び抑制 == 0
+	;活性中
+	PRINTPLAIN [×]
+ELSE
+	;ボタン化
+	PRINTBUTTON "[×]", 0
+ENDIF
+RESETCOLOR
+IF TALENT:対象キャラ:火遊び抑制 == 1
+	;活性中
+	SETCOLOR カラーパレット("青緑")
+	PRINTPLAIN [女遊び抑制]
+	RESETCOLOR
+ELSE
+	;ボタン化
+	PRINTBUTTON "[女遊び抑制]", 1
+ENDIF
+IF TALENT:対象キャラ:火遊び抑制 == 2
+	;活性中
+	SETCOLOR カラーパレット("青緑")
+	PRINTPLAIN [男遊び抑制]
+	RESETCOLOR
+ELSE
+	;ボタン化
+	PRINTBUTTON "[男遊び抑制]", 2
+ENDIF
+IF TALENT:対象キャラ:火遊び抑制 == 3
+	;活性中
+	SETCOLOR カラーパレット("青緑")
+	PRINTPLAIN [火遊び厳禁]
+	RESETCOLOR
+ELSE
+	;ボタン化
+	PRINTBUTTON "[火遊び厳禁]", 3
+ENDIF
+PRINTFORML
+
+;●説明文
+PRINTFORM  現在の設定：
+SELECTCASE TALENT:対象キャラ:火遊び抑制
+	CASE 0 ;抑制なし
+		PRINTFORML 抑制無し
+	CASE 1 ;[女遊び抑制]
+		PRINTFORML 女性とゆきずりの行為を行わなくなります。
+	CASE 2 ;[男遊び抑制]
+		PRINTFORML 男性とゆきずりの行為を行わなくなります。
+	CASE 3 ;[火遊び厳禁]
+		PRINTFORML ゆきずりの行為を一切行わなくなります。
+ENDSELECT
+
+;消費ZPの算出
+SIF 変更前_火遊び抑制 != TALENT:対象キャラ:火遊び抑制
+	消費ZP += 5
+
+PRINTFORML
+
+;*****************************************************
+; ナンパ傾向
+PRINTFORML ■ナンパ傾向
+;●ボタン
+SETCOLOR カラーパレット("赤")
+IF TALENT:対象キャラ:ナンパ傾向 == 0
+	;活性中
+	PRINTPLAIN [×]
+ELSE
+	;ボタン化
+	PRINTBUTTON "[×]", 11
+ENDIF
+RESETCOLOR
+IF TALENT:対象キャラ:ナンパ傾向 == -1
+	;活性中
+	SETCOLOR カラーパレット("青緑")
+	PRINTPLAIN [誘われ待ち]
+	RESETCOLOR
+ELSE
+	;ボタン化
+	PRINTBUTTON "[誘われ待ち]", 10
+ENDIF
+IF TALENT:対象キャラ:ナンパ傾向 == 1
+	;活性中
+	SETCOLOR カラーパレット("青緑")
+	PRINTPLAIN [ナンパ師]
+	RESETCOLOR
+ELSE
+	;ボタン化
+	PRINTBUTTON "[ナンパ師]", 12
+ENDIF
+PRINTFORML
+
+;●説明文
+PRINTFORM  現在の設定：
+SELECTCASE TALENT:対象キャラ:ナンパ傾向
+	CASE 0 ;抑制なし
+		PRINTFORML 傾向無し
+	CASE -1 ;[誘われ待ち]
+		PRINTFORML ゆきずり判定時、自分から声を掛けなくなります。
+	CASE 1 ;[ナンパ師]
+		PRINTFORML ゆきずり判定時、誘う側のみになります。
+ENDSELECT
+
+;消費ZPの算出
+SIF 変更前_ナンパ傾向 != TALENT:対象キャラ:ナンパ傾向
+	消費ZP += 5
+
+PRINTFORML
+
+;*****************************************************
+; 戻る
+PRINTFORML
+IF 変更前_火遊び抑制 != TALENT:対象キャラ:火遊び抑制 || 変更前_ナンパ傾向 != TALENT:対象キャラ:ナンパ傾向
+	PRINTBUTTON "[998] 決定", 998
+	PRINTFORM  (消費ZP:{消費ZP})
+	PRINTFORML
+ELSE
+	SETCOLOR カラーパレット("グレーアウト")
+	PRINTPLAIN [998] 決定
+	RESETCOLOR
+	PRINTFORML
+ENDIF
+PRINTBUTTON "[999] 戻る", 999
+PRINTFORML
+
+;*****************************************************
+; ボタン結果
+BINPUT
+SELECTCASE RESULT
+	CASE 0 TO 3
+		TALENT:対象キャラ:火遊び抑制 = RESULT
+		CLEARLINE LINECOUNT - 描画開始行
+		GOTO 表示部分
+	CASE 10 TO 12
+		TALENT:対象キャラ:ナンパ傾向 = RESULT - 11
+		CLEARLINE LINECOUNT - 描画開始行
+		GOTO 表示部分
+	
+	CASE 998
+		PRINTFORML 
+		PRINTFORML {消費ZP}ZPを消費し、設定を確定しますか？
+		PRINTBUTTONLC "[0]はい", 0
+		PRINTFORML 
+		PRINTBUTTONLC "[1]いいえ", 1
+		BINPUT
+		SELECTCASE RESULT
+			CASE 0 ;確定して出る
+				;ZPが足りているか確認
+				IF FLAG:ZP所持量 >= 消費ZP
+					;足りてる
+					FLAG:ZP所持量 -= 消費ZP
+					RETURN 0
+				ELSE
+					;たりない
+					PRINTFORMW ZPが足りません
+					TALENT:対象キャラ:火遊び抑制 = 変更前_火遊び抑制
+					TALENT:対象キャラ:ナンパ傾向 = 変更前_ナンパ傾向
+					CLEARLINE LINECOUNT - 描画開始行
+					GOTO 表示部分
+					
+				ENDIF
+			CASE 1 ;キャンセル
+				CLEARLINE LINECOUNT - 描画開始行
+				GOTO 表示部分
+		ENDSELECT
+		
+	CASE 999
+		;素質が変更されていると確認が入る
+		IF 変更前_火遊び抑制 != TALENT:対象キャラ:火遊び抑制 || 変更前_ナンパ傾向 != TALENT:対象キャラ:ナンパ傾向
+			PRINTFORML 
+			PRINTFORML 設定が変更されています。設定を破棄して戻りますか？
+			PRINTBUTTONLC "[0]設定を破棄して戻る", 0
+			PRINTFORML 
+			PRINTBUTTONLC "[1]キャンセル", 1
+			BINPUT
+			SELECTCASE RESULT
+				CASE 0 ;破棄して出る
+					TALENT:対象キャラ:火遊び抑制 = 変更前_火遊び抑制
+					TALENT:対象キャラ:ナンパ傾向 = 変更前_ナンパ傾向
+					RETURN 0
+				CASE 1 ;キャンセル
+					CLEARLINE LINECOUNT - 描画開始行
+					GOTO 表示部分
+			ENDSELECT
+		ENDIF
 ENDSELECT

@@ -449,6 +449,9 @@ ELSEIF RESULT == 804
 ELSEIF RESULT == 809
 	CALL OPTION
 	RETURN 1
+ELSEIF RESULT == 889
+	INVERTBIT 画像サイズ切り替えOPTION記憶, 0
+	RETURN 1
 ELSEIF RESULT == 890
 	INVERTBIT あなた射精我慢フラグ, 0
 	RETURN 1
@@ -921,7 +924,7 @@ IF FLAG:外出先番号 > 0 && TIME > 1260
 	CFLAG:MASTER:現在マップ種別 = 0
 	CALL ゲームフェイズ変更("通常モード")
 	FLAG:一日終了 = 1
-ELSEIF CFLAG:MASTER:起床予定時刻 > TIME && CFLAG:MASTER:起床予定時刻 - 120 < TIME
+ELSEIF CFLAG:MASTER:起床予定時刻 > TIME && CFLAG:MASTER:起床予定時刻 - 120 < TIME && FLAG:イベントうふふ中フラグ == 0
 	TFLAG:オートコマンドフラグ = 0
 
 	PRINTW （眠気が限界だ…　一日を終了します）

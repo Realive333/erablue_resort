@@ -97,3 +97,41 @@ FOR LOCAL, 0, VARSIZE("商業区店割り配列", 1)
 NEXT
 
 RETURNF -1
+
+
+@商業区退職処理(対象キャラ)
+#DIM 対象キャラ
+#DIM 店員数
+#DIM 店員番号
+
+FOR LOCAL, 0, VARSIZE("商業区店割り配列", 1)
+	VARSET RESULTS
+	SPLIT 商業区店割り配列:LOCAL:店員配列, "_", RESULTS
+	;店員配列の入れ方的に店員数はRESULTより１少なくなるはず
+	店員数 = RESULT - 1
+	IF MATCH(RESULTS, @"{対象キャラ}")
+		TALENT:対象キャラ:店持ち = 0
+		IF 店員数 < 2
+			;店主が一人の場合、廃業
+			商業区店割り配列:LOCAL:店員配列 = 
+			商業区店割り配列:LOCAL:店舗名 = 
+			商業区店割り配列:LOCAL:定休日 = 
+			商業区店割り配列:LOCAL:店属性 = 
+			RETURN LOCAL
+		ELSE
+			;まだ複数人いる場合、対象キャラのみ削除
+			FOR 店員番号, 0, 店員数
+				商業区店割り配列:LOCAL:店員配列 = 
+				IF TOINT(RESULTS:店員番号) != 対象キャラ
+					商業区店割り配列:LOCAL:店員配列 += @"%RESULTS:店員番号%_"
+				ENDIF
+			NEXT
+			RETURN LOCAL + 10000
+		ENDIF
+	ENDIF
+NEXT
+
+RETURN -1
+
+
+

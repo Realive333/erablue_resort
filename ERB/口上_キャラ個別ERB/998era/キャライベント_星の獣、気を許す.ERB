@@ -1,0 +1,276 @@
+﻿;特定のキャラをメインにするイベントカテゴリ
+;星の獣、気を許すを任意のイベント名に変えて使うこと、他との重複不可
+
+@イベント発生条件_キャライベント_星の獣、気を許す
+
+;タピィライベを踏んだ週のみ
+SIF 特定状況口上用フラグ:(GETCHARA(997)):0 < 1
+	RETURN 0
+
+;信頼度MAXの1.5倍
+SIF CFLAG:(GETCHARA(998)):信頼度 < 経験値テーブル:99 * 3 / 2
+	RETURN 0
+;友情度MAXの1.5倍
+SIF CFLAG:(GETCHARA(998)):友情度 < 経験値テーブル:99 * 3 / 2
+	RETURN 0
+
+;他ルートと排他
+SIF イベント完了フラグ確認("星の獣、絆される") > 0
+	RETURN 0
+
+RETURN 1
+
+@イベント消滅条件_キャライベント_星の獣、気を許す
+;この条件を満たした時、イベントは発生してない扱いとなる
+;発生条件＞消滅条件で見るので、発生と消滅を両方満たしている時は「発生した！」というメッセージが出るが発生していない扱いになる
+;そのため条件には注意すること
+
+SIF 特定状況口上用フラグ:(GETCHARA(997)):0 < 1
+	RETURN 1
+
+;他ルートと排他
+SIF イベント完了フラグ確認("星の獣、絆される") > 0
+	RETURN 1
+
+@イベント関数_キャライベント_星の獣、気を許す(ARG)
+#DIM era番号
+#DIMS 呼称設定
+
+;他イベントと排他になるため確認メッセージ表示
+IF !FLAG:クリア済み視聴フラグ
+	CUSTOMDRAWLINE *
+	PRINTL このイベントを視聴すると イベント「星の獣、絆される」 が消滅し、今後発生しなくなります。
+	PRINTL ・消滅イベントによって解放される要素
+	PRINTL 　　星晶獣eraの恋慕不可の解除
+	PRINTL 　　星晶獣eraの妊娠不可の解除
+	PRINTL
+	PRINTL このイベントを視聴しますか？
+	CUSTOMDRAWLINE *
+	PRINTBUTTONLC "[0] 視聴する", 0
+	PRINTBUTTONLC "[1] 視聴せず戻る", 1
+	PRINTL
+	PRINTL
+	BINPUT
+	IF RESULT == 1
+		RETURN 0
+	ENDIF
+ENDIF
+
+era番号 = GETCHARA(998)
+;使用する顔グラの登録
+CALLF 任意顔グラ表示用文字列関数(キャラ検索("[隠遁する星の民]タピィラ"),"顔_デフォルト",100)
+LOCALS = %立ち絵リソース記録%
+
+DRAWLINE
+PRINTL ［星の獣、気を許す］
+DRAWLINE
+PRINTW
+PRINTL 
+IF GETBIT(TALENT:MASTER:性別, 1)
+	PRINTFORMW 星晶獣eraとの子供を作れと、星の民タピィラに言われてから暫くの時間が経った。
+ELSE
+	PRINTFORMW 星晶獣eraの家族になれと、星の民タピィラに言われてから暫くの時間が経った。
+ENDIF
+PRINTFORMW 会話を重ね、触れ合いを通じ、それなりにeraと仲良くなったと自分では思っているが……。
+PRINTFORMW ……ただ、やはりeraを性愛の対象として見ることは難しい。
+PRINTL 
+PRINTFORMW 彼女は自分の命の恩人であり、リゾート経営で苦労している間もずっと側にいてくれた、家族のようなものだ。
+PRINTFORMW 星の民タピィラは「友情と信頼を大きく高めれば」、いわゆる恋人や婚姻の相手にならずとも解決するとは言っていたが……。
+PRINTFORMW ……いや、時間はまだあるそうだ。そう焦ることはない。
+PRINTFORMW そんなことを思いながら、%CALLNAME:MASTER%はベッドに入り眠りに就いた──。
+PRINTL 
+PRINTFORMW ………
+PRINTFORMW ……
+PRINTFORMW …
+PRINTL 
+PRINTFORMW 夢の中で、聞いたことのある声が響いてくる……。これは、タピィラの声だろうか。
+PRINTL
+IF LOCALS != "顔ノーイメ"
+	PRINT_IMG LOCALS, 1125, 1125
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+	PRINTL 
+ENDIF
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「…………聞こえていますか………%CALLNAME:MASTER%……
+PRINTFORMW 　この声が、聞こえていますか…………」
+PRINTL
+PRINTBUTTON "[0] はい", 0
+PRINTL
+PRINTBUTTON "[1] いいえ", 1
+PRINTL
+BINPUT
+IF RESULT
+	PRINTL
+	PRINTL タピィラ：
+	PRINTFORMW 「この間気付いたのですが……聞こえていないと返事も出来ないはずですよね。
+	PRINTFORMW 　聞こえているということで進めさせてもらいます」
+ENDIF
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「封印を通して、eraの精神の変化をこちらでも観測しました。
+PRINTFORMW 　正直に言って……ここまで手早く解決していただけるとは思ってもいませんでした。
+PRINTFORMW 　貴方の協力に多大なる感謝を申し上げます」
+PRINTL 
+PRINTFORMW タピィラの言葉に、%CALLNAME:MASTER%は首を傾げる。
+PRINTFORMW 確かに仲良くはなったつもりだが、子供だ家族だ、というほどの仲にはなっていない。
+PRINTFORMW 求められていたラインには到底達していないはずだが……。
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「いいえ。あなたは確かに家族になっています。
+PRINTFORMW 　子供や結婚という繋がりでなくとも、eraはあなたといることに安らぎを感じ、受け入れているようです。
+PRINTFORMW 　事実、既に封印の強化が出来るほどにeraと空の世界の繋がりが作られています。
+PRINTFORMW 　それを家族を呼ばずになんと呼ぶでしょうか」
+PRINTL 
+PRINTFORMW %CALLNAME:MASTER%はタピィラの言葉に安心する。
+PRINTFORMW eraはいつもぐうたらと遊んではいるが……自分のことを家族だと思ってくれていた。
+PRINTFORMW 封印だとかを抜きにしても、それはとても嬉しいことだった。
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「これで、eraが暴走することはもう無いでしょう。
+PRINTFORMW 　後は以前のように、あなたの望むようにお過ごしください」
+PRINTL 
+PRINTFORMW 将来の懸念もなくなり、これでリゾートの経営やZPの収集にも集中できるというものだ。
+PRINTFORMW お祝いに、起きたらeraにちょっと高いおやつでも出してやるのもいいかもしれない。
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「……そういえば、eraの方があなたよりも年上ですから
+PRINTFORMW 　eraは姉、ということになるでしょうか。家族にはそういった呼称の違いがあるのでしょう？」
+呼称設定 = 姉
+PRINTL 
+PRINTBUTTON "[0] まあそうなるかな、と肯定する", 0
+PRINTL
+PRINTBUTTON "[1] いや、断じて姉ではない。と否定する", 1
+PRINTL
+PRINTL
+BINPUT
+IF RESULT == 1
+	PRINTL
+	PRINTFORMW いいや、姉ではない。と%CALLNAME:MASTER%は否定する。
+	PRINTL
+	PRINTL タピィラ：
+	PRINTFORMW 「そうなのですか？
+	PRINTFORMW 　では、どのような呼称がふさわしいのでしょう」
+	PRINTL 
+	PRINTL 
+	$選択LOOP
+	PRINTL 
+	PRINTL 
+	DRAWLINE
+	PRINTFORML 現在の関係呼称：%呼称設定%
+	DRAWLINE
+	PRINTBUTTON "[0] 「姉」に変更", 0
+	PRINTL
+	PRINTBUTTON "[1] 「妹」に変更", 1
+	PRINTL
+	PRINTBUTTON "[2] 「母」に変更", 2
+	PRINTL
+	PRINTBUTTON "[3] 「娘」に変更", 3
+	PRINTL
+	PRINTBUTTON "[10] 任意の関係呼称を入力する", 10
+	PRINTL
+	PRINTL
+	PRINTBUTTON "[999] 現在の関係呼称で決定する", 999
+	PRINTL
+	PRINTL
+	BINPUT
+	PRINTL
+	SELECTCASE RESULT
+		CASE 0
+			呼称設定 = 姉
+			GOTO 選択LOOP
+		CASE 1
+			呼称設定 = 妹
+			GOTO 選択LOOP
+		CASE 2
+			呼称設定 = 母
+			GOTO 選択LOOP
+		CASE 3
+			呼称設定 = 娘
+			GOTO 選択LOOP
+		CASE 10
+			$任意LOOP
+			DRAWLINE
+			PRINTL 任意の関係呼称を入力してください。
+			DRAWLINE
+			INPUTS
+			IF RESULTS == ""
+				PRINTW 空文字列は入力出来ません。
+				PRINTL
+				PRINTL
+				PRINTL
+				GOTO 任意LOOP
+			ELSE
+				呼称設定 = %RESULTS%
+			ENDIF
+			GOTO 選択LOOP
+		CASE 999
+			PRINTL
+			PRINTL
+			PRINTL タピィラ：
+			PRINTFORMW 「わかりました、%呼称設定%と呼ぶのがふさわしいのですね。
+			PRINTFORMW 　私もそのように覚えておきましょう」
+	ENDSELECT
+ENDIF
+PRINTL
+PRINTL タピィラ：
+PRINTFORMW 「……それでは、そろそろ通信を閉じます。
+PRINTFORMW 　私は狭間の世界に戻るため、今日以降会うこともないでしょう。
+PRINTFORMW 　どうか、あなたが末永く%呼称設定%であるeraと穏やかに暮らせるように祈っています」
+PRINTL 
+PRINTFORMW タピィラの気配が離れていく。
+PRINTFORMW 少しの間とはいえ言葉を交わした相手との別れに小さな寂しさを覚えながら、%CALLNAME:MASTER%の意識は夢の世界からゆっくりと現実へと戻っていく──。
+PRINTL 
+PRINTFORMW ………
+PRINTFORMW ……
+PRINTFORMW …
+PRINTL 
+PRINTFORMW ……%CALLNAME:MASTER%が目を覚ますと、見慣れた自室の天井が見えた。
+PRINTFORMW 少し寝坊してしまったのか、既に部屋にはeraが居て絵物語を勝手に読んでいる。
+PRINTFORMW %CALLNAME:MASTER%が起きたことに気づいたのか、ひらひらと手を振ってきた。
+PRINTL
+CALL 画像表示("顔エラ","LEFT",,,,1,)
+PRINTL 星晶獣era：
+PRINTFORMW 「おはよう。今日も仕事、頑張りたまえよ。
+PRINTFORMW 　私は一日ごろごろして絵物語を読むのに忙しいから」
+PRINTL 
+PRINTFORMW いつも通りに過ぎるeraの姿に苦笑しながら、%CALLNAME:MASTER%はベッドから起き上がる。
+PRINTFORMW そして戸棚に隠してあったちょっとお高めのお菓子をeraの前に出してやった。
+PRINTL
+PRINTL 星晶獣era：
+PRINTFORMW 「うん？　何だい、これは？　くれるというのなら遠慮なく貰うがね。
+PRINTFORMW 　……後で返せとか言うんじゃないよ？」
+PRINTL 
+PRINTFORMW %CALLNAME:MASTER%は遠慮せず食べて良い、と返す。
+PRINTFORMW 単なる%呼称設定%への贈り物だから、と言い添えて。
+PRINTL
+PRINTL 星晶獣era：
+PRINTFORMW 「……変なやつだな、我が契約者は。
+PRINTFORMW 　ま、そう呼びたいのなら、勝手にすればいいが」
+PRINTL 
+PRINTFORMW そのままeraは、お菓子を食べながら絵物語を読み始める。
+PRINTFORMW いつも通りの日常だ。家族と過ごす一日なんて、こういうものだろう。
+PRINTFORMW %CALLNAME:MASTER%もいつも通り、リゾートの経営に戻るとしよう。
+
+PRINTL 
+PRINTFORMW eraの[契約星晶獣]が[%CALLNAME:MASTER%の%呼称設定%]に変化しました。
+
+;イベント中にアイテムやステータスの変動が起こる場合、以下の分岐の中に記述すること
+;イベント再視聴で無限に稼ぎが出来たりしないようにする措置
+IF !FLAG:クリア済み視聴フラグ
+	CSTR:era番号:非エロ陥落名称 = %CALLNAME:MASTER%の%呼称設定%
+ENDIF
+
+CALL イベント完了フラグ汎用処理("星の獣、気を許す")
+
+
+
+

@@ -44,6 +44,11 @@ REDRAW 0
 PRINTL ロード時対応中…
 
 
+;この時点で分身・ゆきずりがいる場合は消す
+CALL ゆきずりセックス_NPC消去()
+CALL 一日終了時_分身削除()
+
+
 ;CSVが存在しない場合のフォロー
 FOR LOCAL, 0, CHARANUM
 	SIF LOCAL >= CHARANUM
@@ -199,6 +204,13 @@ FOR LOCAL, 0, 削除回数
 	NEXT
 NEXT
 
+
+;VERUPに伴う処理追加、VERUP関数の場所の都合でここに置く
+;0.112時に消す
+IF キャラ検索フォロー == 0
+	CALL キャラ検索マップセット()
+ENDIF
+
 PRINTL 追加CSVチェック完了
 AWAIT
 
@@ -265,6 +277,10 @@ FOR LOCAL, 0, CHARANUM
 		;あなたは触らない
 	ELSE
 		CALL FIX_RESOURCES_FOLDER(LOCAL)
+
+		;ついでにあなた・ランダムキャラ以外はキャラ検索MAPにいるかどうかをチェック、いないなら追加
+		SIF MAP_HAS("キャラ検索", CSVNAME(NO:LOCAL)) == 0
+			MAP_SET "キャラ検索", CSVNAME(NO:LOCAL), @"{LOCAL}"
 	ENDIF
 NEXT
 
@@ -477,6 +493,11 @@ FOR 対象キャラ, 1, CHARANUM
 
 	CALL LOCADEND_CHARAEVENT_ETC(対象キャラ)
 
+	;定住じゃないのに店持ってたら消す
+	IF TALENT:対象キャラ:店持ち > 0 && TALENT:対象キャラ:定住者 < 1
+		CALL 商業区退職処理(対象キャラ)
+	ENDIF
+	
 	IF CFLAG:対象キャラ:滞在期間 < 0
 		;滞在期間なしなのに部屋が出来てないかチェック
 		FOR LOCAL:1, 0, 滞在部屋拡張上限
@@ -531,18 +552,24 @@ FOR 対象キャラ, 1, CHARANUM
 			ENDIF
 		NEXT
 	ELSEIF TALENT:対象キャラ:定住者 == 3
-		FOR LOCAL:1, 0, VARSIZE("飼育区部屋割り配列")
-			SIF 飼育区部屋割り配列:(LOCAL:1) == ""
-				CONTINUE
-			;部屋の居住者を見る
-			IF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_") > -1
-				飼育区部屋割り配列:(LOCAL:1) = %REPLACE(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_", "_")%
-				BREAK
-			ELSEIF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"{対象キャラ}_") == 0
-				飼育区部屋割り配列:(LOCAL:1) = %SUBSTRING(飼育区部屋割り配列:(LOCAL:1), STRLENS(@"{対象キャラ}_"), -1)%
-				BREAK
-			ENDIF
-		NEXT
+		; FOR LOCAL:1, 0, VARSIZE("飼育区部屋割り配列")
+		; 	SIF 飼育区部屋割り配列:(LOCAL:1) == ""
+		; 		CONTINUE
+		; 	;部屋の居住者を見る
+		; 	IF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_") > -1
+		; 		IF LOCAL:2
+		; 			飼育区部屋割り配列:(LOCAL:1) = %REPLACE(飼育区部屋割り配列:(LOCAL:1), @"_{対象キャラ}_", "_")%
+		; 		ELSE
+		; 			LOCAL:2 = 1
+		; 		ENDIF
+		; 	ELSEIF STRFIND(飼育区部屋割り配列:(LOCAL:1), @"{対象キャラ}_") == 0
+		; 		IF LOCAL:2
+		; 			飼育区部屋割り配列:(LOCAL:1) = %SUBSTRING(飼育区部屋割り配列:(LOCAL:1), STRLENS(@"{対象キャラ}_"), -1)%
+		; 		ELSE
+		; 			LOCAL:2 = 1
+		; 		ENDIF
+		; 	ENDIF
+		; NEXT
 	ENDIF
 
 	;スイートルーム関係おかしくなってないかチェック
@@ -552,6 +579,7 @@ FOR 対象キャラ, 1, CHARANUM
 			スイートルーム部屋割り配列:(CFLAG:対象キャラ:スイートルーム滞在フラグ - 100) = 
 		CFLAG:対象キャラ:スイートルーム滞在フラグ = 0
 	ENDIF
+
 NEXT
 
 PRINTL キャラクター整合性チェック完了
@@ -648,6 +676,9 @@ LOCAL = GETSECOND() / 3600
 LOCAL:1 = (LOCAL + 19) / 24
 ;乱数セット
 DAY_RAND = RAND:1000
+
+;キャラ衣装取得
+CALL キャラ衣装取得チェック()
 
 PRINTL その他ロード時処理完了
 

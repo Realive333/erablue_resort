@@ -272,7 +272,7 @@ FOR LOCAL, 1, CHARANUM
 			CONTINUE
 		SIF 知識素質:LOCAL:性知識 < 0 && 恋慕ありチェック(LOCAL) < 1 && セフレありチェック(LOCAL) < 1
 			CONTINUE
-		SIF GETBIT(CSVTALENT(NO:LOCAL, GETNUM(TALENT, "陥落不可")), 0) && GETBIT(TALENT:LOCAL:陥落不可, 1)
+		SIF 縁結び_恋慕不可チェック(LOCAL) && GETBIT(TALENT:LOCAL:陥落不可, 1)
 			CONTINUE
 	ELSEIF RESULT == -1
 		CONTINUE
@@ -344,7 +344,7 @@ PRINTBUTTON "[9999] 戻る", 9999
 BINPUT
 LOCAL = RESULT
 SELECTCASE LOCAL
-	CASE 9020, 9030, 9031, 9040
+	CASE 9020, 9030, 9031, 9032, 9033, 9040
 		CALL フィルタソートボタンセット実行部(LOCAL, 9020, 9030, 9031, 9040)
 		ページ数 = 0
 		RESTART
@@ -421,7 +421,7 @@ ELSE
 	SIF 恋慕ありチェック(左キャラ) == 0 && 知識素質:左キャラ:性知識 < 0
 		汎用セット不可フラグ = 1
 	;CSVで恋慕不可はダメ
-	SIF	GETBIT(CSVTALENT(NO:左キャラ, GETNUM(TALENT, "陥落不可")), 0)
+	SIF	縁結び_恋慕不可チェック(左キャラ)
 		汎用セット不可フラグ = 1
 	判別文字列 = 恋慕
 ENDIF
@@ -666,7 +666,7 @@ SELECTCASE 対象キャラ
 			セットモード = 0
 			RETURN 1
 		ENDIF
-	CASE 9020, 9030, 9031, 9040
+	CASE 9020, 9030, 9031, 9032, 9033, 9040
 		CALL フィルタソートボタンセット実行部(対象キャラ, 9020, 9030, 9031, 9040)
 		ページ数 = 0
 		RESTART
@@ -710,7 +710,7 @@ SELECTCASE 対象キャラ
 		; 初期進展度 = 100
 		; [ENDIF]
 		DT_ROW_ADD "縁結びデータベース", "対象キャラ１", CFLAG:左キャラ:人物番号, "対象キャラ２", CFLAG:対象キャラ:人物番号, "進展度", 初期進展度, "縁結び種別", LOCALS
-		IF セットモード == 0
+		IF セットモード == 0 && TALENT:左キャラ:ハーレムの心得 == 0
 			ページ数 = 0
 			セットモード = 0
 			RETURN 1
@@ -983,9 +983,9 @@ IF RESULT == 0
 			対象外フラグ = 1
 
 		;CSVで恋慕不可はダメ
-		SIF	GETBIT(CSVTALENT(NO:実行キャラ, GETNUM(TALENT, "陥落不可")), 0)
+		SIF	縁結び_恋慕不可チェック(実行キャラ)
 			対象外フラグ = 1
-		SIF	GETBIT(CSVTALENT(NO:対象キャラ, GETNUM(TALENT, "陥落不可")), 0)
+		SIF	縁結び_恋慕不可チェック(対象キャラ)
 			対象外フラグ = 1
 
 		;性知識がマイナスなら恋愛という概念がないので対象外
@@ -1219,18 +1219,22 @@ FOR LOCAL, 0, DT_ROW_LENGTH("縁結びデータベース")
 		DT_ROW_ADD "関係性データベース", "対象キャラ１", DT_CELL_GET("縁結びデータベース", LOCAL, "対象キャラ１"), "対象キャラ２", DT_CELL_GET("縁結びデータベース", LOCAL, "対象キャラ２"), "関係性種別", "恋慕", "受け攻め設定", DT_CELL_GETS("縁結びデータベース", LOCAL, "受け攻め設定")
 		SETCOLOR カラーパレット("えっちな色")
 		PRINTFORML %CALLNAME:対象キャラ１%と%CALLNAME:対象キャラ２%が『恋慕関係』になった！
-		IF TALENT:対象キャラ１:陥落不可 == 2
-			PRINTFORML %CALLNAME:対象キャラ１%は素質「陥落不可」を得ました。
-		ELSEIF TALENT:対象キャラ１:陥落不可 == 0
-			PRINTFORML %CALLNAME:対象キャラ１%は素質「恋慕不可」を得ました。
+		IF TALENT:対象キャラ１:ハーレムの心得 == 0
+			IF TALENT:対象キャラ１:陥落不可 == 2
+				PRINTFORML %CALLNAME:対象キャラ１%は素質「陥落不可」を得ました。
+			ELSEIF TALENT:対象キャラ１:陥落不可 == 0
+				PRINTFORML %CALLNAME:対象キャラ１%は素質「恋慕不可」を得ました。
+			ENDIF
+			SETBIT TALENT:対象キャラ１:陥落不可, 0
 		ENDIF
-		SETBIT TALENT:対象キャラ１:陥落不可, 0
-		IF TALENT:対象キャラ２:陥落不可 == 2
-			PRINTFORML %CALLNAME:対象キャラ２%は素質「陥落不可」を得ました。
-		ELSEIF TALENT:対象キャラ２:陥落不可 == 0
-			PRINTFORML %CALLNAME:対象キャラ２%は素質「恋慕不可」を得ました。
+		IF TALENT:対象キャラ２:ハーレムの心得 == 0
+			IF TALENT:対象キャラ２:陥落不可 == 2
+				PRINTFORML %CALLNAME:対象キャラ２%は素質「陥落不可」を得ました。
+			ELSEIF TALENT:対象キャラ２:陥落不可 == 0
+				PRINTFORML %CALLNAME:対象キャラ２%は素質「恋慕不可」を得ました。
+			ENDIF
+			SETBIT TALENT:対象キャラ２:陥落不可, 0
 		ENDIF
-		SETBIT TALENT:対象キャラ２:陥落不可, 0
 		RESETCOLOR
 		CALL 履歴データベース登録(CFLAG:対象キャラ１:人物番号, @"%CALLNAME:対象キャラ２%と恋慕関係になった","うふふ実績")
 		CALL 履歴データベース登録(CFLAG:対象キャラ２:人物番号, @"%CALLNAME:対象キャラ１%と恋慕関係になった","うふふ実績")
@@ -1403,7 +1407,7 @@ SELECTCASE LOCAL
 						CONTINUE
 					SIF 知識素質:LOCAL:性知識 < 0
 						CONTINUE
-					SIF GETBIT(CSVTALENT(NO:LOCAL, GETNUM(TALENT, "陥落不可")), 0) && GETBIT(TALENT:LOCAL:陥落不可, 1)
+					SIF 縁結び_恋慕不可チェック(LOCAL) && GETBIT(TALENT:LOCAL:陥落不可, 1)
 						CONTINUE
 				ELSEIF RESULT == -1
 					CONTINUE
@@ -1442,7 +1446,7 @@ SELECTCASE LOCAL
 						CONTINUE
 					SIF 知識素質:LOCAL:性知識 < 0
 						CONTINUE
-					SIF GETBIT(CSVTALENT(NO:LOCAL, GETNUM(TALENT, "陥落不可")), 0) && GETBIT(TALENT:LOCAL:陥落不可, 1)
+					SIF 縁結び_恋慕不可チェック(LOCAL) && GETBIT(TALENT:LOCAL:陥落不可, 1)
 						CONTINUE
 				ELSEIF RESULT == -1
 					CONTINUE
@@ -1505,7 +1509,7 @@ FOR ループ用, 0, CHARANUM - 1
 		SIF 知識素質:対象キャラ１:性知識 < 0
 			CONTINUE
 		;陥落不可素質
-		SIF GETBIT(CSVTALENT(NO:対象キャラ１, GETNUM(TALENT, "陥落不可")), 0) && GETBIT(TALENT:対象キャラ１:陥落不可, 1)
+		SIF 縁結び_恋慕不可チェック(対象キャラ１) && GETBIT(TALENT:対象キャラ１:陥落不可, 1)
 			CONTINUE
 	ELSEIF RESULT == -1
 		CONTINUE
@@ -1569,4 +1573,3 @@ FOR LOCAL, 0, 候補カウント
 		縁結び組数 ++
 NEXT
 RETURN 縁結び組数
-

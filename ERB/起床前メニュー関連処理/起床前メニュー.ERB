@@ -8,8 +8,15 @@ TOOLTIP_SETFONTSIZE 12
 TOOLTIP_SETDURATION 100000
 CALL モブ観光客算出
 
+;一日切り替え時に衣装取得
+CALL キャラ衣装取得チェック()
+
 
 DO
+
+;画像リソースを全解放
+SPRITEDISPOSEALL 0
+TFLAG:口上用画像表示番号 = 0
 
 CALL リゾートランク上昇チェック()
 CALL イベント発生条件チェック()
@@ -18,6 +25,9 @@ CALL ユニーク客人数チェック()
 SIF FLAG:外出解放フラグ < 1
 	CALL 外出先存在チェック()
 
+
+;ルピマイナスチェック
+CALL ルピマイナスイベント()
 
 PRINTL
 PRINTL
@@ -229,6 +239,9 @@ IF チュートリアルフラグ:縁結び == 0
 ELSE
 	LOCALS += "<button value='125'>[125] - 縁結び</button>　　　　　　　　　　　　　"
 ENDIF
+IF イベント完了フラグ確認("使い魔の創造")
+	LOCALS += "<button value='126'>[126] - 使い魔</button>　　　　　　　　　　　　　"
+ENDIF
 LOCALS += "<br><br>"
 LOCALS += "<font color='#f39800'>-----[ショップ類]-------------------------------------------------------------------------------------------</font><br>"
 IF チュートリアルフラグ:通信販売 == 0
@@ -403,6 +416,8 @@ SELECTCASE RESULT
 		CALL 干渉強化メニュー
 	CASE 125
 		CALL 縁結びメニュー
+	CASE 126
+		CALL 覗き見一覧表示
 	CASE 130
 		CALL 雇用レポート表示
 	CASE 131

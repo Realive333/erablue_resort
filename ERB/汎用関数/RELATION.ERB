@@ -115,6 +115,14 @@ SIF !INRANGE(ARG:1, 0, CHARANUM-1)
 SIF ARG == ARG:1
 	RETURN
 
+;分身の場合戻る
+SIF TALENT:ARG:分身 || TALENT:(ARG:1):分身
+	RETURN
+
+;ゆきずりNPCの場合戻る
+SIF TCVAR:ARG:ゆきずりセックス_相手キャラID == -1 || TCVAR:(ARG:1):ゆきずりセックス_相手キャラID == -1
+	RETURN
+
 ;同行確率がマイナスの場合、どうやっても上昇させない
 LOCAL = FINDELEMENT(同行候補キャラ番号:ARG:0, ARG:1)
 IF LOCAL > -1 && 同行候補キャラ確率:ARG:LOCAL < 0

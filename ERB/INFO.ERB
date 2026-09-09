@@ -11,6 +11,8 @@
 #DIM 背景用行数保存
 #DIMS divHTML
 
+#DIM 露出判定フラグ
+
 TOOLTIP_CUSTOM 1
 TOOLTIP_SETFONTSIZE 12
 TOOLTIP_SETDURATION 100000
@@ -74,10 +76,10 @@ IF TFLAG:調教モード == 3
 ELSE
 	SIF FINDELEMENT(TARGET, TARGET:0, 1) < 0
 		TARGET = TARGET:1
-	SIF あなた追跡キャラ && IS_SAME_ROOM(MASTER, あなた追跡キャラ)
+	SIF あなた追跡キャラ && 通常キャラ表示可能(あなた追跡キャラ) && IS_SAME_ROOM(MASTER, あなた追跡キャラ)
 		TARGET = あなた追跡キャラ
 	IF GETBIT(FLAG:モード管理, モードビット_指示)
-		IF TFLAG:あなたターゲット用
+		IF TFLAG:あなたターゲット用 && 通常キャラ表示可能(MASTER)
 			TFLAG:TARGET変更用 = 0
 			TARGET = 0
 		ENDIF
@@ -105,6 +107,21 @@ ELSE
 			ENDIF
 		NEXT
 	ENDIF
+	;ゆきずりセックス覗き中でも固定
+	IF IS_ゆきずりセックス中(TARGET)
+		FOR LOCAL,1,CHARANUM
+			SIF TARGET:LOCAL < 1
+				BREAK
+			IF ゆきずり覗き中？(TARGET:LOCAL)
+				TARGET = TARGET:LOCAL
+				BREAK
+			ENDIF
+		NEXT
+	ENDIF
+	
+	SIF CFLAG:MASTER:使い魔覗き状態
+		TARGET = CFLAG:MASTER:使い魔覗き状態
+	
 ENDIF
 SIF !LOCAL:1
 	TFLAG:TARGET変更用 = 0
@@ -119,7 +136,79 @@ DRAWLINE
 FOR LOCAL,1,CHARANUM
 	SIF CFLAG:(CFLAG_SORTARRAY:LOCAL):滞在期間 < 0
 		CONTINUE
-	IF CFLAG:(CFLAG_SORTARRAY:LOCAL):現在位置 == CFLAG:MASTER:現在位置 && CFLAG:(CFLAG_SORTARRAY:LOCAL):現在マップ種別 == CFLAG:MASTER:現在マップ種別
+	IF CFLAG:(CFLAG_SORTARRAY:LOCAL):現在位置 == CFLAG:MASTER:現在位置 && CFLAG:(CFLAG_SORTARRAY:LOCAL):現在マップ種別 == CFLAG:MASTER:現在マップ種別		
+		;舞踏会イベ
+		SETCOLOR カラーパレット("えっちな色")
+		露出判定フラグ = 0
+		IF 特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 == 3
+			IF (TCVAR:(CFLAG_SORTARRAY:LOCAL):水着着替え状態 || TCVAR:(CFLAG_SORTARRAY:LOCAL):入浴フラグ || CSTR:(CFLAG_SORTARRAY:LOCAL):着せ替え服 == "湯浴み着")
+				露出判定フラグ = 40 ;40
+			ELSE 
+				露出判定フラグ = 200 ;200				
+			ENDIF 
+			SELECTCASE RAND:露出判定フラグ
+				CASE 0 
+					PRINTFORMW %CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の耳後にマークが見つかった。
+					特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+					TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				CASE 1 
+					PRINTFORMW %CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の服の隙間からマークが見つかった。
+					特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+					TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				CASE 2 
+					PRINTFORMW %CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の頸にマークが見つかった。
+					特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+					TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+			ENDSELECT
+		ELSEIF 特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 == 2 && !TEQUIP:(CFLAG_SORTARRAY:LOCAL):上半身鎧あり
+			露出判定フラグ = 200 ;200
+			IF	(TCVAR:(CFLAG_SORTARRAY:LOCAL):水着着替え状態 || TCVAR:(CFLAG_SORTARRAY:LOCAL):入浴フラグ || CSTR:(CFLAG_SORTARRAY:LOCAL):着せ替え服 == "湯浴み着")
+				露出判定フラグ = 40 ;40		
+				SELECTCASE RAND:露出判定フラグ
+					CASE 0 
+						PRINTFORMW こっそり覗き見しているとき，%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の胸にマークが見つかった。
+						特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+						TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				ENDSELECT
+			ELSEIF !TEQUIP:(CFLAG_SORTARRAY:LOCAL):上半身鎧あり && !TEQUIP:(CFLAG_SORTARRAY:LOCAL):上半身服あり && (!TEQUIP:(CFLAG_SORTARRAY:LOCAL):上タイツあり || TEQUIP:(CFLAG_SORTARRAY:LOCAL):上タイツ破れ) && !TEQUIP:(CFLAG_SORTARRAY:LOCAL):上半身下着あり
+				PRINTFORMW 服で隠れていなかったため,%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の胸にマークが見つかった。
+				特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+				TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+			ELSE 
+				SELECTCASE RAND:露出判定フラグ
+					CASE 0 
+						PRINTFORMW こっそり覗き見しているとき，%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の胸にマークが見つかった。
+						特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+						TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				ENDSELECT
+			ENDIF
+		ELSEIF 特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 == 4 && !TEQUIP:(CFLAG_SORTARRAY:LOCAL):下腹部後鎧あり && !TEQUIP:(CFLAG_SORTARRAY:LOCAL):下腹部前鎧あり
+			露出判定フラグ = 200 ;200		
+			IF	(TCVAR:(CFLAG_SORTARRAY:LOCAL):水着着替え状態 || TCVAR:(CFLAG_SORTARRAY:LOCAL):入浴フラグ || CSTR:(CFLAG_SORTARRAY:LOCAL):着せ替え服 == "湯浴み着")				
+				露出判定フラグ = 40 ;40
+				SELECTCASE RAND:露出判定フラグ
+				CASE 0 
+					PRINTFORMW こっそり覗き見しているとき，%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の太ももにマークが見つかった。
+					特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+					TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				ENDSELECT		
+			ELSEIF !TEQUIP:(CFLAG_SORTARRAY:LOCAL):下半身服あり 
+				PRINTFORMW 服で隠れていなかったため,%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の太ももにマークが見つかった。
+				特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+				TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+			ELSE 
+				SELECTCASE RAND:露出判定フラグ
+				CASE 0 
+					PRINTFORMW こっそり覗き見しているとき，%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%の太ももにマークが見つかった。
+					特定状況口上用フラグ:(CFLAG_SORTARRAY:LOCAL):0 = 1
+					TCVAR:(CFLAG_SORTARRAY:LOCAL):特殊言いなり = 1
+				ENDSELECT		
+			ENDIF			
+		ENDIF 
+		;PRINT フィールド効果：
+		RESETCOLOR
+		;舞踏会イベEND
+
 		IF TCVAR:(CFLAG_SORTARRAY:LOCAL):ちょっかい経過時間 > 0 && CFLAG:MASTER:うふふ && !CFLAG:(CFLAG_SORTARRAY:LOCAL):うふふ
 			;途中で別の相手とうふふ
 			PRINTFORMW %CALLNAME:MASTER%が他の相手をし始めたのて、%CALLNAME:(CFLAG_SORTARRAY:LOCAL)%は%CALLNAME:(ABS(CFLAG:(CFLAG_SORTARRAY:LOCAL):デート) - 100)%とのデートに戻っていった……。
@@ -146,7 +235,7 @@ FOR LOCAL,1,CHARANUM
 				CALL デートちょっかい終了処理(CFLAG_SORTARRAY:LOCAL)
 				うふふ終了フラグ = 2
 			ENDIF
-		ELSEIF !CFLAG:(CFLAG_SORTARRAY:LOCAL):同室 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):睡眠 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):体力限界
+		ELSEIF !CFLAG:(CFLAG_SORTARRAY:LOCAL):同室 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):睡眠 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):体力限界 && !TCVAR:(CFLAG_SORTARRAY:LOCAL):ステルス
 			;遭遇口上（ターゲットになってなくても喋る）と情事発覚口上
 			CALL AFFAIR_DISCLOSURE((CFLAG_SORTARRAY:LOCAL), うふふ終了フラグ, LOCALS, LOCALS:1)
 			SIF RESULT > 0
@@ -157,7 +246,8 @@ FOR LOCAL,1,CHARANUM
 			ENDIF
 			SIF RESULT < 0
 				RESTART
-		ELSEIF !TCVAR:(CFLAG_SORTARRAY:LOCAL):挨拶フラグ && !CFLAG:(CFLAG_SORTARRAY:LOCAL):睡眠 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):体力限界 && PREVCOM == 841
+		ELSEIF !TCVAR:(CFLAG_SORTARRAY:LOCAL):挨拶フラグ && !CFLAG:(CFLAG_SORTARRAY:LOCAL):睡眠 && !CFLAG:(CFLAG_SORTARRAY:LOCAL):体力限界 && PREVCOM == 841 && !TCVAR:(CFLAG_SORTARRAY:LOCAL):ステルス
+			;遭遇口上（ターゲットになってなくても喋る）と情事発覚口上
 			CALL AFFAIR_DISCLOSURE((CFLAG_SORTARRAY:LOCAL), うふふ終了フラグ, LOCALS, LOCALS:1)
 			SIF RESULT < 0
 				RESTART
@@ -180,10 +270,12 @@ IF 追い出されフラグ
 	追い出されフラグ = 0
 	RESTART
 ENDIF
+
 SIF LOCALS != ""
 	PRINTFORMW %LOCALS%が%GETPLACENAME(CFLAG:MASTER:現在マップ種別, CFLAG:MASTER:現在位置)%に居た
 SIF LOCALS:1 != ""
 	PRINTFORMW %LOCALS:1%が%GETPLACENAME(CFLAG:MASTER:現在マップ種別, CFLAG:MASTER:現在位置)%に来た
+
 ;馴れ合い強度決定
 ;TARGET側
 IF TFLAG:調教モード == 3
@@ -258,8 +350,10 @@ FOR LOCAL,0,CHARANUM
 	IF LOCAL == MASTER && あなた追跡キャラ
 	ELSEIF (CSTR:うふふシチュ記録 == "物陰連れ込み" || CSTR:PLAYER:うふふシチュ記録 == "物陰連れ込み") && (LOCAL == PLAYER || LOCAL == TARGET)
 	ELSE
-		IF CFLAG:LOCAL:現在位置 != CFLAG:LOCAL:前ターン位置 || CFLAG:LOCAL:現在マップ種別 != CFLAG:LOCAL:前マップ種別 || (CFLAG:MASTER:隠密 != CFLAG:LOCAL:隠密 && !CFLAG:LOCAL:キャラ同士うふふ)
-			CALL 移動時モード消去(LOCAL)
+		IF !IS_ゆきずりセックス中(LOCAL)
+			IF CFLAG:LOCAL:現在位置 != CFLAG:LOCAL:前ターン位置 || CFLAG:LOCAL:現在マップ種別 != CFLAG:LOCAL:前マップ種別 || (CFLAG:MASTER:隠密 != CFLAG:LOCAL:隠密 && !CFLAG:LOCAL:キャラ同士うふふ)
+				CALL 移動時モード消去(LOCAL)
+			ENDIF
 		ENDIF
 	ENDIF
 	
@@ -456,10 +550,14 @@ IF TARGET || (GETBIT(FLAG:モード管理, モードビット_指示) && PLAYER 
 			SIF TARGET:LOCAL < 1
 				BREAK
 			IF TARGET:LOCAL == PLAYER
-				IF TARGET != MASTER && GETBIT(FLAG:モード管理, モードビット_指示)
+				IF TARGET != MASTER && GETBIT(FLAG:モード管理, モードビット_指示) && 通常キャラ表示可能(MASTER)
 					divHTML += @"<button value='2000'>[%CALLNAME:MASTER%]</button> "
 				ENDIF
 			ELSEIF TARGET:LOCAL == TARGET
+				CONTINUE
+			ELSEIF TCVAR:(TARGET:LOCAL):ステルス ;ステルスフラグを表示させない
+				CONTINUE
+			ELSEIF !通常キャラ表示可能(TARGET:LOCAL)
 				CONTINUE
 			ELSE
 				フォント格納用 = 
@@ -838,10 +936,17 @@ IF TARGET || (GETBIT(FLAG:モード管理, モードビット_指示) && PLAYER 
 			ELSE
 				LOCALS += @"'>"
 			ENDIF
+			IF ISNUMERIC(CSTR:TARGET:着せ替え服)
+				SIF LOCALS == ""
+					LOCALS += "<br>"
+				LOCALS += @"元の持ち主：%CSVNAME(TOINT(CSTR:TARGET:着せ替え服))%<br>"
+			ENDIF
 			ツールチップフラグ = 1
 		ENDIF
 		IF CSTR:TARGET:着せ替え服 == "浴衣"
 			LOCALS += "ユカタヴィラ"
+		ELSEIF ISNUMERIC(CSTR:TARGET:着せ替え服)
+			LOCALS += @"%CSVCSTR(TOINT(CSTR:TARGET:着せ替え服), GETNUM(CSTR, "服名称"))%"
 		ELSE
 			LOCALS += @"%CSTR:TARGET:着せ替え服%"
 		ENDIF
@@ -933,7 +1038,9 @@ IF TARGET > 0
 	divHTML += "<font color='#FFD900'><button value='803'>[能力表示]</button>　　　　　　 　"
 	IF CFLAG:PLAYER:うふふ == 0
 		PRINT 　　　
-		IF あなた追跡キャラ
+		IF あなた追跡キャラ && !通常キャラ表示可能(あなた追跡キャラ)
+			divHTML += @"　　　<button value='805'>[追跡を解除]</button>"
+		ELSEIF あなた追跡キャラ
 			divHTML += @"　　　<button value='805'>[追跡中：%CALLNAME:あなた追跡キャラ%]</button>"
 		ELSE
 			divHTML += @"　　　<button value='805'>[このキャラを追跡]</button>"
@@ -1511,6 +1618,8 @@ IF TFLAG:調教モード == 3
 			CONTINUE
 		SIF CFLAG:MASTER:現在位置 != CFLAG:(CFLAG_SORTARRAY:LOCAL):現在位置
 			CONTINUE
+		SIF !通常キャラ表示可能(CFLAG_SORTARRAY:LOCAL)
+			CONTINUE
 		IF CFLAG:(CFLAG_SORTARRAY:LOCAL):飲み会
 			LOCAL:1 ++
 			飲み会TARGET:(LOCAL:1) = CFLAG_SORTARRAY:LOCAL
@@ -1532,6 +1641,8 @@ ELSE
 		SIF CFLAG:MASTER:現在マップ種別 != CFLAG:(CFLAG_SORTARRAY:LOCAL):現在マップ種別
 			CONTINUE
 		SIF CFLAG:MASTER:現在位置 != CFLAG:(CFLAG_SORTARRAY:LOCAL):現在位置
+			CONTINUE
+		SIF !通常キャラ表示可能(CFLAG_SORTARRAY:LOCAL)
 			CONTINUE
 		LOCAL:1 ++
 		TARGET:(LOCAL:1) = CFLAG_SORTARRAY:LOCAL
@@ -1598,6 +1709,8 @@ NEXT
 
 VARSET LOCAL
 LOCAL:1 = IN_ROOM("MAX", CFLAG:MASTER:現在位置, "CFLAG", GETNUM(CFLAG, "うふふ"))
+
+
 IF CFLAG:MASTER:隠密
 	;隠密だとそもそも遭遇しない
 ELSEIF MODE_存在判定_プレイヤー側("全裸散歩", PLAYER) && !MODE_存在判定_ターゲット側("全裸散歩", 対象キャラ)
@@ -1674,7 +1787,8 @@ IF LOCAL:2 || うふふ終了フラグ
 ENDIF
 ;通常遭遇
 ;先んじて部屋にいたのか、あるいは後から来たのか
-IF (CFLAG:対象キャラ:前ターン位置 == CFLAG:対象キャラ:現在位置 && CFLAG:対象キャラ:前マップ種別 == CFLAG:対象キャラ:現在マップ種別)
+
+IF (CFLAG:対象キャラ:前ターン位置 == CFLAG:対象キャラ:現在位置 && CFLAG:対象キャラ:前マップ種別 == CFLAG:対象キャラ:現在マップ種別) && !CFLAG:対象キャラ:隠密
 	IF REGEXPMATCH(在室キャラ, "たち$", L_TMP, L_TMPS)
 	ELSEIF STRLENSU(在室キャラ) > 30
 		在室キャラ += "たち"
@@ -1683,7 +1797,7 @@ IF (CFLAG:対象キャラ:前ターン位置 == CFLAG:対象キャラ:現在位�
 			在室キャラ += "、"
 		在室キャラ += CALLNAME:対象キャラ
 	ENDIF
-ELSEIF (CFLAG:対象キャラ:前ターン位置 != CFLAG:対象キャラ:現在位置 || CFLAG:対象キャラ:前マップ種別 != CFLAG:対象キャラ:現在マップ種別) && (CFLAG:MASTER:前ターン位置 == CFLAG:MASTER:現在位置 && CFLAG:MASTER:前マップ種別 == CFLAG:MASTER:現在マップ種別)
+ELSEIF (CFLAG:対象キャラ:前ターン位置 != CFLAG:対象キャラ:現在位置 || CFLAG:対象キャラ:前マップ種別 != CFLAG:対象キャラ:現在マップ種別) && (CFLAG:MASTER:前ターン位置 == CFLAG:MASTER:現在位置 && CFLAG:MASTER:前マップ種別 == CFLAG:MASTER:現在マップ種別) && !CFLAG:対象キャラ:隠密
 	IF REGEXPMATCH(在室キャラ:1, "たち$", L_TMP, L_TMPS)
 	ELSEIF STRLENSU(在室キャラ:1) > 30
 		在室キャラ:1 += "たち"
@@ -1693,8 +1807,8 @@ ELSEIF (CFLAG:対象キャラ:前ターン位置 != CFLAG:対象キャラ:現在
 		在室キャラ:1 += CALLNAME:対象キャラ
 	ENDIF
 ENDIF
-IF CFLAG:MASTER:隠密
-	;隠密だと話しかけてこない
+IF CFLAG:MASTER:隠密 || CFLAG:対象キャラ:隠密
+	;どちらかが隠密だと話しかけてこない
 	LOCAL:3 = 0
 ELSE
 	LOCAL:3 = 1
@@ -1899,23 +2013,32 @@ LOCALS:1 = {BASE:キャラ番号:性欲,4}/{MAXBASE:キャラ番号:性欲,4}
 IF CFLAG:キャラ番号:うふふ && !ゲージのみ
 	ゲージ表示文 += "<div rect='62,0,3125,250'>"
 	;ゲージ幅決定（1000の時450、最大1800）
-	ゲージ幅 = MIN(350 + MAX(MAXBASE:キャラ番号:満足 - 700, 0) / 3, 1800)
-	IF BASE:キャラ番号:満足 > 0
-		ゲージ表示文 += @"<shape type='rect' param='0,70,{MAX(1, BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:満足)},30' color='#%カラーパレット_HTML("黄")%'>"
+	ゲージ幅 = MIN(350 + MAX(MAXBASE:キャラ番号:性欲 - 700, 0) / 3, 1800)
+	IF BASE:キャラ番号:満足 >= MAXBASE:キャラ番号:性欲
+		ゲージ表示文 += @"<shape type='rect' param='0,70,{ゲージ幅},30' color='#%カラーパレット_HTML("黄")%'>"
+		ゲージ表示文 += "</div>"
+	ELSEIF BASE:キャラ番号:満足 > 0
+		ゲージ表示文 += @"<shape type='rect' param='0,70,{MAX(1, BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:性欲)},30' color='#%カラーパレット_HTML("黄")%'>"
+		ゲージ表示文 += "</div>"
+		ゲージ表示文 += @"<div rect='{MAX(1, BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:性欲) + 20},65,100,250'>▴</div>"
+	ELSE
+		ゲージ表示文 += "</div>"
 	ENDIF
 	; IF MAXBASE:キャラ番号:満足 - BASE:キャラ番号:満足 > 0
 	; 	ゲージ表示文 += @"<shape type='rect' param='0,70,{ゲージ幅 - MAX(1, BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:満足)},30' color='#%カラーパレット_HTML("えっちなゲージ無")%'>"
 	; ENDIF
-	ゲージ表示文 += "</div>"
-	ゲージ表示文 += @"<div rect='{MAX(1, BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:満足) + 20},65,100,250'>▴</div>"
-	LOCALS:2 = 満足度{BASE:キャラ番号:満足 * 100 / MAX(BASE:キャラ番号:性欲, 1), 3}\%
+	IF BASE:キャラ番号:満足 >= BASE:キャラ番号:性欲
+		LOCALS:2 = 満足度{100 + ((BASE:キャラ番号:満足 - MAX(BASE:キャラ番号:性欲, 1)) / 50), 3}\%
+	ELSE
+		LOCALS:2 = 満足度{BASE:キャラ番号:満足 * 100 / MAX(BASE:キャラ番号:性欲, 1), 3}\%
+	ENDIF
 	IF 連れ込みパターン != ""
 		LOCALS:2 = <img src='えっちハート'>欲求不満<img src='えっちハート'>：%連れ込みパターン%
-	ELSEIF BASE:キャラ番号:満足 * 100 / MAX(BASE:キャラ番号:性欲, 1) > 999
+	ELSEIF 100 + ((BASE:キャラ番号:満足 - MAX(BASE:キャラ番号:性欲, 1)) / 50) > 999
 		;4桁満足度の場合は表示を変更
 		LOCALS:2 = <img src='えっちハート'>大満足<img src='えっちハート'>
 	ENDIF
-	ゲージ表示文 += @"<div rect='{LIMIT((BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:満足) - 80, 1, 1350)},145,3000,250'>%LOCALS:2%</div>"
+	ゲージ表示文 += @"<div rect='{LIMIT((BASE:キャラ番号:満足 * ゲージ幅 / MAXBASE:キャラ番号:性欲) - 80, 1, 1350)},145,3000,250'>%LOCALS:2%</div>"
 
 ENDIF
 
@@ -2026,7 +2149,7 @@ RETURNF 1
 
 ;デレマス処理
 IF CSTR:対象キャラ:出演作品 == "アイドルマスターシンデレラガールズ"
-	IF 特定状況口上用フラグ:対象キャラ:0
+	IF 特定状況口上用フラグ:対象キャラ:0 == 1
 		IF 表示文字列 == "PRINT"
 			PRINT_IMG "デレマス_マーク"
 		ELSE

@@ -2,6 +2,8 @@
 ;タイトル画面
 ;-------------------------------------------------
 @SYSTEM_TITLE
+#DIM エディタ開閉
+
 DRAWLINE
 ALIGNMENT CENTER
 PRINT_IMG "タイトルロゴ", 5330, 1520
@@ -36,25 +38,35 @@ PRINTBUTTON "[1] ロードして始める", 1
 PRINTL
 PRINTL
 PRINTL
-PRINTL ■データエディタ機能
-PRINT 　├
-PRINTBUTTON "[2] CSVエディタを起動する", 2
-PRINTL
-PRINT 　├
-PRINTBUTTON "[3] 服ERBエディタを起動する", 3
-PRINTL
-PRINT 　├
-PRINTBUTTON "[4] 弱点コマンド設定ERBエディタを起動する", 4
-PRINTL
-PRINT 　├
-PRINTBUTTON "[5] 一言コメント/解説エディタを起動する", 5
-PRINTL
-PRINT 　├
-PRINTBUTTON "[6] アビリティエディタを起動する", 6
-PRINTL
-PRINT 　└
-PRINTBUTTON "[7] 奥義エディタを起動する", 7
-PRINTL
+IF エディタ開閉
+	PRINTBUTTON "■データエディタ機能 [閉じる]", 99
+	PRINTL
+	PRINT 　├
+	PRINTBUTTON "[2] CSVエディタを起動する", 2
+	PRINTL
+	PRINT 　├
+	PRINTBUTTON "[3] 服ERBエディタを起動する", 3
+	PRINTL
+	PRINT 　├
+	PRINTBUTTON "[4] 弱点コマンド設定ERBエディタを起動する", 4
+	PRINTL
+	PRINT 　├
+	PRINTBUTTON "[5] 一言コメント/解説エディタを起動する", 5
+	PRINTL
+	PRINT 　├
+	PRINTBUTTON "[6] アビリティエディタを起動する", 6
+	PRINTL
+	PRINT 　└
+	PRINTBUTTON "[7] 奥義エディタを起動する", 7
+	PRINTL
+[IF_DEBUG]
+	PRINT 　└
+	PRINTBUTTON "[8] 料理レシピエディタを起動する", 8
+	PRINTL
+[ENDIF]
+ELSE
+	PRINTBUTTON "■データエディタ機能 [開く]", 99
+ENDIF
 PRINTL
 PRINTL
 PRINTL ■erablue_resort開発Discord
@@ -71,13 +83,13 @@ PRINTL
 PRINTL
 PRINTL ■デバッグ用機能
 PRINT 　├
-PRINTBUTTON "[ 9] 画像ファイル名のチェック", 9
+PRINTBUTTON "[109] 画像ファイル名のチェック", 109
 PRINTL
 PRINT 　├
-PRINTBUTTON "[11] 画像ファイル名のチェック(CSV番号指定)", 11
+PRINTBUTTON "[111] 画像ファイル名のチェック(CSV番号指定)", 111
 PRINTL
 PRINT 　└
-PRINTBUTTON "[10] CSV初期同行率のチェック", 10
+PRINTBUTTON "[110] CSV初期同行率のチェック", 110
 [ENDIF]
 
 BINPUT
@@ -86,6 +98,8 @@ SELECTCASE RESULT
 		BEGIN FIRST
 	CASE 1
 		LOADGAME
+	CASE 99
+		INVERTBIT エディタ開閉, 0
 	CASE 2
 		CSVエディタフラグ = 1
 		CALL 従業員素質指定雇用
@@ -100,14 +114,16 @@ SELECTCASE RESULT
 		CALL アビリティエディタ
 	CASE 7
 		CALL 奥義エディタ
+	CASE 8
+		CALL 料理レシピエディタ
 	CASE 100
 		CALLSHARP LAUNCH_BROWSER("https://discord.gg/zCWzA8kbgp")
 [IF_DEBUG]
-	CASE 9
+	CASE 109
 		CALL デバッグ用_画像ファイル名チェック()
-	CASE 11
+	CASE 111
 		CALL デバッグ用_画像ファイル名チェック_キャラ指定()
-	CASE 10
+	CASE 110
 		CALL デバッグ用_初期同行率チェック()
 	CASE 5656
 		CALL バージョンアップ準備処理
@@ -212,6 +228,7 @@ CALL コマンド存在チェック
 スイートルーム部屋数 = 1
 開発済み料理名フラグ文字列 += "_"
 
+CALL キャラ検索マップセット()
 CALL ユニークキャラ親子関係セット
 CALL エンディングイベントデータベースセット
 CALL イベントデータベースセット
@@ -266,6 +283,7 @@ IF 引き継ぎ中フラグ
 	ARRAYCOPY "画像サイズ切り替え引き継ぎ", "画像サイズ切り替えOPTION記憶"
 	ARRAYCOPY "一日終了時オナニー引き継ぎ", "一日終了時オナニーOPTION"
 	ARRAYCOPY "アイテム引き継ぎ", "ITEM"
+	ARRAYCOPY "キャラ衣装引き継ぎ", "キャラ衣装所持フラグ"
 ELSE
 
 	CALL アイテムデータベースセット
@@ -335,7 +353,7 @@ AWAIT
 アメニティ:入浴セット系列 = 1
 配置アメニティ:0 = 1
 
-PRINTW パラメータの初期化処理を行います
+PRINTL パラメータの初期化処理を行います
 PRINTL 
 SAVESTR:10 = /
 LOCAL:1 = CHARANUM / 100
@@ -507,6 +525,7 @@ VARSET ＤＭキャラ招待
 滞在キャラ数 = 0
 滞在キャラ上限 = 20
 モブ観光客数 = 0
+CALL 従業員部屋数算出()
 ;あなたは初期状態で雑務に従事している
 現在仕事:0:0 = 1
 
@@ -526,6 +545,20 @@ IF 引き継ぎ中フラグ
 	;			CFLAG:LOCAL:子の父親 = 0
 	;	NEXT
 	;ENDIF
+
+	;結婚済み引き継ぎキャラの結婚イベ解放
+	FOR LOCAL, 1, CHARANUM
+		IF CFLAG:LOCAL:結婚イベント解放
+			IF ランダムキャラ判定(NO:LOCAL)
+				DT_ROW_ADD "各イベント用変数配列", "イベント名", @"【汎用】%NAME:LOCAL%結婚イベント", "イベントカテゴリ", "キャライベント", "汎用イベ用_キャラNO保存", LOCAL + 90000
+			ELSE
+				;固有の結婚イベがあるかどうかチェック
+				IF DT_SELECT("各イベント用変数配列", @"特殊イベント = '結婚イベント{NO:LOCAL}_'") < 1
+					DT_ROW_ADD "各イベント用変数配列", "イベント名", @"【汎用】%NAME:LOCAL%結婚イベント", "イベントカテゴリ", "キャライベント", "汎用イベ用_キャラNO保存", NO:LOCAL
+				ENDIF
+			ENDIF
+		ENDIF
+	NEXT
 
 	;使用する変数を掃除
 	VARSET 周回回数累計_退避
@@ -559,6 +592,7 @@ NEXT
 ;変数リセット
 CALL TURN_RESET
 CALL 最大レベル算出保存
+VARSET 呼び出し履歴
 
 ;OPTION数値のチェック
 SIF OPTION変数:招待画像枚数閾値 < 1
@@ -604,6 +638,11 @@ VARSET 大分割文字列
 VARSET 小分割文字列
 引き継いだキャラ人数 = 0
 
+PRINTL キャラクターの初期登録を行います
+PRINTL 進行度…0％
+REDRAW 0
+LOCAL = 1
+
 IF 引き継ぎ中フラグ
 	キャラ番号 = 0
 	ランダム引き継ぎ番号 = 0
@@ -639,6 +678,8 @@ FOR キャラ番号, 1, キャラクタ数上限
 		FOR 引き継ぎ番号, 0, キャラクタ数上限
 			IF キャラ変数引き継ぎ:引き継ぎ番号:キャラナンバー == NO:設定中キャラ番号
 				EXP:設定中キャラ番号:肉体熟知 = キャラ変数引き継ぎ:引き継ぎ番号:肉体熟知
+				CSTR:設定中キャラ番号:カットイン個別選択オプション = %キャラ文字列引き継ぎ:引き継ぎ番号:カットイン個別選択%
+				CSTR:設定中キャラ番号:カットイン画像選択オプション = %キャラ文字列引き継ぎ:引き継ぎ番号:カットイン画像選択%
 				FOR 弱点配列, 0, 50
 					弱点看破:設定中キャラ番号:弱点配列 = キャラ変数引き継ぎ:引き継ぎ番号:(弱点配列 + 2)
 					弱点コマンド枠:設定中キャラ番号:弱点配列 = %キャラ文字列引き継ぎ:引き継ぎ番号:弱点配列%
@@ -654,7 +695,17 @@ FOR キャラ番号, 1, キャラクタ数上限
 	FOR 関数番号, 0, 関数総数
 		CALLFORM %RESULTS:関数番号%(設定中キャラ番号)
 	NEXT
+	IF LOCAL % 100 == 1
+		CLEARLINE 1
+		PRINTFORML 進行度……{キャラ番号 * 100 / キャラクタ数上限}\%
+		AWAIT
+	ENDIF
+	LOCAL ++
 NEXT
+CLEARLINE 1
+PRINTL 進行度……100%
+PRINTL キャラクターの初期登録が終了しました
+REDRAW 1
 
 ;引き継ぎランダムキャラの追加
 IF 引き継ぎ中フラグ
@@ -911,6 +962,13 @@ IF 引き継ぎキャラフラグ == 0
 		CALL FIX_RESOURCES_FOLDER(ARG)
 	ENDIF
 
+	;eraエンドを見てるならeraをキャラ解放
+	IF エンディングイベント完了フラグ確認("era") > 0 && NO:ARG == 998
+		CFLAG:ARG:招待不可フラグ = 0
+		CFLAG:ARG:滞在期間 = 999
+		TALENT:ARG:陥落不可 = 3
+		TALENT:ARG:妊娠不可 = 1
+	ENDIF
 ELSE
 	SIF !BASE:ARG:身長
 		CALL INIT_BODYSIZE(ARG)
@@ -1001,13 +1059,6 @@ ENDIF
 ;性癖の設定
 IF TALENT:ARG:性愛傾向 == 3
 	性癖素質:ARG:同性愛 = 2
-ENDIF
-
-;eraエンドを見てるならeraをキャラ解放
-IF エンディングイベント完了フラグ確認("era") > 0 && NO:ARG == 998
-	CFLAG:ARG:招待不可フラグ = 0
-	CFLAG:ARG:滞在期間 = 999
-	TALENT:ARG:妊娠不可 = 1
 ENDIF
 
 
@@ -1531,7 +1582,7 @@ MAXBASE:キャラ番号:性欲 = MIN(RESULT, 9999)
 
 BASE:キャラ番号:体力 = MIN(MAXBASE:キャラ番号:体力, BASE:キャラ番号:体力)
 BASE:キャラ番号:性欲 = MIN(MAXBASE:キャラ番号:性欲, BASE:キャラ番号:性欲)
-MAXBASE:キャラ番号:満足 = MAXBASE:キャラ番号:性欲
+MAXBASE:キャラ番号:満足 = MAXBASE:キャラ番号:性欲 + 50000
 BASE:キャラ番号:満足 = 0
 
 @フレーバー素質初期設定
@@ -2356,7 +2407,7 @@ SELECTCASE LOCAL
 		追加候補:(LOCAL - 9900) = -1
 	CASE 9000 TO 9007
 		CALL ページ送り共通実行(LOCAL, 現在ページ, 項目表示数, 最大表示数, 9000, 9003)
-	CASE 2000, 3000, 3100, 4000
+	CASE 2000, 3000, 3100, 3101, 3102, 4000
 		;出典フィルタに全作品を強制表示させる(通常表示だとグラブルしか表示されないため)
 		出典フィルタ強制全表示フラグ = 1
 		CALL フィルタソートボタンセット実行部(LOCAL, 2000, 3000, 3100, 4000)

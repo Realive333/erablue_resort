@@ -51,6 +51,27 @@ PRINTL
 DRAWLINE
 PRINTL 誰を呼び出しますか？
 DRAWLINE
+PRINT 呼び出し履歴：
+FOR LOCAL, 0, VARSIZE("呼び出し履歴")
+	SIF LOCAL > 0
+		PRINT  / 
+	IF 呼び出し履歴:LOCAL < 1
+		;履歴なし
+		PRINTPLAIN [------]
+	ELSEIF MATCH(TARGET, 呼び出し履歴:LOCAL)
+		;既に同室
+		SETCOLOR カラーパレット("グレーアウト")
+		PRINTPLAINFORM [%CALLNAME:(呼び出し履歴:LOCAL)%]
+		RESETCOLOR
+	ELSE
+		SIF MATCH(呼び出し対象, 呼び出し履歴:LOCAL)
+			SETCOLOR カラーパレット("黄")
+		PRINTBUTTON @"[%CALLNAME:(呼び出し履歴:LOCAL)%]", 1000 + LOCAL
+		RESETCOLOR
+	ENDIF
+NEXT
+PRINTL 
+DRAWLINE
 LOCAL:1 = 0
 ;キャラの表示
 FOR LOCAL, (現在ページ * 表示人数), ((現在ページ * 表示人数) + 表示人数)
@@ -143,6 +164,33 @@ SELECTCASE 入力内容
 	CASE IS >= 10000
 		CALL 所持画像詳細表示(表示候補:(入力内容 - 10000))
 		リスタートフラグ = 1
+	CASE IS >= 1000
+		;履歴から呼び出し
+		IF MATCH(表示候補, 呼び出し履歴:(入力内容 - 1000))
+			対象キャラ = 呼び出し履歴:(入力内容 - 1000)
+			IF MATCH(呼び出し対象, 対象キャラ)
+				FOR LOCAL, 0, VARSIZE("呼び出し対象")
+					IF 呼び出し対象:LOCAL == 対象キャラ
+						呼び出し対象:LOCAL = 0
+						呼び出し人数 --
+						BREAK
+					ENDIF
+				NEXT
+			ELSE
+				FOR LOCAL, 0, VARSIZE("呼び出し対象")
+					IF 呼び出し対象:LOCAL < 1
+						呼び出し対象:LOCAL = 対象キャラ
+						呼び出し人数 ++
+						BREAK
+					ENDIF
+				NEXT
+			ENDIF
+			リスタートフラグ = 1
+		ELSE
+			;呼び出し相手が今呼び出せない
+			PRINTFORMW %NAME:(呼び出し履歴:(入力内容 - 1000))%は今呼び出すことが出来ません。
+			リスタートフラグ = 1
+		ENDIF
 	CASE 900
 		現在ページ = MAX(現在ページ - 1, 0)
 		リスタートフラグ = 1
@@ -169,6 +217,13 @@ SELECTCASE 入力内容
 			CFLAG:対象キャラ:同室 = 1
 			SIF RFLAG:コマンド結果受渡し変数 < 1
 				RFLAG:コマンド結果受渡し変数 = 対象キャラ
+			;呼び出し履歴に登録
+			IF MATCH(呼び出し履歴, 対象キャラ)
+				ARRAYREMOVE 呼び出し履歴, FINDELEMENT(呼び出し履歴, 対象キャラ), 1
+				ARRAYSHIFT 呼び出し履歴, 1, 対象キャラ
+			ELSE
+				ARRAYSHIFT 呼び出し履歴, 1, 対象キャラ
+			ENDIF
 		NEXT
 		SIF 呼び出し人数 > 1
 			RFLAG:コマンド結果受渡し変数２ = 1
@@ -283,7 +338,7 @@ FOR ループ用, 1, CHARANUM
 	SIF CFLAG:ループ用:滞在期間 < 0
 		CONTINUE
 	;セフレでも恋慕でもないキャラは出さない
-	SIF !TALENT:ループ用:恋慕 && !TALENT:ループ用:セフレ
+	SIF !TALENT:ループ用:恋慕 && !TALENT:ループ用:セフレ && !TALENT:ループ用:疑似恋慕
 		CONTINUE
 	;睡眠中はアウト
 	SIF CFLAG:ループ用:睡眠
@@ -411,6 +466,9 @@ RETURN 1
 
 ;呼び出す
 SIF SAVESTR:ゲームフェイズ管理 != "通常モード"
+	RETURN 0
+;ゆきずり覗き・使い魔覗き中は使用不可
+SIF ゆきずり覗き中？(TARGET) || CFLAG:MASTER:使い魔覗き状態
 	RETURN 0
 ;複数人プレイに入るためのコマンドのため、一括管理はせずここで全部記述する
 SELECTCASE TFLAG:調教モード

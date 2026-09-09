@@ -34,6 +34,10 @@ SIF CFLAG:MASTER:デート
 SIF CFLAG:MASTER:飲み会
 	RETURN 0
 
+;ゆきずり覗き中は連れ込みイベントを発生させない
+SIF ゆきずり覗き中？(TARGET) || CFLAG:MASTER:使い魔覗き状態
+	RETURN 0
+
 ;隠密が必要か？　の判定
 IF MYROOM(CFLAG:MASTER:現在マップ種別, CFLAG:MASTER:現在位置) || フィールド展開:うふふ目撃スルー || (CFLAG:MASTER:現在マップ種別 == 999 && CFLAG:MASTER:現在位置 < 2000)
 	隠密不要 = 1
@@ -59,7 +63,11 @@ ENDIF
 FOR 対象キャラ, 1, CHARANUM
 	SIF TARGET:対象キャラ < 1
 		BREAK
-
+	
+	;ゆきずり中のキャラは連れ込み候補にしない
+	SIF IS_ゆきずりセックス中(TARGET:対象キャラ)
+		CONTINUE
+		
 	;一日一回まで
 	SIF TCVAR:(TARGET:対象キャラ):連れ込み済フラグ
 		CONTINUE
@@ -129,6 +137,11 @@ SIF 連れ込みキャラ == 0
 
 ;この時点で連れ込み確定なので、あなたのモードを消す
 CALL 特定キャラモードリセット(MASTER, 連れ込みキャラ)
+
+;初連れ込まれ時にチュートリアル
+IF チュートリアルフラグ:物陰連れ込まれ == 0
+	CALL 物陰連れ込まれチュートリアル()
+ENDIF
 
 DRAWLINE
 IF 陥落チェック_性的(連れ込みキャラ)

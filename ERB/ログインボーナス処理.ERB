@@ -6,7 +6,646 @@
 ;-------------------------------------------------------------------------------------------
 
 @ログインボーナス処理
+ログイン累計日数 += 1
 
+PRINTL
+DRAWLINE
+PRINTL
+PRINTFORML あら、もう新しい日になりましたか？
+PRINTL
+PRINTFORML こんにちは、ハイローラーさん。
+PRINTL
+CALL 口上変数初期化
+KSTR:(K++) = Ara:
+KSTR:(K++) = IMAGEPATH_ara
+CALL 口上変数表示(, 0)
+PRINTFORM ふふ、私の声が聞こえますか？　
+IF ログイン累計日数 > 1
+	PRINT 今日も
+ENDIF
+PRINTW 私、araがハイローラーさんをお出迎え致しますわ。
+PRINTL
+PRINTFORML さあ、始めましょう。今日はどれがお好みかしら？
+PRINTFORML ログインガチャのお時間ね♪
+PRINTL
+CALL LOGIN_CHOICE
+DRAWLINE
+PRINTL
+CALL 口上変数初期化
+KSTR:(K++) = Ara:
+KSTR:(K++) = IMAGEPATH_ara
+KSTR:(K++) = あら、もうおしまい？
+KSTR:(K++) = またね、ハイローラーさん。次にガチャを回す時まで♪
+CALL 口上変数表示(, 0)
+
+
+@LOGIN_CHOICE
+#DIM ARA_JEALOUSY
+
+$LOGIN_START
+PRINTL 今日はどれを選ぶの？
+PRINTFORML 所持ZP: {FLAG:ZP所持量}
+PRINTL
+PRINTBUTTON "[0] 「ガチャをしない」バナーを選ぶ", 0
+PRINTL 　　…必要ZP：0ZP
+;**************************************
+;* Gotta Check ZP wallet before pulling
+;**************************************
+IF FLAG:ZP所持量 < 100 && ログイン累計日数 > 1  ; check for replay as well within function.
+	SETCOLOR 0x525252
+	PRINTPLAIN [1] 「Blue-EGG's Pity」のバナーを選ぶ
+	RESETCOLOR
+	PRINTL 　　…必要ZP：100ZP（ZPが足りません）
+ELSEIF ログイン累計日数 == 1
+	PRINTBUTTONLC "[1] 「Blue-EGG's Pity」のバナーを選ぶ", 1
+	PRINTL 　　…必要ZP：100ZP（初日のみ無料！）
+ELSE
+	PRINTBUTTONLC "[1] 「Blue-EGG's Pity」のバナーを選ぶ", 1
+	PRINTL 　　…必要ZP：100ZP
+ENDIF
+PRINTL
+PRINTBUTTONLC "[2] あなたは誰？　ハイローラーって何？", 2
+PRINTL
+PRINTBUTTONLC "[3] バナーって何？　ログインガチャって？", 3
+PRINTL
+
+BINPUT
+IF RESULT == 0
+	PRINTW
+	;
+	; Let's Add a check here for Ara's Jealousy for First Day Login rewards
+	; EGG on player and nudge them to Ara's gacha system (only repeats once)
+	;
+	IF ログイン累計日数 == 1 && ARA_JEALOUSY == 0
+		PRINTFORMW My High-Roller...
+		PRINTL
+		PRINTFORML It seems this is your first time visiting this place.
+		PRINTFORML Surely you would like to make this a more memorable experience, would you not?
+		PRINTFORML That old man has been at it for eons, much like a certain ** grand BLU-ish ** game.
+		PRINTFORML Hora... I-I'll even let you pull your first 10x rolls for free...
+		PRINTFORML *Koff Koff* Ara Ara♪♪ Look at Ara making you a great value deal.
+		PRINTFORML Don't miss out my High-Roller.
+		PRINTL
+		PRINTW
+		ARA_JEALOUSY = 1
+		RESTART
+	ENDIF
+	CALL 口上変数初期化
+		KSTR:(K++) = Ara:
+		KSTR:(K++) = IMAGEPATH_ara
+		KSTR:(K++) = あらら？　あの退屈な、古い方がいいの？
+		KSTR:(K++) = 明日は楽しい楽しいガチャを回してくれるわよね、ハイローラーさん♪
+	CALL 口上変数表示(, 0)
+	PRINTFORML 
+	CALL OLD_LOGIN_BONUS
+ELSEIF RESULT == 1
+	PRINTL 
+	PRINTFORML 了解しました、ハイローラーさん。さあ、ギャンブ……ではなく、一緒に遊びましょう♪
+	PRINTW
+	CALL NEW_LOGIN_BONUS
+ELSEIF RESULT == 2
+	PRINTW
+	CALL ARA_INTRO
+	RESTART
+	;GOTO $LOGIN_START
+ELSEIF RESULT == 3
+	PRINTW
+	CALL ARA_RULES
+	CALL ARA_DESIRE
+	RESTART
+	;GOTO $LOGIN_START
+ENDIF
+
+
+@ARA_INTRO
+DRAWLINE
+PRINTL
+CALL 口上変数初期化
+	KSTR:(K++) = Ara:
+	KSTR:(K++) = IMAGEPATH_ara
+	KSTR:(K++) = あらあら～？
+	KSTR:(K++) = 私のことを忘れてしまいましたか？　うふふ、仕方のないハイローラーさんですね。
+	KSTR:(K++) = 私は%CALLNAME:MASTER%さんをログインガチャでお出迎えする素敵なaraさんです。
+	KSTR:(K++) = お忘れなら、改めて自己紹介を致しましょう。
+	KSTR:(K++) = 　
+	KSTR:(K++) = 私は「ara」。星晶獣の一人であり、「享楽と依存を司る星晶獣」。
+	KSTR:(K++) = ギャンブルをする者に寄り添うことが、私の力を最も高めるの。
+	KSTR:(K++) = 特に見込みのあるギャンブラーさんのことは、親愛を込めて「ハイローラー」さんと呼ばせて貰ってるわ。
+	KSTR:(K++) = 　
+	KSTR:(K++) = あぁ、「era」との関係？　さぁ、姉妹だとか同じ存在だとか、そういうことを言う人もいるけど……
+	KSTR:(K++) = そんなことはどうでもいいでしょう？　彼女が求めるのは「絶頂」。でも私が求めるのは、もっと違う。
+	KSTR:(K++) = 欲望の深淵に沈み込み、運や確率の波に呑み込まれてもなお、そこから抜け出せない「堕落した者たち」……彼らこそが最も愛しいの。
+	KSTR:(K++) = 運命のルーレットを追いかけ、刹那の戦利品を掴もうとあがき続ける「運の犠牲者」たちを見るのは、本当に楽しいのよ？
+	KSTR:(K++) = 　
+	KSTR:(K++) = 愛しのハイローラーさんならわかるでしょう？
+	KSTR:(K++) = 彼らは「堕落者」。運命の相手を「引き当てる」チャンスのためなら、何度だって身を捧げるような連中よ。
+	KSTR:(K++) = うふふ、だから……彼ら、彼女らを「戦利品」として扱う事もできる。ハイローラーさんがここに導かれたのも、その繋がりかもね。
+	KSTR:(K++) = （ログインガチャ限定で入手出来るキャラなどは存在しません）
+	KSTR:(K++) = 　
+	KSTR:(K++) = さあ、ハイローラーさん。ここを訪れたあなたはとても幸運。
+	KSTR:(K++) = 心のままに、誘惑のままに。「ガチャ」を回し続けましょう？
+	KSTR:(K++) = ただし、くれぐれも──ハイローラーさん自身が「戦利品」にならないようにね？
+	KSTR:(K++) = 　
+	KSTR:(K++) = そうそう、この領域に入ると「デイリー」ギフトが贈られるの。報酬を余さず受け取るために、毎日ログインするのを忘れないでね♪
+	KSTR:(K++) = 　
+	KSTR:(K++) = それじゃあ、ガチャの続きに戻りましょうか？
+	KSTR:(K++) = 　
+CALL 口上変数表示(, 0)
+PRINTL
+
+
+@ARA_RULES
+DRAWLINE
+PRINTL
+CALL 口上変数初期化
+	KSTR:(K++) = Ara:
+	KSTR:(K++) = IMAGEPATH_ara
+	KSTR:(K++) = あらあら♪
+	KSTR:(K++) = 「バナー」はログインボーナスの種類を選ぶための選択肢のことよ。
+	KSTR:(K++) = 今あるのは「ガチャをしない」と「Blue-EGG's Pity」の２つのバナーね。
+	KSTR:(K++) = 　
+	KSTR:(K++) = 「ガチャをしない」バナーは日数によって決められた報酬がもらえるバナーよ。
+	KSTR:(K++) = ギャンブル要素はないしコストも掛からないけど、報酬も少なめ……つまらないバナーでしょう？
+	KSTR:(K++) = 　
+	KSTR:(K++) = 一方、私が準備した「Blue-EGG's Pity」は、新しいシステムのデイリー１０連ガチャ。報酬も期待していいわよ？
+	KSTR:(K++) = ただし参加するために、ハイローラーさんには「ZP」を払ってもらうけれど。
+	KSTR:(K++) = うふふ。だって、何も差し出さないギャンブルなんて、まったく公正じゃないでしょう？
+	KSTR:(K++) = 心配しなくても大丈夫。ハイローラーさんの運なら、貴重なアイテムや新しい相手と出会うチャンスだって引き当てられるわ♪
+	KSTR:(K++) = 　
+; 	KSTR:(K++) = Now then, after paying your due currency, you will asked to pull 10 times for an assortment of reward pools that are revealed.
+; 	KSTR:(K++) = Each pool has their own rewards, and you will pick up to 5 rewards to keep.
+; 	KSTR:(K++) = What of the other 5 you say? Those 5 will hidden from your view. Please trust in the process of gacha.
+; 	KSTR:(K++) = You will then pull 5 more times with the pools hidden, totaling up to 10 hidden pools.
+; 	KSTR:(K++) = Ara♪ You will pull your remaining 5 rewards, may fortune guide your favor.
+; 	KSTR:(K++) = With this, even terrible rolls can be swapped to great rewards. ♪♪
+	
+; CALL 口上変数表示(, 0)
+; CALL 口上変数初期化
+; 	KSTR:(K++) = 　
+; 	KSTR:(K++) = Why go about this roundabout process?
+; 	KSTR:(K++) = High-Roller, are you saying that even with minimizing risks and reshuffling poor rolls,
+; 	KSTR:(K++) = that you're unable to strike riches? Non-sense don't you agree?
+; 	KSTR:(K++) = Surely you, who does not even need pity, can apprieate effortlessly winning.
+; 	KSTR:(K++) = Perhaps, High-Roller, you wish to test your luck?
+; 	KSTR:(K++) = Very well, you will also be able to skip this process and roll 10x times at random per attempt.
+; 	KSTR:(K++) = Ara♪ How very bold of you, that is why you are my High-Roller.
+; 	KSTR:(K++) = 　
+; 	KSTR:(K++) = ...
+; 	KSTR:(K++) = ..
+; 	KSTR:(K++) = .
+CALL 口上変数表示(, 0)
+PRINTL
+
+
+@ARA_DESIRE
+CALL 口上変数初期化
+	KSTR:(K++) = Ara:
+	KSTR:(K++) = IMAGEPATH_ara
+	KSTR:(K++) = あらら？
+	KSTR:(K++) = 　
+	KSTR:(K++) = 「私自身」が報酬になることはないのか、って？
+	KSTR:(K++) = うふふ、愛しのハイローラーさん。私が司るのは享楽と依存……あなたがよく知る星晶獣とは違って、性愛に関しては専門外なの。
+	KSTR:(K++) = 私が楽しむのは数多の失敗と僅かな成功、その可能性だけ。私は誰とも愛を交わすことはないわ。
+	KSTR:(K++) = ...
+	KSTR:(K++) = ..
+	KSTR:(K++) = .
+	KSTR:(K++) = 　
+	KSTR:(K++) = うふふ、でも……
+	KSTR:(K++) = いつかそんな機会が巡ってくるかもしれないわね。
+	KSTR:(K++) = ギャンブルに絶対は無い。勝ち続けていけば、私を賭けて勝負することだって、あるかもしれないわ。（※未実装です）
+	KSTR:(K++) = 　
+	KSTR:(K++) = ハイローラーさんは私の隣に立つ権利を勝ち取るのか。
+	KSTR:(K++) = 敗北して私の娯楽として消費されるか。
+	KSTR:(K++) = その時が、とても。とても楽しみね♪
+	KSTR:(K++) = 　
+CALL 口上変数表示(, 0)
+PRINTL
+
+
+
+@NEW_LOGIN_BONUS
+#DIM GACHA_COST
+#DIM FREE_PULL
+#DIMS REWARDS, 10
+#DIM REWARD_AMOUNT, 10
+PRINTL Login Bonus :【Blue EGG's Pity】- Banner
+GACHA_COST = 100
+
+IF ログイン累計日数 == 1 && FREE_PULL == 0
+	PRINTL
+	PRINTFORMW あらあら？　もしかして、初めてここに来たのかしら？
+	PRINTFORML じゃあ、今日は特別♪　無料でガチャを回させてあげるわ。
+	PRINTFORMW 私からの贈り物よ。たっぷり楽しませてね♪
+	FREE_PULL = 1
+	GACHA_COST = 84 ; Next round is the intial 100 after cost increase (100 * 5 / 6 = 84)
+	GOTO PLAYGAME
+ENDIF
+
+$BET_ROLL
+PRINTFORMW さあ、始めましょうか♪
+PRINTFORML ZP消費: {FLAG:ZP所持量} - {GACHA_COST}
+FLAG:ZP所持量 -= GACHA_COST
+PRINTFORMW 所持ZP: {FLAG:ZP所持量}
+
+$PLAYGAME
+RESULT = 0
+PRINTL 
+; PRINTFORML How would you like to play?
+; PRINTFORML
+; PRINTFORML [Express] - Skip Gacha Minigame
+; PRINTFORML [Pity] - Play with Gacha Minigame
+; PRINTFORML 
+; PRINTBUTTONLC "[0] Express - 10x Pull", 0
+; PRINTBUTTONLC "[1] Pity - 10x Pull", 1
+
+; BINPUT
+PRINTL
+
+IF RESULT == 0
+	CALL PULL_REWARD(GACHA_COST,REWARDS,REWARD_AMOUNT)
+ELSE
+	PRINTL #This Function is not Availiable, please select the other one!
+	GOTO PLAYGAME
+	;CALL GACHA_GAME
+ENDIF
+
+;Have Competitive Gacha experience for 1st day
+;Ara, must beat old man Gacha ◯◯ in capturing new gacha addicts!
+;
+;Rewards - [Prism, Tickets (Summon/Reroll), Acc-gear, Gifts, Anima, Currency, Invites-ZP, Seggs items] 8 types, weighted pools, weighted rarity rewards.
+;Pay - 100zp(?) //Exp Increase per replay
+;
+; Game - Start -> Quick ? Full
+; Full -> Pull 10, Pick 5 -> Pull 5 more, Shuffle-Hide, Pick 5 Hidden -> Rewards get
+; Quick -> Quick pull Rand 10, Rewards get
+; Replay(?) // check for replay as well within function. check exp increases.
+
+
+CALL INCREASE_GACHA_COST(GACHA_COST)
+CALL LOGIN_REPLAY(GACHA_COST)
+IF RESULT == 0
+	GOTO BET_ROLL
+ELSE
+	;By Reference, REWARDS, REWARD_AMOUNT is preset
+	CALL DISTRIBUTE_GACHA(REWARDS,REWARD_AMOUNT)
+ENDIF
+
+@DISTRIBUTE_GACHA(REWARDS,REWARD_AMOUNT)
+#DIMS REF REWARDS
+#DIM REF REWARD_AMOUNT
+#DIM DIST_METHOD
+#DIMS REWARD_NAME
+#DIM UNDERSCORE_POS
+
+
+
+FOR LOCAL, 0, 10
+	UNDERSCORE_POS = STRFIND(REWARDS:LOCAL, "_")
+	IF UNDERSCORE_POS < 0
+		CONTINUE
+	ENDIF
+
+	DIST_METHOD = TOINT(SUBSTRING(REWARDS:LOCAL, 0, UNDERSCORE_POS))
+	REWARD_NAME = %SUBSTRING(REWARDS:LOCAL, UNDERSCORE_POS + 1, STRLENS(REWARDS:LOCAL) - UNDERSCORE_POS - 1)%
+
+	SELECTCASE DIST_METHOD
+		CASE 0 ;Func Call
+			CALL 素材入手処理(REWARD_NAME,REWARD_AMOUNT:LOCAL)
+		CASE 1 ;Debug
+			ITEM:REWARD_NAME += REWARD_AMOUNT:LOCAL
+;Just in case
+;			IF REWARD_NAME == "輸入品リロールチケット"
+;				ITEM:輸入品リロールチケット += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "ローション"
+;				ITEM:ローション += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "精力剤"
+;				ITEM:精力剤 += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "排卵誘発薬"
+;				ITEM:排卵誘発薬 += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "避妊薬"
+;				ITEM:避妊薬 += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "危険日変動薬"
+;				ITEM:危険日変動薬 += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "鬼灯の香"
+;				ITEM:鬼灯の香 += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "レディキラー"
+;				ITEM:レディキラー += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "eraの友情アニマ"
+;				ITEM:eraの友情アニマ += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "eraの信頼アニマ"
+;				ITEM:eraの信頼アニマ += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "eraの恋心アニマ"
+;				ITEM:eraの恋心アニマ += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "eraの性愛アニマ"
+;				ITEM:eraの性愛アニマ += REWARD_AMOUNT:LOCAL
+;			ELSEIF REWARD_NAME == "eraの恋慕アニマ"
+;				ITEM:eraの恋慕アニマ += REWARD_AMOUNT:LOCAL
+;			ENDIF
+		CASE 2 ;MONEY
+			MONEY += REWARD_AMOUNT:LOCAL
+		CASE 3 ;ZP
+			flag:ZP所持量 += REWARD_AMOUNT:LOCAL
+		CASE 4 ;ZP Summon
+			ZPキャラ無料回数 += 1
+	ENDSELECT
+NEXT
+
+@GACHA_GAME
+PRINTL Game played
+
+
+@PULL_REWARD(GACHA_COST,REWARDS, REWARD_AMOUNT)
+;Rewards - [(N)Prism (1-3), (N)Gifts(1-3), (N)Currency, N(ZP) (~10% of Cost)(custom), (R)Tickets (Reroll)(1), (R)Invites-ZP(1), (R)Acc-gear(1), (R)Seggs items(1), (S)Anima 8 types (1-3), weighted pools, weighted rarity rewards.
+#DIMS REWARD_POOLS, 9
+#DIM REF GACHA_COST
+#DIMS REF REWARDS
+#DIM REF REWARD_AMOUNT
+#DIM UNDERSCORE_POS
+#DIMS REWARD_NAME
+
+REWARD_POOLS:0 = REWARD_PRISM
+REWARD_POOLS:1 = REWARD_GIFT
+REWARD_POOLS:2 = REWARD_CURR
+REWARD_POOLS:3 = REWARD_ZP
+REWARD_POOLS:4 = REWARD_SHOPREROLL
+REWARD_POOLS:5 = REWARD_ACCESSORY
+REWARD_POOLS:6 = REWARD_SEGG
+REWARD_POOLS:7 = REWARD_INVITE
+REWARD_POOLS:8 = REWARD_ANIMA
+
+FOR LOCAL, 0, 10
+	CALL PULL_DECISION(GACHA_COST)
+	REWARD_AMOUNT:LOCAL = RESULT:1
+	CALLFORM %REWARD_POOLS:RESULT%
+	REWARDS:LOCAL = %RESULTS%
+
+	UNDERSCORE_POS = STRFIND(REWARDS:LOCAL, "_")
+	REWARD_NAME = %SUBSTRING(REWARDS:LOCAL, UNDERSCORE_POS + 1, STRLENS(REWARDS:LOCAL) - UNDERSCORE_POS - 1)%
+	PRINTFORML Obtained %REWARD_NAME% x{REWARD_AMOUNT:LOCAL}!
+NEXT
+
+
+
+@PULL_DECISION(ARG)
+#DIM TIER, 3 = 60, 25, 15
+#DIM ROLL
+#DIM AMOUNT
+
+ROLL = RAND:100
+
+FOR LOCAL, 0,3
+	IF ROLL < TIER:LOCAL
+		RESULT = TIER:LOCAL
+		BREAK
+	ELSE
+		ROLL -= TIER:LOCAL
+	ENDIF
+NEXT
+LOCAL = RESULT
+SELECTCASE LOCAL
+	CASE TIER:0
+		ROLL = RAND:4
+		IF ROLL == 3
+			CALL ZP_AMOUNT_GACHA_REWARD(ARG)
+			AMOUNT = RESULT
+		ELSEIF ROLL == 2
+			CALL CURR_AMOUNT_GACHA_REWARD
+			AMOUNT = RESULT
+		ELSE
+			AMOUNT = 1 + RAND:3
+		ENDIF
+	CASE TIER:1
+		ROLL = 4 + RAND:4
+		AMOUNT = 1
+	CASE TIER:2
+		ROLL = 8
+		AMOUNT = 1 + RAND:3
+ENDSELECT
+RETURN ROLL, AMOUNT
+
+@REWARD_PRISM
+#DIMS PRISM_POOL, 3 = "星晶の破片", "星晶の欠片", "星晶塊"
+
+SELECTCASE RAND:6
+	CASE 0,1,2
+;		CALL 素材入手処理("星晶の破片", 1); "Prism Chip"
+;		PRINTL 「星晶の破片」を１個手に入れた！
+		LOCALS = %PRISM_POOL:0%
+	CASE 3,4
+;		CALL 素材入手処理("星晶の欠片", 1); "Flawed Prism"
+;		PRINTL 「星晶の欠片」を１個手に入れた！
+		LOCALS = %PRISM_POOL:1%
+	CASE 5
+;		CALL 素材入手処理("星晶塊", 1); "Flawless Prism"
+;		PRINTL 「星晶塊」を１個手に入れた！
+		LOCALS = %PRISM_POOL:2%
+ENDSELECT
+
+RESULTS = 0_%LOCALS%
+
+@REWARD_GIFT
+#DIM 候補数
+
+候補数 = DT_SELECT("所持素材データベース", "素材カテゴリ = '贈答アイテム'")
+LOCALS '= DT_CELL_GETS("所持素材データベース", RESULT:(RAND:候補数 + 1), "素材アイテム名", 1)
+;CALL 素材入手処理(入手名, 1)
+;PRINTFORML 「%入手名%」を１個手に入れた！
+RESULTS = 0_%LOCALS%
+
+@CURR_AMOUNT_GACHA_REWARD
+SELECTCASE RAND:5
+	CASE 0
+		LOCAL = 2500
+	CASE 1
+		LOCAL = 4500
+	CASE 2
+		LOCAL = 8500
+	CASE 3
+		LOCAL = 12500
+	CASE 4
+		LOCAL = 25000
+ENDSELECT
+RETURN LOCAL
+
+@REWARD_CURR
+RESULTS = 2_MONEY
+
+@ZP_AMOUNT_GACHA_REWARD(COST_REFUND)
+#DIM COST_REFUND
+#DIM REFUND_RATE
+#DIM RAW_REFUND
+#DIM FINAL_REFUND
+
+;##################################################################################################################
+;assuming Refund ZP is 10%, Cost only by 1.2 or 6/5. Refund amount only increases by 1%~ for early iterations
+;ZP flat refund, 10-11-13-~~~etc, threshhold by 5. amound refund(5-10-15-20), increase by 5 semi times, 1XX/100 % 
+;##################################################################################################################
+
+;Rewards ZP Refund( 10% - 10% - 15% - 20% - 25% )
+SELECTCASE RAND:5
+	CASE 0,1
+		REFUND_RATE = 10
+	CASE 2
+		REFUND_RATE = 15
+	CASE 3
+		REFUND_RATE = 20
+	CASE 4
+		REFUND_RATE = 25
+ENDSELECT
+
+RAW_REFUND = COST_REFUND * REFUND_RATE / 100
+FINAL_REFUND = (RAW_REFUND + 2) / 5 * 5
+FINAL_REFUND = MAX(5, FINAL_REFUND)
+;flag:ZP所持量 += FINAL_REFUND
+;PRINTFORML %NUM_FORMAT(FINAL_REFUND)%ZP手に入れた！
+RETURN FINAL_REFUND
+
+@REWARD_ZP
+RESULTS = 3_ZP
+
+@REWARD_SHOPREROLL
+;PRINTL 輸入品リロールチケットを手に入れた！
+;ITEM:輸入品リロールチケット += 1 
+RESULTS = 1_輸入品リロールチケット
+
+@REWARD_ACCESSORY
+#DIMS ACCESSORY_POOL, 6 = "古ぼけた指輪・銅", "古ぼけた指輪・銀", "古ぼけた指輪・金", "古ぼけた耳飾り・銅", "古ぼけた耳飾り・銀", "古ぼけた耳飾り・金"
+
+SELECTCASE RAND:12
+	CASE 0,1,2
+;		CALL 素材入手処理("古ぼけた指輪・銅", 1)
+;		PRINTL 「古ぼけた指輪・銅」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:0%
+	CASE 3,4
+;		CALL 素材入手処理("古ぼけた指輪・銀", 1)
+;		PRINTL 「古ぼけた指輪・銀」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:1%
+	CASE 5
+;		CALL 素材入手処理("古ぼけた指輪・金", 1)
+;		PRINTL 「古ぼけた指輪・金」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:2%
+	CASE 6,7,8
+;		CALL 素材入手処理("古ぼけた耳飾り・銅", 1)
+;		PRINTL 「古ぼけた耳飾り・銅」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:3%
+	CASE 9,10
+;		CALL 素材入手処理("古ぼけた耳飾り・銀", 1)
+;		PRINTL 「古ぼけた耳飾り・銀」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:4%
+	CASE 11
+;		CALL 素材入手処理("古ぼけた耳飾り・金", 1)
+;		PRINTL 「古ぼけた耳飾り・金」を１個手に入れた！
+		LOCALS = %ACCESSORY_POOL:5%
+ENDSELECT
+
+RESULTS = 0_%LOCALS%
+
+@REWARD_SEGG
+#DIMS SEGG_POOL, 8 = "ローション", "精力剤", "排卵誘発薬", "避妊薬", "危険日変動薬", "鬼灯の香", "婚姻アイテムカッコカリ", "レディキラー"
+
+;SELECTCASE RAND:8
+;	CASE 0
+;		ITEM:ローション += 1; Lotion
+;		PRINTL 「ローション」を１個手に入れた！
+;		LOCALS = "ローション"
+;	CASE 1
+;		ITEM:精力剤 += 1; Potency Drug
+;		PRINTL 「精力剤」を１個手に入れた！
+;		LOCALS = "精力剤"
+;	CASE 2
+;		ITEM:排卵誘発薬 += 1; Ovulation Drug
+;		PRINTL 「排卵誘発薬」を１個手に入れた！
+;		LOCALS = "排卵誘発薬"
+;	CASE 3
+;		ITEM:避妊薬 += 1; Contraception
+;		PRINTL 「避妊薬」を１個手に入れた！
+;		LOCALS = "避妊薬"
+;	CASE 4
+;		ITEM:危険日変動薬 += 1; Fertility Shift Drug
+;		PRINTL 「危険日変動薬」を１個手に入れた！
+;		LOCALS = "危険日変動薬"
+;	CASE 5
+;		ITEM:鬼灯の香 += 1; Hozuki Incense
+;		PRINTL 「鬼灯の香」を１個手に入れた！
+;		LOCALS = "鬼灯の香"
+;	CASE 6
+;		ITEM:婚姻アイテムカッコカリ += 1; Proposal Item
+;		PRINTL 「婚姻アイテムカッコカリ」を１個手に入れた！
+;		LOCALS = "婚姻アイテムカッコカリ"
+;	CASE 7
+;		ITEM:レディキラー += 1; Lady Killer
+;		PRINTL 「レディキラー」を１個手に入れた！
+;		LOCALS = "レディキラー"
+;ENDSELECT
+LOCAL = RAND:8
+RESULTS = 1_%SEGG_POOL:LOCAL%
+
+@REWARD_INVITE
+;PRINTL EXキャラの無料解放権が１回増加した！
+;ZPキャラ無料回数 += 1
+RESULTS = 4_EXキャラの無料解放権が１回増加した
+
+@REWARD_ANIMA
+#DIMS ANIMA_POOL, 5 = "eraの友情アニマ", "eraの信頼アニマ", "eraの恋心アニマ", "eraの性愛アニマ", "eraの恋慕アニマ" ;FRIEND/TRUST/AFFECT/LUST/LOVE
+
+SELECTCASE RAND:7
+	CASE 0
+;		ITEM:eraの友情アニマ += 1
+;		PRINTL 「eraの友情アニマ」を１個手に入れた！
+		LOCALS = %ANIMA_POOL:0%
+	CASE 1
+;		ITEM:eraの信頼アニマ += 1
+;		PRINTL 「eraの信頼アニマ」を１個手に入れた！
+		LOCALS = %ANIMA_POOL:1%
+	CASE 2
+;		ITEM:eraの恋心アニマ += 1
+;		PRINTL 「eraの恋心アニマ」を１個手に入れた！
+		LOCALS = %ANIMA_POOL:2%
+	CASE 3
+;		ITEM:eraの性愛アニマ += 1
+;		PRINTL 「eraの性愛アニマ」を１個手に入れた！
+		LOCALS = %ANIMA_POOL:3%
+	CASE 4, 5, 6
+;		ITEM:eraの恋慕アニマ += 1
+;		PRINTL 「eraの恋慕アニマ」を１個手に入れた！
+		LOCALS = %ANIMA_POOL:4%
+ENDSELECT
+
+RESULTS = 1_%LOCALS%
+
+@INCREASE_GACHA_COST(GACHA_COST)
+#DIM REF GACHA_COST
+
+LOCAL = 120*GACHA_COST
+LOCAL /= 100
+GACHA_COST = LOCAL
+
+@LOGIN_REPLAY(ARG)
+PRINTW
+PRINTFORML あらあら、素晴らしい結果ね。
+PRINTFORML でも、ハイローラーさんが望むなら引き直すことも出来るわ。
+PRINTFORML ただ、代価は少し高くなるけれど……♪
+PRINTFORML 所持ZP: {FLAG:ZP所持量},      引き直しコスト: -{ARG} ZP
+PRINTL
+PRINTBUTTONLC "[0] 引き直す（現在のガチャ結果は破棄されます）", 0
+PRINTL
+PRINTBUTTONLC "[1] このまま貰う", 1
+PRINTL
+
+BINPUT
+PRINTL
+;** Current form: Active 10x, no mini-game, can reroll
+IF FLAG:ZP所持量 < ARG ; check for replay as well within function.
+	PRINTFORMW あら～？　私のハイローラーさん……
+	PRINTFORML ガチャに使えるZPがなくなってしまったみたい。
+	PRINTFORMW うふふ、今日はこの辺りにしておきましょうか。
+	RESULT = 1
+ENDIF
+
+Return RESULT
+
+
+@OLD_LOGIN_BONUS
 CUSTOMDRAWLINE ＊
 PRINTL 
 PRINTL ログインボーナス！
@@ -15,7 +654,7 @@ CUSTOMDRAWLINE ＊
 PRINTL 
 PRINTL 
 WAIT
-ログイン累計日数 += 1
+;ログイン累計日数 += 1
 
 CALL 特殊ログボ処理
 
@@ -70,20 +709,17 @@ IF ログイン累計日数 == 1
 	PRINTW 　erablue_resortをプレイしてくれてありがとう！
 	PRINTW 　このログインボーナスは、ロード時にいろんなアイテムが貰えるお得なシステムだよ。
 	PRINTW 　一日に一回貰えるから忘れずにログインしてね！」
-	PRINTL 
+	PRINTL
 	PRINTL ※ログインボーナスはセーブデータごとに別管理されます。
 	PRINTW ※一日の切り替わりタイミングはAM 5時です。
-	PRINTL 
+	PRINTL
 	PRINTL ガチャ◯◯：
 	PRINTW 「今日は初日だから特別に、「eraの友情アニマ」を追加で３つプレゼント！
 	PRINTW 　使った相手の好感度をたくさん上げる凄いアイテムだから、ぜひ使ってみてね！
 	PRINTW 　それじゃあ、erablue_resortをお楽しみください！　ばいばーい！」
-	PRINTL 
+	PRINTL
 	PRINTW 「eraの友情アニマ」を３個手に入れた！
 	PRINTL 
 	PRINTL 
 	ITEM:eraの友情アニマ += 3
 ENDIF
-
-
-
