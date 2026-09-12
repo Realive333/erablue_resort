@@ -72,7 +72,7 @@ ENDIF
 LOCAL += LOCAL:1 + 50
 LOCAL:1 = 700
 CALL 複数人一枚絵_表示処理(1)
-IF RESULT
+IF RESULT || NAI_有効()
 	表示文字列 += @"<div rect='{LOCAL}, {LOCAL:2 - 15}, {LOCAL:1}, 200' padding='25,15,0' color='#101010' border='31' bcolor='#C0C0C0'><font color='#%カラーパレット_HTML("黄")%'><button value='サイド領域_サイド切り替え_複数人一枚絵'>複数人一枚絵</button></font></div>"
 ELSE
 	表示文字列 += @"<div rect='{LOCAL}, {LOCAL:2 - 15}, {LOCAL:1}, 200' padding='25,15,0' color='#101010' border='31' bcolor='#C0C0C0'><font color='#%カラーパレット_HTML("グレーアウト")%'><button value='サイド領域_サイド切り替え_複数人一枚絵'>複数人一枚絵</button></font></div>"
@@ -125,6 +125,15 @@ NEXT
 
 @サイド領域_実行処理
 #DIM 入力数値
+
+IF RESULTS == "サイド領域_NovelAI設定"
+	CALL OPTION_NOVELAI
+	RETURN 1
+ENDIF
+IF RESULTS == "サイド領域_NovelAI再生成"
+	CALL NAI_再生成
+	RETURN 1
+ENDIF
 
 IF STRCOUNT(RESULTS, "サイド領域_サイド切り替え_")
 	IF サイド描画表示種類 == "同室者" && STRCOUNT(RESULTS, "同室者")
@@ -707,8 +716,13 @@ ENDIF
 @サイド描画表示種類_複数人一枚絵(表示文字列, 追加表示文字列)
 #DIMS REF 表示文字列
 #DIMS REF 追加表示文字列
+#DIM 画像幅
+#DIMS 生成状態
 
-CALL 複数人一枚絵_表示処理()
+CALL NAI_画像取得
+IF !RESULT
+	CALL 複数人一枚絵_表示処理()
+ENDIF
 
 IF RESULTS != ""
 	;何番でもいいけどとりあえず19990を使用
@@ -717,6 +731,16 @@ IF RESULTS != ""
 	CALL GCREATE_拡張子(19990, RESULTS)
 	IF RESULT
 		SPRITECREATE "複数人一枚絵", 19990
-		表示文字列 += @"<img src='複数人一枚絵' width='{GWIDTH(19990) / GETCONFIG("フォントサイズ") * 100}' height='{GHEIGHT(19990) / GETCONFIG("フォントサイズ") * 100}'>"
+		画像幅 = MIN(4000, 3650 * GWIDTH(19990) / GHEIGHT(19990), GWIDTH(19990) * 100 / GETCONFIG("フォントサイズ"))
+		表示文字列 += @"<img src='複数人一枚絵' width='{画像幅}' height='{画像幅 * GHEIGHT(19990) / GWIDTH(19990)}'>"
 	ENDIF
 ENDIF
+; 親divを閉じた後に合成される追加領域へ出す（Emueraはdivの入れ子不可）。
+追加表示文字列 += "<div rect='5625,3820,4100,450'><button value='サイド領域_NovelAI設定'>[NovelAI設定]</button> <button value='サイド領域_サイド切り替え_複数人一枚絵'>[画像更新]</button>"
+IF NAI_有効()
+	追加表示文字列 += " <button value='サイド領域_NovelAI再生成'>[再生成]</button>"
+	生成状態 '= LOADTEXT("novelai/runtime/status.txt", 0, 1)
+	生成状態 '= REPLACE(REPLACE(REPLACE(生成状態, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+	追加表示文字列 += @"<br>%生成状態%"
+ENDIF
+追加表示文字列 += "</div>"

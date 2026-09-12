@@ -5,6 +5,7 @@ PRINTL [1] - コマンドフィルタ
 PRINTL [2] - 特定素質の切り替え
 PRINTL [3] - 機能切り替え
 PRINTL [4] - 起床時刻の設定
+PRINTL [5] - NovelAI 自動一枚絵の設定
 PRINTL 
 PRINTL [100] - 周回引き継ぎバグ対応ボタン
 PRINTL [101] - 履歴多重登録バグ対応ボタン
@@ -53,6 +54,8 @@ ELSEIF RESULT == 4
 			GOTO INPUT_LOOP2
 		CFLAG:MASTER:起床予定時刻 = RESULT * 60
 	ENDIF
+ELSEIF RESULT == 5
+	CALL OPTION_NOVELAI
 ELSEIF RESULT == 100
 	PRINTL 周回でキャラを引き継いだ時にエラーが発生してしまう現象へ対処するボタンです
 	PRINTL 現在存在するキャラの関係性を全てリセットし、初期状態に戻します

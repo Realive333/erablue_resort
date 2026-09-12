@@ -1,0 +1,14 @@
+{
+    "steps":  23,
+    "scale":  5,
+    "sampler":  "k_euler_ancestral",
+    "seed":  -1,
+    "minimum_interval_seconds":  30,
+    "maximum_generations_per_run":  20,
+    "noise_schedule":  "karras",
+    "cfg_rescale":  0,
+    "prompt_format":  "auto",
+    "model":  "nai-diffusion-5-full",
+    "width":  1024,
+    "height":  1024
+}
