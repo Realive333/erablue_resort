@@ -15,11 +15,26 @@ Assert ($spec.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3) 'V
 Assert ($spec.Payload.input -match 'talking together') '動作の辞書変換'
 Assert ($spec.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) '正負プロンプトの人数一致'
 $sameScene = Read-Scene ($request.Replace('100-1', '200-2'))
-Assert ((New-Payload $sameScene $config $PSScriptRoot).Hash -eq $spec.Hash) '要求IDが違ってもキャッシュ共有'
+$imageName = Get-ImageName $scene
+Assert ($imageName -ceq '0-123-456_会話する.png') '画像名はキャラNOと行動テキストだけ'
+Assert ((Get-ImageName $sameScene) -ceq $imageName) '同じ条件では要求IDが変わっても同じ画像名'
+$movedIndex = Read-Scene ($request.Replace("character`t7`t", "character`t70`t").Replace("mode`t0`t7`t", "mode`t0`t70`t"))
+Assert ((Get-ImageName $movedIndex) -ceq $imageName) 'ゲーム内配列番号が変わってもキャラNOで再利用'
+$unmappedA = Read-Scene ($request.Replace('会話する', '未登録A'))
+$unmappedB = Read-Scene ($request.Replace('会話する', '未登録B'))
+Assert ((Get-ImageName $unmappedA) -cne (Get-ImageName $unmappedB)) '同じタグでも異なる行動を区別'
+$literalAction = Read-Scene ($request.Replace('会話する', '会話する (テスト)+写真'))
+Assert ((Get-ImageName $literalAction) -ceq '0-123-456_会話する (テスト)+写真.png') '空白や括弧など使える文字はそのまま残す'
+$unsafeAction = Read-Scene ($request.Replace('会話する', 'path/with:bad*chars?'))
+Assert ((Get-ImageName $unsafeAction) -ceq '0-123-456_path_with_bad_chars_.png') 'ファイル名の禁止文字だけ置換'
+$longAction = Read-Scene ($request.Replace('会話する', ('長い動作' * 60)))
+$rejected = $false
+try { Get-ImageName $longAction | Out-Null } catch { $rejected = $true }
+Assert $rejected '長すぎる名前は切り詰めて別の画像と衝突させず送信前に拒否'
 $changed = Read-Scene ($request.Replace('会話する', '散歩する'))
-Assert ((New-Payload $changed $config $PSScriptRoot).Hash -ne $spec.Hash) '動作変化をキャッシュに反映'
+Assert ((New-Payload $changed $config $PSScriptRoot).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
 $data.Characters['123'] = 'blue hair'
-Assert ((New-Payload $scene $config $PSScriptRoot $data).Hash -ne $spec.Hash) '個別キャラ設定変更を反映'
+Assert ((New-Payload $scene $config $PSScriptRoot $data).Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -ceq 'blue hair') '個別キャラ設定変更を反映'
 $data.Actions['会話する'] = [pscustomobject]@{ scene = 'conversation'; actor = 'speaking'; target = 'listening' }
 $roles = New-Payload $scene $config $PSScriptRoot $data
 Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -match 'speaking') '実行者に動作を付与'
@@ -77,7 +92,6 @@ try {
         Assert ($v5.Payload.parameters.noise_schedule -eq 'karras' -and $v5Config.noise_schedule -eq 'native') 'V5送信時だけKarrasを強制'
         Assert ($v5.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3 -and
             $v5.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) 'V5でも正負の個別キャラ設定を送信'
-        Assert ($v5.Hash -ne $v4.Hash) 'モデル変更で旧画像キャッシュを流用しない'
     }
     $before = Read-Text (Join-Path $testDirectory 'config.json')
     $rejected = $false
@@ -104,13 +118,13 @@ try {
     Write-Atomic (Join-Path $testDirectory 'prompts.csv') $savedCsv
     Write-Atomic (Join-Path $testDirectory 'enabled.txt') '1'
     Write-Atomic (Join-Path $testDirectory 'request.txt') $request
-    Publish-Image $sameScene $spec.Hash
+    Publish-Image $sameScene $imageName
     Assert (-not (Test-Path (Join-Path $testDirectory 'response.txt'))) '古い要求への応答を表示しない'
-    Publish-Image $scene $spec.Hash
-    Assert ((Read-Text (Join-Path $testDirectory 'response.txt')) -eq ("100-1`n" + $spec.Hash)) '一致する要求の応答'
+    Publish-Image $scene $imageName
+    Assert ((Read-Text (Join-Path $testDirectory 'response.txt')) -eq ("100-1`n" + $imageName)) '一致する要求の応答'
     Write-Atomic (Join-Path $testDirectory 'enabled.txt') '0'
-    Publish-Image $scene ('a' * 64)
-    Assert ((Read-Text (Join-Path $testDirectory 'response.txt')) -eq ("100-1`n" + $spec.Hash)) '無効化後は応答を書き換えない'
+    Publish-Image $scene 'other.png'
+    Assert ((Read-Text (Join-Path $testDirectory 'response.txt')) -eq ("100-1`n" + $imageName)) '無効化後は応答を書き換えない'
 
     Add-Type -AssemblyName System.Drawing
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -123,6 +137,12 @@ try {
     $outputImage = Join-Path $testDirectory 'output.png'
     Save-GeneratedImage $archivePath $outputImage
     Assert (Test-Path $outputImage) 'API形式ZIPからPNGを取得（ZIP内パスは使用しない）'
+    Save-GeneratedImage $archivePath $outputImage
+    $originalImageHash = (Get-FileHash -LiteralPath $outputImage).Hash
+    Write-Atomic (Join-Path $testDirectory 'bad.zip') 'invalid zip'
+    $rejected = $false
+    try { Save-GeneratedImage (Join-Path $testDirectory 'bad.zip') $outputImage } catch { $rejected = $true }
+    Assert ($rejected -and (Get-FileHash -LiteralPath $outputImage).Hash -eq $originalImageHash) '再生成は有効PNGだけを置換し不正応答時は旧画像を保持'
 
     # 実HTTPの代わりに上で作ったAPI形式ZIPを返し、ワーカー全経路を検証。
     $originalRoot = $script:Root
@@ -130,39 +150,88 @@ try {
     $script:Root = $testDirectory
     $env:NOVELAI_API_TOKEN = 'offline-test-token'
     $script:HttpCalls = 0
+    $script:SentSeeds = @()
+    Update-Setting $testDirectory 'config' 'seed' '4294967295'
     function Invoke-WebRequest {
         param([switch]$UseBasicParsing, $Method, $Uri, $MaximumRedirection, $Headers, $ContentType, $Body, $OutFile, $TimeoutSec)
         $script:HttpCalls++
         Assert ($Uri -eq 'https://image.novelai.net/ai/generate-image') '送信先は公式API'
         Assert ($Headers.Accept -eq 'application/zip') 'ZIP応答を要求'
         $sent = [Text.Encoding]::UTF8.GetString($Body) | ConvertFrom-Json
+        $script:SentSeeds += $sent.parameters.seed
         Assert ($sent.model -eq 'nai-diffusion-5-full' -and $sent.parameters.params_version -eq 4 -and
             $sent.parameters.noise_schedule -eq 'karras') 'ワーカーの実送信経路でV5形式を確認'
         [IO.File]::Copy($archivePath, $OutFile, $true)
     }
     try {
         Write-Atomic (Join-Path $testDirectory 'enabled.txt') '1'
-        Invoke-Worker -Once
+        $cacheDirectory = Join-Path $testDirectory 'resources/NovelAI'
+        [void][IO.Directory]::CreateDirectory($cacheDirectory)
+        $namedImage = Join-Path $cacheDirectory $imageName
+        Copy-Item -LiteralPath $outputImage -Destination $namedImage
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 0) 'IDと行動名で置いた画像をAPI送信せず再利用'
+        Remove-Item -LiteralPath $namedImage
+        $recordPath = Join-Path $testDirectory ('attempts/' + $imageName + '.txt')
+        Write-Atomic $recordPath '前回の送信記録'
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 0) '同じIDと行動の送信記録で自動再送を防止'
+        Remove-Item -LiteralPath $recordPath
+        Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 1) '新しい場面で1回だけ生成'
-        Invoke-Worker -Once
+        Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 1) '再起動後はキャッシュを使用'
+        Assert ((Test-Path -LiteralPath $namedImage) -and (Read-Text (Join-Path $testDirectory 'response.txt')).EndsWith([IO.Path]::GetFileName($namedImage))) '生成画像名をゲームへ返す'
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n100-1`n500-1`nEND`t500-1"
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 2 -and $script:SentSeeds[0] -eq 4294967295 -and $script:SentSeeds[1] -lt 2147483647) '再生成ボタンはキャッシュを迂回して新しいSeedで1回送信'
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 2) '消費済みの再生成要求を再起動後に繰り返さない'
+        Update-Setting $testDirectory 'config' 'scale' '6'
+        Update-Setting $testDirectory 'prompts' 'system' 'changed system'
+        Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-3'
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 2) 'モデル・プロンプト・設定を変えても同じIDと行動なら再利用'
+        Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-5-full'
+        function Invoke-WebRequest { $script:HttpCalls++; throw "mock network failure: $env:NOVELAI_API_TOKEN" }
+        $beforeRegenerate = (Get-FileHash -LiteralPath $namedImage).Hash
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n100-1`n500-2`nEND`t500-2"
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 3 -and (Get-FileHash -LiteralPath $namedImage).Hash -eq $beforeRegenerate) '再生成失敗時は旧画像を保持'
+        Remove-Item -LiteralPath $namedImage
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 3) '旧画像がない場合も失敗した再生成を通常生成として自動再送しない'
+        Copy-Item -LiteralPath $outputImage -Destination $namedImage
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n999-1`n500-3`nEND`t500-3"
+        Invoke-Worker -Once -Directory $testDirectory
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n100-1`n500-4"
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 3) '別の場面や書込途中の再生成要求ではキャッシュを迂回しない'
         Write-Atomic (Join-Path $testDirectory 'request.txt') ($request.Replace('100-1', '300-1').Replace('会話する', '散歩する'))
         function Invoke-WebRequest { $script:HttpCalls++; throw "mock network failure: $env:NOVELAI_API_TOKEN" }
-        $failureLog = (@(& { Invoke-Worker -Once } 6>&1) | Out-String)
+        $failureLog = (@(& { Invoke-Worker -Once -Directory $testDirectory } 6>&1) | Out-String)
         Assert ($failureLog.Contains('APIエラー:') -and $failureLog.Contains('[redacted]') -and -not $failureLog.Contains($env:NOVELAI_API_TOKEN)) 'APIエラー詳細を表示してもキーをログに出さない'
-        Assert ($script:HttpCalls -eq 2) '別の動作を生成'
-        Invoke-Worker -Once
-        Assert ($script:HttpCalls -eq 2) '失敗後も再起動で勝手に再送しない'
-        Write-Atomic (Join-Path $testDirectory 'retry.txt') 'retry-1'
-        Invoke-Worker -Once
-        Assert ($script:HttpCalls -eq 3) '明示再試行でのみ再送'
+        Assert ($script:HttpCalls -eq 4) '別の動作を生成'
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 4) '失敗後も再起動で勝手に再送しない'
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n300-1`n500-5`nEND`t500-5"
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 5) '明示再試行でのみ再送'
         Write-Atomic (Join-Path $testDirectory 'enabled.txt') '0'
-        Write-Atomic (Join-Path $testDirectory 'retry.txt') 'retry-2'
-        Invoke-Worker -Once
-        Assert ($script:HttpCalls -eq 3) '無効中は送信しない'
+        Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n300-1`n500-6`nEND`t500-6"
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 5) '無効中は送信しない'
+        Update-Setting $testDirectory 'characters' '789' 'green hair'
+        $newIdentityRequest = $request.Replace('100-1', '700-1').Replace("character`t7`t123", "character`t7`t789")
+        $newIdentity = Read-Scene $newIdentityRequest
+        Assert ((Get-ImageName $newIdentity) -ceq '0-789-456_会話する.png') '同じプロンプトの別キャラはIDで区別'
+        Write-Atomic (Join-Path $testDirectory 'enabled.txt') '1'
+        Write-Atomic (Join-Path $testDirectory 'request.txt') $newIdentityRequest
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 6) '同じプロンプトでも別キャラIDの新条件を過去の送信記録で止めない'
     }
     finally { $script:Root = $originalRoot; $env:NOVELAI_API_TOKEN = $originalToken }
-    Write-Host 'PASS: CSV / config / models / scene / cache / validation / stale response / ZIP / worker / retry'
+    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker'
 }
 finally {
     $script:Runtime = $realRuntime

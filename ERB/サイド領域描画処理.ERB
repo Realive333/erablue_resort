@@ -1,4 +1,4 @@
-@サイド領域描画
+﻿@サイド領域描画
 #DIMS 表示文字列
 #DIMS 追加表示文字列
 
@@ -128,6 +128,10 @@ NEXT
 
 IF RESULTS == "サイド領域_NovelAI設定"
 	CALL OPTION_NOVELAI
+	RETURN 1
+ENDIF
+IF RESULTS == "サイド領域_NovelAI再生成"
+	CALL NAI_再生成
 	RETURN 1
 ENDIF
 
@@ -734,6 +738,7 @@ ENDIF
 ; 親divを閉じた後に合成される追加領域へ出す（Emueraはdivの入れ子不可）。
 追加表示文字列 += "<div rect='5625,3820,4100,450'><button value='サイド領域_NovelAI設定'>[NovelAI設定]</button> <button value='サイド領域_サイド切り替え_複数人一枚絵'>[画像更新]</button>"
 IF NAI_有効()
+	追加表示文字列 += " <button value='サイド領域_NovelAI再生成'>[再生成]</button>"
 	生成状態 '= LOADTEXT("novelai/runtime/status.txt", 0, 1)
 	生成状態 '= REPLACE(REPLACE(REPLACE(生成状態, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
 	追加表示文字列 += @"<br>%生成状態%"

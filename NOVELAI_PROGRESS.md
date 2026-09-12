@@ -14,7 +14,11 @@
 - ゲーム内[1]/[2]は固定system/negative、[3]はプレイヤー、[7]は相手のcharacters.csvを編集。NAI_キャラ番号を生成と編集で共用（あなたキャラ化記録も一致）。`settings.ps1`がtxt要求を処理し画面用の値を同期。生成中の編集は応答後に処理。
 - V4/V4.5/V5の個別キャラキャプション、V3の単一プロンプト。未知モデルはprompt_formatを明示する。
 - V5 Full/Curatedの公開とモデルIDを公式サイト・公開クライアントで確認。config.jsonのmodelをnai-diffusion-5-fullへ更新。V5はparams_version=4、送信時Karras固定、prompt_formatはauto/v4（legacyは保存拒否）。既存モデルの送信形式とNoise schedule設定は保持。
-- 同一送信内容はSHA256キャッシュ。最新要求のみ生成、古い応答は表示しない。送信前に永続記録し、中断・失敗後の重複送信を防止。
+- 最新のユーザー指定で画像識別用ハッシュを完全廃止。画像名は`0-123_会話する.png`（キャラNO列＋行動テキストだけ）。Get-HashとNew-PayloadのHash、旧ハッシュとの照合を削除。モデル/プロンプト/設定変更後も同じID・行動なら既存画像を使い、作り直しは再生成のみ。
+- 行動名の空白・括弧などはそのまま保持、Windowsの禁止文字だけ置換。複数行動は+で連結、未指定は待機。名前は切り詰めず180文字超過を送信前に拒否。旧画像は改名・削除せず保持し、対応するID・行動が分かる場合は手動で命名すれば利用可能。
+- 一枚絵の[再生成]と設定[8]は同じNAI_再生成へ接続。現在の場面専用に1回だけキャッシュを迂回し、新しいSeedで送信。PNG確認後に原子的に置換し、失敗・中断時は旧画像を保持。通常の間隔/上限は有効。
+- 再生成通信: regenerate.txtは4行（NAIREGEN1/要求ID/チケット/END＋タブ＋チケット）。regenerate-result.txtは3行（チケット/画像名/状態）。送信前に消費済みを記録。同じID・行動の失敗を自動再送しない。送信記録も平文名（画像名.txt または regenerate-チケット.txt）。旧retry.txt/旧ハッシュ記録の照合は廃止。
+- 応答2行目は拡張子付き画像名。ERBのNAI_画像名が旧64桁ハッシュ応答も受け取り、区切り文字などを拒否してresources/NovelAI内だけを読む。
 - 生成完了は次のゲーム操作/「画像更新」で表示。入力待ち画面を外部から自動再描画する仕組みはない。
 
 ## 主要ファイル
@@ -37,11 +41,12 @@
 - 実Emueraから設定要求→別プロセスのSync-Settings→CSV保存・モデル変更・不正幅拒否も検証済み（使い終えた隔離環境は削除済み）。
 - `git -c core.whitespace=cr-at-eol diff --check`: PASS。ERBのCRLFとPowerShellのUTF-8 BOMを維持。
 - ログ追加後もtest.ps1はPASS。日時付き状態ログの重複抑止と、APIエラー詳細のキー非表示を検証。
+- ハッシュ廃止後も両テストPASS。ID・行動だけの命名、手動配置PNGの再利用、モデル/設定/プロンプト変更後もAPI送信しないこと、名前の安定性・文字の保持、1回だけ再生成、失敗/画像欠損時の再送防止、別キャラIDでの生成をAPIモックで検証。Invoke-Worker -Directoryでテスト専用CSV/configを読む。
+- 実Emueraで日本語・空白・括弧を含む画像名、旧応答名、不正パス拒否、再生成要求の書込、ボタン表示、表示中のPNGを原子的に置換して再描画後のサイズが変わることを確認。
 
 ## 運用・残る確認
-- 更新前に稼働していたワーカーを停止・更新・再起動済み。現在は稼働中、画面用設定もV5 Fullへ同期済み。ゲーム内の新しいモデル選択肢を読み込むにはゲーム再起動が必要。既存APIキーを保持、再入力不要。
-- 再起動後の自動生成でV5 Fullの実API生成・PNG保存を確認。preview.jsonはmodel=nai-diffusion-5-full、params_version=4、noise_schedule=karras。応答ハッシュと対応PNGの存在が一致。追加の手動生成は行っていない。調査はruntime/status.txtとpreview.jsonから始め、キーをチャットへ出さない。
-- キャラテンプレート廃止後もワーカー再起動済み。新しいCSV検索・組立結果のハッシュと応答/保存画像が一致、生成成功を確認。prompts.csvのsystem/negativeは元の値を保持し、キャラ設定・行動CSV・config・APIキーも維持。新しい設定メニューはゲーム再起動後に反映。
-- 隠しワーカーを停止し、ログ付きの通常ウィンドウで起動済み。コンソール親プロセスとworker.lockの占有、状態更新を確認。再開はnovelai/start.cmdを開く。
+- 現在のブランチはauto-image。今回開始時はmainだったため、実装のあるauto-imageへ切替。キャッシュ/再生成の変更は未コミット。
+- 過去にV5 Fullの実API生成・PNG保存は確認済み。今回の変更はAPIモックと実Emueraで検証し、実API送信や通常ワーカーの起動は行っていない。反映にはゲーム再起動とnovelai/start.cmdで起動が必要。
+- 当ターン開始時のruntimeはattempts/preview.jsonのみ（.gitkeep除外）。APIキー・有効設定があると決めつけない。既存画像・記録とCSV/configは今回変更せず維持。調査時はキーをチャットへ出さない。
 - 公式API: https://image.novelai.net/docs/doc.json
 - V5公式案内: https://novelai.net/v5 。仕様確認元: https://novelai.net/_next/static/chunks/pages/_app-b7172cc1a6a0b340.js （2026-09-12、公開モデル定数・初期params_version・V5送信時のKarras固定・v4Prompts対応）。

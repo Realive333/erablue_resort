@@ -100,14 +100,37 @@ SIF 人数 < 2 || シーン != NAI_前回シーン
 	RETURN 0
 SPLIT LOADTEXT("novelai/runtime/response.txt", 0, 1), "\n", 応答
 IF RESULT >= 2 && 応答:0 == NAI_要求ID
-	IF STRCOUNT(応答:1, "^[a-f0-9]{64}$") == 1
-		RESULTS = NovelAI/%応答:1%.png
+	応答:1 '= NAI_画像名(応答:1)
+	IF 応答:1 != ""
+		RESULTS = NovelAI/%応答:1%
 		SIF EXISTFILE(@"resources/%RESULTS%")
 			RETURN 1
 	ENDIF
 ENDIF
 RESULTS =
 RETURN 0
+
+@NAI_画像名(名前)
+#FUNCTIONS
+#DIMS 名前
+; 旧ハッシュ応答も読み、フォルダー外へのパスは拒否する。
+SIF STRCOUNT(名前, "^[a-f0-9]{64}$") == 1
+	RETURNF 名前 + ".png"
+SIF STRCOUNT(名前, "^[^<>:\\x22/\\\\|?*\\x00-\\x1F]{1,176}\\.png$") == 1
+	RETURNF 名前
+RETURNF ""
+
+@NAI_再生成
+#DIMS 再生成ID
+SIF !NAI_有効()
+	RETURN 0
+CALL NAI_画像取得
+SIF NAI_要求ID == "" || STRCOUNT(NAI_前回シーン, "(^|\\n)character\\t") == 0
+	RETURN 0
+NAI_要求連番 ++
+再生成ID = {GETTIME()}-{NAI_要求連番}
+SAVETEXT @"NAIREGEN1\n%NAI_要求ID%\n%再生成ID%\nEND\t%再生成ID%", "novelai/runtime/regenerate.txt", 0, 1
+RETURN RESULT
 
 @OPTION_NOVELAI
 #DIMS 項目, 2
@@ -129,7 +152,7 @@ FOR 選択, 0, 2
 NEXT
 PRINTL [3] 現在のプレイヤーの個別キャラプロンプト（キャラNOで保存）
 PRINTL [7] 現在の相手の個別キャラプロンプト（キャラNOで保存）
-PRINTL [8] 失敗した生成を再試行
+PRINTL [8] 画像を再生成（失敗時も再試行）
 PRINTL [9] NovelAIのモデル・生成設定
 PRINTL [999] 戻る
 PRINTL 固定システム＋現在のキャラNOに対応するプロンプト＋現在の行動タグを自動で組み合わせます。
@@ -149,7 +172,7 @@ ELSEIF 選択 == 0
 	ENDIF
 	NAI_前回シーン =
 ELSEIF 選択 == 8
-	SAVETEXT TOSTR(GETTIME()), "novelai/runtime/retry.txt", 0, 1
+	CALL NAI_再生成
 ELSEIF 選択 == 9
 	CALL OPTION_NOVELAI_CONFIG
 ELSEIF (選択 >= 1 && 選択 <= 3) || 選択 == 7
