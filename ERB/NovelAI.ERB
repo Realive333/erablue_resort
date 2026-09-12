@@ -26,8 +26,6 @@ RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n"
 
 @NAI_画像取得
 #DIMS シーン
-#DIMS 動作
-#DIMS モード行
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -46,7 +44,6 @@ VARSET 登録, -1
 人数 = 1
 シーン '= NAI_キャラ行("player", PLAYER)
 シーン += @"place\t{CFLAG:PLAYER:現在マップ種別}\t{CFLAG:PLAYER:現在位置}\n"
-モード行 =
 
 ; 選択中の相手を第1キャラクターにする。同室者を無差別に追加しない。
 IF TARGET >= 0 && TARGET < CHARANUM && TARGET != PLAYER
@@ -77,13 +74,10 @@ FOR 行, 0, DT_ROW_LENGTH("体位モードデータベース")
 		人数 ++
 		シーン += NAI_キャラ行("character", 接触者)
 	ENDIF
-	動作 '= DT_CELL_GETS("体位モードデータベース", 行, "モード名")
-	モード行 += @"mode\t{実行者}\t{相手}\t%NAI_項目(動作)%\n"
 NEXT
-IF モード行 != ""
-	シーン += モード行
-ELSEIF 人数 > 1 && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
-	シーン += @"action\t%NAI_項目(SELECTCOM_NAME履歴:0)%\n"
+; 画像の行動は直近コマンドだけ。継続動作のDBは接触キャラの取得に使う。
+IF 人数 > 1 && 登録:1 == TARGET && SELECTCOM_NAME履歴:0 != "" && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
+	シーン += @"mode\t{PLAYER}\t{TARGET}\t%NAI_項目(SELECTCOM_NAME履歴:0)%\n"
 ENDIF
 
 ; 自動コマンド連打中には要求を増やさない。
@@ -196,6 +190,7 @@ ELSEIF (選択 >= 1 && 選択 <= 3) || 選択 == 7
 	ENDIF
 	PRINTL
 	PRINTL 新しい内容を1行で入力（空欄は取り消し、-のみで空にする）:
+	PRINTSL "半角の括弧は \\( と \\) と入力してください（例: tag \\(series\\)）。"
 	INPUTS
 	IF RESULTS != ""
 		SIF RESULTS == "-"
