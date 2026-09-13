@@ -4,13 +4,20 @@ $ErrorActionPreference = 'Stop'
 function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $config = Read-Text (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
 $data = Read-PromptData $PSScriptRoot
+# ユーザーが編集した行動タグに依存せず、テスト用の短いタグで検証する。
+$actionFixtures = @(
+    [pscustomobject]@{ name = '会話する'; scene = 'talking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+    [pscustomobject]@{ name = '散歩する'; scene = 'walking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+    [pscustomobject]@{ name = '待機'; scene = ''; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+)
+foreach ($row in $actionFixtures) { $data.Actions[$row.name] = $row }
 $request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`tテスト相手`ncharacter`t8`t456`t二人目`nplace`t0`t1`nmode`t0`t7`t会話する`nEND`t100-1"
 $scene = Read-Scene $request
 Assert ($scene.Characters.Count -eq 3) 'プレイヤーと接触相手の読込'
 Assert ($null -eq (Read-Scene ($request.Replace('END', 'BROKEN')))) '途中の要求を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace('mode' + "`t0`t7", 'mode' + "`t7`t8")))) 'プレイヤー無関係の動作を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace("character`t8", "character`t7")))) '重複キャラを拒否'
-$spec = New-Payload $scene $config $PSScriptRoot
+$spec = New-Payload $scene $config $PSScriptRoot $data
 Assert ($spec.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3) 'V4個別キャプション'
 Assert ($spec.Payload.input -match 'talking together') '動作の辞書変換'
 Assert ($spec.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) '正負プロンプトの人数一致'
@@ -32,13 +39,15 @@ $rejected = $false
 try { Get-ImageName $longAction | Out-Null } catch { $rejected = $true }
 Assert $rejected '長すぎる名前は切り詰めて別の画像と衝突させず送信前に拒否'
 $changed = Read-Scene ($request.Replace('会話する', '散歩する'))
-Assert ((New-Payload $changed $config $PSScriptRoot).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
+Assert ((New-Payload $changed $config $PSScriptRoot $data).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
 $data.Characters['123'] = 'blue hair'
-Assert ((New-Payload $scene $config $PSScriptRoot $data).Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -ceq 'blue hair') '個別キャラ設定変更を反映'
+Assert ((New-Payload $scene $config $PSScriptRoot $data).Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'blue hair') '先頭の目標キャラに個別設定変更を反映'
 $data.Actions['会話する'] = [pscustomobject]@{ scene = 'conversation'; actor = 'speaking'; target = 'listening' }
 $roles = New-Payload $scene $config $PSScriptRoot $data
-Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -match 'speaking') '実行者に動作を付与'
-Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -match 'listening') '対象者に動作を付与'
+Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -match 'speaking') '順序変更後も実行者に動作を付与'
+Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -match 'listening') '順序変更後も対象者に動作を付与'
+Assert (($roles.CharacterNos -join ',') -ceq '123,0,456') 'APIのキャラ順は目標・プレイヤー・追加の接触相手'
+Assert ((Get-ImageName $scene) -ceq $imageName -and ($scene.Characters.No -join ',') -ceq '0,123,456') 'プロンプト順を変えてもシーンと画像名のID順を維持'
 $config.width = 833
 $rejected = $false
 try { New-Payload $scene $config $PSScriptRoot | Out-Null } catch { $rejected = $true }
@@ -52,12 +61,26 @@ try {
     $statusLog = @(& { Set-Status 'test status'; Set-Status 'test status' } 6>&1)
     Assert ($statusLog.Count -eq 1 -and "$($statusLog[0])" -match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] test status$') '状態ログは日時付きで変更時に1回だけ表示'
     foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $testDirectory $file) }
+    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target', 'source', 'status')
     $complexPrompt = "comma, quote `"OK`"`nand second line 日本語"
     Update-Setting $testDirectory 'prompts' 'system' $complexPrompt
     Assert ((Read-PromptData $testDirectory).Prompts.system -ceq $complexPrompt) 'CSVのカンマ・引用符・改行・日本語を保持'
     Update-Setting $testDirectory 'characters' '9999' $complexPrompt
     Assert ((Read-PromptData $testDirectory).Characters['9999'] -ceq $complexPrompt) 'CSV個別キャラの追加'
     Update-Setting $testDirectory 'prompts' 'system' 'fixed system'
+    $idleScene = Read-Scene ($request.Replace("mode`t0`t7`t会話する`n", ''))
+    $idleConfig = Read-Text (Join-Path $testDirectory 'config.json') | ConvertFrom-Json
+    $actionRows = @(Import-Csv -LiteralPath (Join-Path $testDirectory 'actions.csv') -Encoding UTF8)
+    $idleRow = $actionRows | Where-Object name -eq '待機'
+    Assert ($null -ne $idleRow) '待機項目をCSVに定義（タグ空欄も許可）'
+    $idleRow.scene = 'standing together, relaxed'
+    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionRows @('name', 'scene', 'actor', 'target', 'source', 'status')
+    foreach ($fallbackScene in @($idleScene, $unmappedA)) {
+        $idle = New-Payload $fallbackScene $idleConfig $testDirectory
+        Assert ($idle.Payload.input -ceq 'fixed system, standing together, relaxed') '行動なし・未登録時に待機CSVの編集内容を反映'
+    }
+    Assert ((Get-ImageName $idleScene) -ceq '0-123-456_待機.png') '待機タグを編集しても画像名はIDと待機のまま'
+    Assert ($idle.UnknownActions -contains '未登録A') '待機タグを使っても未登録行動のログ情報を保持'
     Update-Setting $testDirectory 'characters' '0' 'red jacket'
     Update-Setting $testDirectory 'characters' '123' 'blue hair'
     Update-Setting $testDirectory 'characters' '456' ' '
@@ -65,19 +88,19 @@ try {
     $lookup = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     $captions = $lookup.Payload.parameters.v4_prompt.caption.char_captions
     Assert ($lookup.Payload.input -ceq 'fixed system, talking together') '固定システムに現在の行動CSVを結合'
-    Assert ($captions[0].char_caption -ceq 'red jacket' -and $captions[1].char_caption -ceq 'blue hair') 'プレイヤーも接触相手もゲーム内NOでCSVを検索'
+    Assert ($captions[0].char_caption -ceq 'blue hair' -and $captions[1].char_caption -ceq 'red jacket') 'ゲーム内NOでCSVを検索し目標→プレイヤー順で結合'
     Assert ($captions[2].char_caption -ceq '二人目') '空欄キャラはゲーム内の名前を使用'
     Update-Setting $testDirectory 'characters' '123' 'green hair'
     $lookup = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
-    Assert ($lookup.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -ceq 'green hair') '実行中のキャラCSV変更を次回組立時に反映'
+    Assert ($lookup.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'green hair') '実行中のキャラCSV変更を次回組立時に反映'
     $otherCharacter = Read-Scene ($request.Replace("character`t7`t123", "character`t7`t789"))
     $lookup = New-Payload $otherCharacter ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
-    Assert ($lookup.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -ceq 'テスト相手') '未登録のキャラNOへ変わると以前のプロンプトを流用しない'
+    Assert ($lookup.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'テスト相手') '未登録のキャラNOへ変わると以前のプロンプトを流用しない'
     Assert ((Read-Text (Join-Path $testDirectory 'prompts.csv')) -ceq $fixedPrompts) '実行時の組立で固定プロンプトCSVを書き換えない'
     Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-3'
     $v3 = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     Assert (-not $v3.Payload.parameters.Contains('v4_prompt')) 'V3へ切替時に個別キャプションを除去'
-    Assert ($v3.Payload.input -ceq 'fixed system, talking together, red jacket, green hair, 二人目') 'V3でもシステム・行動・現在の全キャラを結合'
+    Assert ($v3.Payload.input -ceq 'fixed system, talking together, green hair, red jacket, 二人目') 'V3でも目標→プレイヤー順に全キャラを結合'
     Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-4-5-full'
     Update-Setting $testDirectory 'config' 'width' '1024'
     $v4 = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
@@ -158,6 +181,7 @@ try {
         Assert ($Uri -eq 'https://image.novelai.net/ai/generate-image') '送信先は公式API'
         Assert ($Headers.Accept -eq 'application/zip') 'ZIP応答を要求'
         $sent = [Text.Encoding]::UTF8.GetString($Body) | ConvertFrom-Json
+        $script:SentPayload = $sent
         $script:SentSeeds += $sent.parameters.seed
         Assert ($sent.model -eq 'nai-diffusion-5-full' -and $sent.parameters.params_version -eq 4 -and
             $sent.parameters.noise_schedule -eq 'karras') 'ワーカーの実送信経路でV5形式を確認'
@@ -177,8 +201,17 @@ try {
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 0) '同じIDと行動の送信記録で自動再送を防止'
         Remove-Item -LiteralPath $recordPath
-        Invoke-Worker -Once -Directory $testDirectory
+        $promptLog = (@(& { Invoke-Worker -Once -Directory $testDirectory } 6>&1) | ForEach-Object { [string]$_ }) -join "`n"
         Assert ($script:HttpCalls -eq 1) '新しい場面で1回だけ生成'
+        Assert ($promptLog.Contains('全体プロンプト: ' + ($script:SentPayload.input -replace '[\r\n\t]', ' '))) '送信した全体プロンプトを省略せずログ表示'
+        Assert ($promptLog.Contains('ネガティブプロンプト: ' + ($script:SentPayload.parameters.negative_prompt -replace '[\r\n\t]', ' '))) '送信したネガティブをログ表示'
+        $expectedNos = @('123', '0', '456')
+        for ($i = 0; $i -lt $expectedNos.Count; $i++) {
+            $caption = $script:SentPayload.parameters.v4_prompt.caption.char_captions[$i].char_caption
+            Assert ($promptLog.Contains(('キャラ{0}（NO={1}）プロンプト: {2}' -f ($i + 1), $expectedNos[$i], ($caption -replace '[\r\n\t]', ' ')))) '全キャラの送信プロンプトを並び順に合うNO付きでログ表示'
+            Assert ($promptLog.Contains(('キャラ{0}（NO={1}）ネガティブ:' -f ($i + 1), $expectedNos[$i]))) '全キャラのネガティブ欄も表示'
+        }
+        Assert (-not $promptLog.Contains($env:NOVELAI_API_TOKEN)) 'プロンプトログにAPIキーを含めない'
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 1) '再起動後はキャッシュを使用'
         Assert ((Test-Path -LiteralPath $namedImage) -and (Read-Text (Join-Path $testDirectory 'response.txt')).EndsWith([IO.Path]::GetFileName($namedImage))) '生成画像名をゲームへ返す'

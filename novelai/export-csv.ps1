@@ -7,6 +7,7 @@ $directory = $PSScriptRoot
 
 # 日常動作の初期タグ。意味を決められない名前は空欄・要設定のまま出力する。
 $seeds = @{
+    '待機' = 'relaxed pose, spending time together'
     '会話' = 'talking together'; '会話する' = 'talking together'; 'お茶を淹れる' = 'serving tea, teacup'
     'スキンシップ' = 'gentle interaction'; '口説く' = 'talking, smiling'; '知識を教わる' = 'studying together, book'
     'ハグする' = 'hugging'; 'プレゼントを渡す' = 'giving a gift, gift box'; '起こす' = 'waking up, bedroom'
