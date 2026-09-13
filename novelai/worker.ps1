@@ -90,12 +90,18 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
         else { $unknown += $mode.Name }
     }
     $actionText = Join-Tags $actions
-    if (-not $actionText) { $actionText = 'relaxed pose, spending time together' }
+    if (-not $actionText) { $actionText = [string](Get-Entry (Get-Entry $Data.Actions '待機') 'scene') }
     $basePrompt = Join-Tags @($Data.Prompts.system, $actionText)
     $negative = $Data.Prompts.negative
     $captions = @()
     $negativeCaptions = @()
-    foreach ($character in $Scene.Characters) {
+    # APIの先頭2人だけを目標→プレイヤーにする。シーンと画像名のID順は保持。
+    $promptCharacters = $Scene.Characters.Clone()
+    if ($promptCharacters.Count -gt 1) {
+        $promptCharacters[0] = $Scene.Characters[1]
+        $promptCharacters[1] = $Scene.Characters[0]
+    }
+    foreach ($character in $promptCharacters) {
         $description = Get-Entry $Data.Characters $character.No
         if ([string]::IsNullOrWhiteSpace($description)) { $description = $character.Name }
         $caption = Join-Tags (@($description) + @($characterActions[$character.Index]))
@@ -120,7 +126,7 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     $payload = [ordered]@{ input = $basePrompt; model = $Config.model; action = 'generate'; parameters = $parameters }
     $json = ConvertTo-Json $payload -Depth 15 -Compress
     if ($json.Length -gt 24000) { throw 'プロンプトが長すぎます。短いタグに整理してください。' }
-    return [pscustomobject]@{ Payload = $payload; UnknownActions = @($unknown | Select-Object -Unique) }
+    return [pscustomobject]@{ Payload = $payload; CharacterNos = @($promptCharacters.No); UnknownActions = @($unknown | Select-Object -Unique) }
 }
 
 function Get-ImageName($Scene) {
@@ -257,6 +263,14 @@ function Invoke-Worker {
                 $count++
                 Set-Status ("生成中（{0}/{1}）。完了後に一枚絵タブを押すと更新できます。" -f $count, $config.maximum_generations_per_run)
                 Write-Log ('API送信 | {0}x{1} | steps={2} | seed={3} | プロンプト: novelai/runtime/preview.json' -f $config.width, $config.height, $config.steps, $spec.Payload.parameters.seed)
+                Write-Log ('全体プロンプト: ' + $spec.Payload.input)
+                Write-Log ('ネガティブプロンプト: ' + $spec.Payload.parameters.negative_prompt)
+                if ($spec.Payload.parameters.Contains('v4_prompt')) {
+                    for ($i = 0; $i -lt $scene.Characters.Count; $i++) {
+                        Write-Log ('キャラ{0}（NO={1}）プロンプト: {2}' -f ($i + 1), $spec.CharacterNos[$i], $spec.Payload.parameters.v4_prompt.caption.char_captions[$i].char_caption)
+                        Write-Log ('キャラ{0}（NO={1}）ネガティブ: {2}' -f ($i + 1), $spec.CharacterNos[$i], $spec.Payload.parameters.v4_negative_prompt.caption.char_captions[$i].char_caption)
+                    }
+                }
                 $archive = Join-Path $script:Runtime 'download.zip'
                 try {
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12

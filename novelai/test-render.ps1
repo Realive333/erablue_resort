@@ -12,6 +12,9 @@ try {
     New-Item -ItemType HardLink -Path (Join-Path $testRoot 'Emuera.exe') -Value $executable.FullName | Out-Null
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/GameBase.csv'), "コード,1`nバージョン,1`nタイトル,NovelAI Render Test", $utf8)
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/Flag.csv'), '0,あなたキャラ化記録', $utf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/CFlag.csv'), "300,現在位置`n330,現在マップ種別", $utf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/TFlag.csv'), "221,オートコマンドフラグ`n222,オートコマンド連続発動", $utf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/TestVariables.ERH'), "#DIM コマンド履歴, 50`n#DIMS SELECTCOM_NAME履歴, 5", $utf8)
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/Chara0.csv'), "番号,0`n名前,主人公", $utf8)
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/Chara123.csv'), "番号,123`n名前,相手", $utf8)
     Copy-Item -LiteralPath (Join-Path $root 'ERB/汎用変数定義/NovelAI.ERH') -Destination (Join-Path $testRoot 'ERB/NovelAI.ERH')
@@ -25,15 +28,17 @@ try {
     $renderer = [regex]::Match($source, '(?ms)^@サイド描画表示種類_複数人一枚絵\(.*?(?=^@|\z)').Value
     if (-not $renderer) { throw '一枚絵描画関数が見つかりません。' }
     $naiSource = [IO.File]::ReadAllText((Join-Path $root 'ERB/NovelAI.ERB'), $utf8)
-    foreach ($name in 'NAI_項目', 'NAI_キャラ番号', 'NAI_キャラ行', 'NAI_画像名', 'NAI_再生成', 'OPTION_NOVELAI', 'NAI_設定値', 'NAI_設定更新', 'OPTION_NOVELAI_CONFIG') {
+    foreach ($name in 'NAI_項目', 'NAI_キャラ番号', 'NAI_キャラ行', 'NAI_画像取得', 'NAI_画像名', 'NAI_再生成', 'OPTION_NOVELAI', 'NAI_設定値', 'NAI_設定更新', 'OPTION_NOVELAI_CONFIG') {
         $function = [regex]::Match($naiSource, ('(?ms)^@' + $name + '(?:\(|\r?\n).*?(?=^@|\z)')).Value
         if (-not $function) { throw "関数が見つかりません: $name" }
+        if ($name -eq 'NAI_画像取得') { $function = $function.Replace('@NAI_画像取得', '@NAI_画像取得_実機テスト') }
         $renderer += "`n" + $function
     }
     $testCode = @'
 @SYSTEM_TITLE
 #DIMS 本文
 #DIMS 追加
+#DIMS 前回要求
 ADDCHARA 0
 ADDCHARA 123
 MASTER = 0
@@ -51,6 +56,36 @@ SIF NAI_画像名("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SIF NAI_画像名("../outside.png") != "" || NAI_画像名("nested/file.png") != ""
     THROW フォルダー外の画像名を拒否できません。
 TFLAG:0 = 1
+PLAYER = 0
+TARGET = 1
+コマンド履歴:5 = TARGET
+DT_CREATE "体位モードデータベース"
+DT_COLUMN_ADD "体位モードデータベース", "モード名"
+DT_COLUMN_ADD "体位モードデータベース", "実行キャラ", 3
+DT_COLUMN_ADD "体位モードデータベース", "対象キャラ", 3
+DT_ROW_ADD "体位モードデータベース", "モード名", "手を繋ぐ", "実行キャラ", PLAYER, "対象キャラ", TARGET
+SELECTCOM_NAME履歴:0 = 会話する
+CALL NAI_画像取得_実機テスト
+本文 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(本文, "手を繋ぐ") >= 0 || STRFIND(本文, "mode\t0\t1\t会話する\n") < 0
+    THROW 継続動作があっても直近コマンドだけを送信する必要があります。
+前回要求 '= NAI_要求ID
+SELECTCOM_NAME履歴:0 = 写真を撮る
+CALL NAI_画像取得_実機テスト
+本文 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF 前回要求 == NAI_要求ID || STRFIND(本文, "mode\t0\t1\t写真を撮る\n") < 0 || STRFIND(本文, "会話する") >= 0 || STRFIND(本文, "手を繋ぐ") >= 0
+    THROW 継続動作を保ったまま直近コマンドを変更できません。
+コマンド履歴:5 = -1
+CALL NAI_画像取得_実機テスト
+本文 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(本文, "mode\t") >= 0
+    THROW 別の対象への履歴を現在の行動に含めています。
+DT_CLEAR "体位モードデータベース"
+SELECTCOM_NAME履歴:0 =
+CALL NAI_画像取得_実機テスト
+本文 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(本文, "mode\t") >= 0 || STRFIND(本文, "action\t") >= 0
+    THROW 行動終了後に待機へ戻れません。
 NAI_要求ID = 100-1
 NAI_前回シーン = player\t0\t456\t主人公\ncharacter\t1\t123\t相手\n
 CALL NAI_再生成
@@ -86,6 +121,9 @@ QUIT
 @NAI_有効
 #FUNCTION
 RETURNF TFLAG:0
+@IS_SAME_ROOM(ARG, ARG:1)
+#FUNCTION
+RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在マップ種別 == CFLAG:(ARG:1):現在マップ種別
 @NAI_画像取得
 RESULTS =
 IF TFLAG:1
@@ -123,7 +161,7 @@ RETURN RESULT
     if ($regen.Count -ne 4 -or $regen[0] -ne 'NAIREGEN1' -or $regen[1] -ne '100-1' -or $regen[2] -notmatch '^\d+-\d+$' -or $regen[3] -cne ("END`t" + $regen[2])) {
         throw 'Emueraからの再生成要求形式が一致しません。'
     }
-    Write-Host 'PASS: Emuera character IDs / image names / regenerate request / image replacement / settings parse / HTML_PRINT'
+    Write-Host 'PASS: Emuera latest action only / idle / character IDs / image names / regenerate request / image replacement / settings parse / HTML_PRINT'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
