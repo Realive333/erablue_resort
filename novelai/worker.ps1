@@ -261,7 +261,7 @@ function Invoke-Worker {
                 if ($force -or $spec.Payload.parameters.seed -eq -1) { $spec.Payload.parameters.seed = Get-Random -Minimum 0 -Maximum 2147483647 }
                 $lastRequest = [datetime]::UtcNow
                 $count++
-                Set-Status ("生成中（{0}/{1}）。完了後に一枚絵タブを押すと更新できます。" -f $count, $config.maximum_generations_per_run)
+                Set-Status ("生成中（{0}/{1}）。NovelAIタブで自動表示します。" -f $count, $config.maximum_generations_per_run)
                 Write-Log ('API送信 | {0}x{1} | steps={2} | seed={3} | プロンプト: novelai/runtime/preview.json' -f $config.width, $config.height, $config.steps, $spec.Payload.parameters.seed)
                 Write-Log ('全体プロンプト: ' + $spec.Payload.input)
                 Write-Log ('ネガティブプロンプト: ' + $spec.Payload.parameters.negative_prompt)
@@ -281,9 +281,9 @@ function Invoke-Worker {
                     Save-GeneratedImage $archive $imagePath
                     Write-Log ('画像保存: ' + $imagePath)
                     Write-Atomic $attemptPath '生成完了。'
-                    if ($force) { Write-Atomic $regenResultPath ($regenToken + "`n" + $imageName + "`n再生成完了。一枚絵タブを押すか次の操作で反映されます。") }
+                    if ($force) { Write-Atomic $regenResultPath ($regenToken + "`n" + $imageName + "`n再生成完了。NovelAIタブへ自動反映します。") }
                     Publish-Image $scene $imageName
-                    Set-Status '生成完了。一枚絵タブを押すか次の操作で反映されます。'
+                    Set-Status '生成完了。NovelAIタブへ自動反映します。'
                 }
                 catch {
                     $code = if ($null -ne $_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }

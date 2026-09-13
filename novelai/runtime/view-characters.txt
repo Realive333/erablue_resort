@@ -1,3 +1,9 @@
-11	girl, galleon granblue fantasy,
-20	girl, zeta granblue fantasy,
-3006	boy, akiyama mizuki, shota, clothed, possessive desire expression
+11	girl, galleon (granblue fantasy),
+12	girl. wamdus /granblue fantasy/, loli, child, petite
+195	girl, orchis, loli, petite,
+20	girl, zeta (granblue fantasy),
+21	girl, beatrix (granblue fantasy), focus
+24	girl, medusa (shingeki no bahamut), loli, petite
+27	girl, djeeta (granblue fantasy), sage (granblue fantasy)
+28	girl, lyria (granblue fantasy), petite
+3006	boy, akiyama mizuki, otoko no ko, shota, clothed, possessive desire expression

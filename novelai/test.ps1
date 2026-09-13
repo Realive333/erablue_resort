@@ -4,13 +4,20 @@ $ErrorActionPreference = 'Stop'
 function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 $config = Read-Text (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
 $data = Read-PromptData $PSScriptRoot
+# ユーザーが編集した行動タグに依存せず、テスト用の短いタグで検証する。
+$actionFixtures = @(
+    [pscustomobject]@{ name = '会話する'; scene = 'talking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+    [pscustomobject]@{ name = '散歩する'; scene = 'walking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+    [pscustomobject]@{ name = '待機'; scene = ''; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+)
+foreach ($row in $actionFixtures) { $data.Actions[$row.name] = $row }
 $request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`tテスト相手`ncharacter`t8`t456`t二人目`nplace`t0`t1`nmode`t0`t7`t会話する`nEND`t100-1"
 $scene = Read-Scene $request
 Assert ($scene.Characters.Count -eq 3) 'プレイヤーと接触相手の読込'
 Assert ($null -eq (Read-Scene ($request.Replace('END', 'BROKEN')))) '途中の要求を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace('mode' + "`t0`t7", 'mode' + "`t7`t8")))) 'プレイヤー無関係の動作を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace("character`t8", "character`t7")))) '重複キャラを拒否'
-$spec = New-Payload $scene $config $PSScriptRoot
+$spec = New-Payload $scene $config $PSScriptRoot $data
 Assert ($spec.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3) 'V4個別キャプション'
 Assert ($spec.Payload.input -match 'talking together') '動作の辞書変換'
 Assert ($spec.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) '正負プロンプトの人数一致'
@@ -32,7 +39,7 @@ $rejected = $false
 try { Get-ImageName $longAction | Out-Null } catch { $rejected = $true }
 Assert $rejected '長すぎる名前は切り詰めて別の画像と衝突させず送信前に拒否'
 $changed = Read-Scene ($request.Replace('会話する', '散歩する'))
-Assert ((New-Payload $changed $config $PSScriptRoot).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
+Assert ((New-Payload $changed $config $PSScriptRoot $data).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
 $data.Characters['123'] = 'blue hair'
 Assert ((New-Payload $scene $config $PSScriptRoot $data).Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'blue hair') '先頭の目標キャラに個別設定変更を反映'
 $data.Actions['会話する'] = [pscustomobject]@{ scene = 'conversation'; actor = 'speaking'; target = 'listening' }
@@ -54,6 +61,7 @@ try {
     $statusLog = @(& { Set-Status 'test status'; Set-Status 'test status' } 6>&1)
     Assert ($statusLog.Count -eq 1 -and "$($statusLog[0])" -match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] test status$') '状態ログは日時付きで変更時に1回だけ表示'
     foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $testDirectory $file) }
+    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target', 'source', 'status')
     $complexPrompt = "comma, quote `"OK`"`nand second line 日本語"
     Update-Setting $testDirectory 'prompts' 'system' $complexPrompt
     Assert ((Read-PromptData $testDirectory).Prompts.system -ceq $complexPrompt) 'CSVのカンマ・引用符・改行・日本語を保持'
