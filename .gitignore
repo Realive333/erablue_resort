@@ -37,3 +37,7 @@ resources/汎用グラフィック/*.webp
 !resources/_ANIME/effect_妊娠膣内射精.webp
 !resources/体位サンプル/*.webp
 !resources/ara.webp
+/novelai/runtime/*
+!/novelai/runtime/.gitkeep
+!/novelai/config.json
+/resources/NovelAI/
