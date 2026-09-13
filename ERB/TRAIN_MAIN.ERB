@@ -16,7 +16,7 @@ ELSE
 	ENDIF
 	RESULT = -1
 	SIF NEXTCOM == -1 && RFLAG:追跡フラグ == 0
-		INPUTANY
+		CALL TRAIN_コマンド入力
 	
 	IF STRCOUNT(RESULTS, "サイド領域") > 0
 		RFLAG:サイドボタン操作 = 1
@@ -55,6 +55,14 @@ ELSE
 	RESTART
 ENDIF
 
+
+@TRAIN_コマンド入力
+IF OPTION変数:サイド領域非表示 == 0 && EXISTFUNCTION("NAI_コマンド入力")
+	CALL NAI_コマンド入力
+ELSE
+	INPUTANY
+ENDIF
+RETURN RESULT
 
 @TRAIN_MAIN
 ;変数初期化
@@ -127,7 +135,7 @@ ELSE
 	RESULT = -1
 	RESULTS = 
 	SIF NEXTCOM == -1
-		INPUTANY
+		CALL TRAIN_コマンド入力
 	
 	IF STRCOUNT(RESULTS, "サイド領域") > 0
 		RFLAG:サイドボタン操作 = 1
