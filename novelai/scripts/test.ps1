@@ -2,8 +2,8 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'worker.ps1') -Library
 function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
-$config = Read-Text (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
-$data = Read-PromptData $PSScriptRoot
+$config = Read-Text (Join-Path $script:NovelAiDirectory 'config.json') | ConvertFrom-Json
+$data = Read-PromptData $script:NovelAiDirectory
 # ユーザーが編集した行動タグに依存せず、テスト用の短いタグで検証する。
 $actionFixtures = @(
     [pscustomobject]@{ name = '会話する'; scene = 'talking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
@@ -17,7 +17,7 @@ Assert ($scene.Characters.Count -eq 3) 'プレイヤーと接触相手の読込'
 Assert ($null -eq (Read-Scene ($request.Replace('END', 'BROKEN')))) '途中の要求を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace('mode' + "`t0`t7", 'mode' + "`t7`t8")))) 'プレイヤー無関係の動作を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace("character`t8", "character`t7")))) '重複キャラを拒否'
-$spec = New-Payload $scene $config $PSScriptRoot $data
+$spec = New-Payload $scene $config $script:NovelAiDirectory $data
 Assert ($spec.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3) 'V4個別キャプション'
 Assert ($spec.Payload.input -match 'talking together') '動作の辞書変換'
 Assert ($spec.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) '正負プロンプトの人数一致'
@@ -39,18 +39,18 @@ $rejected = $false
 try { Get-ImageName $longAction | Out-Null } catch { $rejected = $true }
 Assert $rejected '長すぎる名前は切り詰めて別の画像と衝突させず送信前に拒否'
 $changed = Read-Scene ($request.Replace('会話する', '散歩する'))
-Assert ((New-Payload $changed $config $PSScriptRoot $data).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
+Assert ((New-Payload $changed $config $script:NovelAiDirectory $data).Payload.input -match 'walking together') '動作変化をプロンプトに反映'
 $data.Characters['123'] = 'blue hair'
-Assert ((New-Payload $scene $config $PSScriptRoot $data).Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'blue hair') '先頭の目標キャラに個別設定変更を反映'
+Assert ((New-Payload $scene $config $script:NovelAiDirectory $data).Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'blue hair') '先頭の目標キャラに個別設定変更を反映'
 $data.Actions['会話する'] = [pscustomobject]@{ scene = 'conversation'; actor = 'speaking'; target = 'listening' }
-$roles = New-Payload $scene $config $PSScriptRoot $data
+$roles = New-Payload $scene $config $script:NovelAiDirectory $data
 Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -match 'speaking') '順序変更後も実行者に動作を付与'
 Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -match 'listening') '順序変更後も対象者に動作を付与'
 Assert (($roles.CharacterNos -join ',') -ceq '123,0,456') 'APIのキャラ順は目標・プレイヤー・追加の接触相手'
 Assert ((Get-ImageName $scene) -ceq $imageName -and ($scene.Characters.No -join ',') -ceq '0,123,456') 'プロンプト順を変えてもシーンと画像名のID順を維持'
 $config.width = 833
 $rejected = $false
-try { New-Payload $scene $config $PSScriptRoot | Out-Null } catch { $rejected = $true }
+try { New-Payload $scene $config $script:NovelAiDirectory | Out-Null } catch { $rejected = $true }
 Assert $rejected '不正な解像度を送信前に拒否'
 
 $testDirectory = Join-Path $script:Runtime ('test-' + [guid]::NewGuid().ToString('N'))
@@ -60,7 +60,7 @@ try {
     $script:Runtime = $testDirectory
     $statusLog = @(& { Set-Status 'test status'; Set-Status 'test status' } 6>&1)
     Assert ($statusLog.Count -eq 1 -and "$($statusLog[0])" -match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] test status$') '状態ログは日時付きで変更時に1回だけ表示'
-    foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $testDirectory $file) }
+    foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
     Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target', 'source', 'status')
     $complexPrompt = "comma, quote `"OK`"`nand second line 日本語"
     Update-Setting $testDirectory 'prompts' 'system' $complexPrompt
@@ -97,18 +97,18 @@ try {
     $lookup = New-Payload $otherCharacter ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     Assert ($lookup.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -ceq 'テスト相手') '未登録のキャラNOへ変わると以前のプロンプトを流用しない'
     Assert ((Read-Text (Join-Path $testDirectory 'prompts.csv')) -ceq $fixedPrompts) '実行時の組立で固定プロンプトCSVを書き換えない'
-    Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-3'
+    Set-Model 'nai-diffusion-3' $testDirectory
     $v3 = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     Assert (-not $v3.Payload.parameters.Contains('v4_prompt')) 'V3へ切替時に個別キャプションを除去'
     Assert ($v3.Payload.input -ceq 'fixed system, talking together, green hair, red jacket, 二人目') 'V3でも目標→プレイヤー順に全キャラを結合'
-    Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-4-5-full'
+    Set-Model 'nai-diffusion-4-5-full' $testDirectory
     Update-Setting $testDirectory 'config' 'width' '1024'
     $v4 = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     Assert ($v4.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3 -and $v4.Payload.parameters.width -eq 1024) 'モデル・設定変更を反映'
     Assert ($v4.Payload.parameters.params_version -eq 3) '既存V4の送信形式を維持'
     Update-Setting $testDirectory 'config' 'noise_schedule' 'native'
     foreach ($model in 'nai-diffusion-5-full', 'nai-diffusion-5-curated') {
-        Update-Setting $testDirectory 'config' 'model' $model
+        Set-Model $model $testDirectory
         $v5Config = Read-Text (Join-Path $testDirectory 'config.json') | ConvertFrom-Json
         $v5 = New-Payload $scene $v5Config $testDirectory
         Assert ($v5.Payload.model -eq $model -and $v5.Payload.parameters.params_version -eq 4) 'V5のモデルIDと送信バージョン'
@@ -120,10 +120,10 @@ try {
     $rejected = $false
     try { Update-Setting $testDirectory 'config' 'prompt_format' 'legacy' } catch { $rejected = $true }
     Assert ($rejected -and (Read-Text (Join-Path $testDirectory 'config.json')) -ceq $before) 'V5の非対応形式を保存しない'
-    Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-4-5-full'
+    Set-Model 'nai-diffusion-4-5-full' $testDirectory
     $back = New-Payload $scene ((Read-Text (Join-Path $testDirectory 'config.json')) | ConvertFrom-Json) $testDirectory
     Assert ($back.Payload.parameters.params_version -eq 3 -and $back.Payload.parameters.noise_schedule -eq 'native') 'V4へ戻すと設定済みscheduleを再利用'
-    Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-5-full'
+    Set-Model 'nai-diffusion-5-full' $testDirectory
     $before = Read-Text (Join-Path $testDirectory 'config.json')
     $rejected = $false
     try { Update-Setting $testDirectory 'config' 'width' '833' } catch { $rejected = $true }
@@ -222,10 +222,10 @@ try {
         Assert ($script:HttpCalls -eq 2) '消費済みの再生成要求を再起動後に繰り返さない'
         Update-Setting $testDirectory 'config' 'scale' '6'
         Update-Setting $testDirectory 'prompts' 'system' 'changed system'
-        Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-3'
+        Set-Model 'nai-diffusion-3' $testDirectory
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 2) 'モデル・プロンプト・設定を変えても同じIDと行動なら再利用'
-        Update-Setting $testDirectory 'config' 'model' 'nai-diffusion-5-full'
+        Set-Model 'nai-diffusion-5-full' $testDirectory
         function Invoke-WebRequest { $script:HttpCalls++; throw "mock network failure: $env:NOVELAI_API_TOKEN" }
         $beforeRegenerate = (Get-FileHash -LiteralPath $namedImage).Hash
         Write-Atomic (Join-Path $testDirectory 'regenerate.txt') "NAIREGEN1`n100-1`n500-2`nEND`t500-2"

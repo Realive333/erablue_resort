@@ -1,108 +1,83 @@
 # NovelAI 自動一枚絵
 
-ゲーム内の「NovelAI」タブを表示すると、選択中の相手・接触中のキャラと直近の行動を参照して画像を生成します。プレイヤー1人＋接触相手最大5人。同室でも接触していない他キャラは追加しません。
+ゲーム内の「NovelAI」タブで、プレイヤー・接触中のキャラ・直近の行動を使った画像を生成します。対象はプレイヤー1人＋接触相手最大5人です。
 
-## 開始・停止
+## 導入・起動
 
-1. `setup-token.cmd` を開き、NovelAIの **Persistent API token** を入力します。Windowsの現在のユーザーだけが復号できる形式で `runtime/token.dpapi` に保存します。環境変数 `NOVELAI_API_TOKEN` でも指定できます（こちらを優先）。
-2. `start.cmd` を開きます。ログを表示するウィンドウでWindows標準のPowerShellが動き続けます。Pythonや追加パッケージは不要です。
-3. ゲームを再起動し、`OPTION → [5] NovelAI 自動一枚絵の設定 → [0] 有効` に切り替え、「複数人一枚絵」タブを開きます。タブ内の `[NovelAI設定]` からも編集できます。
+1. NovelAIを使う場合は `setup-token.cmd` を実行して **Persistent API token** を入力します。トークンは現在のWindowsユーザーだけが復号できる `runtime/token.dpapi` に保存されます。環境変数 `NOVELAI_API_TOKEN` も使え、こちらが優先されます。
+2. `start.cmd` を実行します。Windows標準のPowerShellだけで動作します。
+3. ゲームを再起動し、`OPTION → [5] NovelAI 自動一枚絵の設定 → [0] 有効` にして「複数人一枚絵」タブを開きます。
 
-初期状態は無効です。有効化後の生成には契約に応じてAnlasが必要です。初期設定は1回1枚、30秒以上の間隔、ワーカー起動1回につき最大20回の送信です。失敗した送信も上限に数えます。
+初期状態は無効です。初期設定は1回1枚、生成間隔30秒以上、ワーカー起動1回につき最大20送信です。失敗した送信も上限に数えます。生成には契約に応じてAnlasが必要です。
 
-**ウィンドウを閉じるとワーカーも終了します。** `stop.cmd` でも停止でき、通信中の場合はその応答・タイムアウト後に停止します。処理が終了・異常終了した場合はログ確認用にウィンドウが残るので、キーを押して閉じてください。ゲーム内で無効にすると、新たな生成と生成画像の表示を停止します。
+`stop.cmd` で停止できます。ウィンドウを閉じても停止します。通信中は応答またはタイムアウト後に停止します。ゲーム内で無効にすると新規生成と画像表示を停止します。ログは `runtime/preview.json` でも確認できます（APIキーは含みません）。
 
-ログには日時、状態変化、要求ID、モデル、キャラNO、行動、画像名、API送信・画像保存・エラー詳細・設定変更を表示します。生成・再生成の送信時には、全体プロンプト、全体ネガティブ、各キャラのプロンプトとネガティブを全文表示します（V3は全キャラを含む結合済みプロンプト）。同じ状態を毎秒繰り返し表示しません。`runtime/preview.json` でも確認できます。APIキーは表示しません。
+保存済み画像は「NovelAI」タブに表示され、生成・再生成の完了時に自動更新されます。表示更新でゲーム内時間は進みません。導入・更新後はゲームをセーブして再起動してください。MOD本体は `ERB/追加MOD_NovelAI一枚絵/`、入力待ち中の更新には `ERB/TRAIN_MAIN.ERB` の入力フックが必要です。
 
-「NovelAI」タブでは、保存済み画像があればその場で表示します。コマンド入力待ち中も約0.2秒ごとに確認し、生成・再生成が完了した画像と状態を自動表示します。入力途中の文字とログ行数を保ち、表示更新でゲーム内の時間は進めません。画像の縦横比を保って表示枠に収めます。`[再生成]` は同じ場面の画像を作り直し、完了までは以前の画像を表示します。
+## ローカル生成（ComfyUI / Forge Neo）
 
-導入・更新後はゲームをセーブして再起動してください。`ERB/追加MOD_NovelAI一枚絵/` がMOD本体です。入力待ち中の更新には `ERB/TRAIN_MAIN.ERB` の入力フックも必要です。その他のタブ・設定メニューでは通常の入力待ちになります。
+NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます。先にバックエンドを起動してください。
 
-## CSVでプロンプトを管理
+1. ComfyUIは通常起動、Forge Neoは `--api` 付きで起動します。既定APIはForge Neoが `http://127.0.0.1:7860`、ComfyUIが `http://127.0.0.1:8188` です。
+2. `set-backend.cmd` で `comfyui` または `forge` とAPI URLを設定します。NovelAIへ戻す場合は `novelai` を選びます。
+3. ComfyUIでは **ワークフロー → 書き出し(API)** のJSONを `novelai/comfyui-workflow.json` に置きます。`comfyui-workflow.sample` は標準構成のサンプルです。別workflowでは `config.json` の `comfyui_*_node` を実際のノード番号に変更します。
+4. `set-model.cmd` でモデルを設定します。Forge Neoは `/sdapi/v1/options`、ComfyUIは `comfyui_model_node` の `ckpt_name`（または `unet_name` / `model_name`）を使います。モデルはゲーム内では変更しません。
+5. `start.cmd` を実行し、ゲーム内で自動生成を有効にします。保存先、キャッシュ、再生成、失敗時の自動再送禁止はNovelAIと同じです。
 
-以下の3ファイルが現在の設定元です。Excel等では **CSV UTF-8** で保存してください。カンマ・二重引用符・セル内改行に対応します。編集後はワーカーが自動で読み直します。
+標準以外のComfyUI workflow（Flux、SD3、Qwenなど）では、正負プロンプト、Seed、Steps、CFG、幅、高さを受け取るノードを用意し、`config.json` の番号を合わせてください。応答画像は `resources/NovelAI/` にPNGで保存されます。
 
-| ファイル | 列 | 用途 |
+## CSVプロンプト
+
+編集後はワーカーが自動で読み直します。Excelなどでは **CSV UTF-8** で保存してください。
+
+| ファイル | 列 | 内容 |
 | --- | --- | --- |
-| `prompts.csv` | `key,prompt` | 固定システム・ネガティブプロンプト |
+| `prompts.csv` | `key,prompt` | `system`（全体指示）と`negative` |
 | `characters.csv` | `no,prompt` | キャラNOごとの外見タグ |
-| `actions.csv` | `name,scene,actor,target,source,status` | 行動名ごとのタグ |
+| `actions.csv` | `name,scene,actor,target,source,status` | 行動タグ |
 
-`prompts.csv` のkeyは `system`（固定の全体指示）と `negative` の2種類です。通常は同じ内容を使い続け、生成時に書き換えません。キャラ別・行動別の定義や差し込みテンプレートは置きません。同じkeyを重複させないでください。
+`prompts.csv` のkeyは `system` と `negative` のみです。`source` と `status` は管理用でAPIには送りません。同じkeyは重複させないでください。
 
-実行時にゲームから現在のプレイヤー・接触相手のキャラNOを取得し、各NOに対応する `characters.csv` のpromptを使います。プレイヤーも同じ検索処理です。未登録・空欄ならゲーム内の名前を使います。同じNOのランダムキャラには同じ設定が適用されます。既存画像ファイルをAPIへ送信する処理はありません。
+実行時にキャラNOを検索し、`characters.csv` のpromptを使います。未登録・空欄ならゲーム内の名前を使います。組立順序は「固定システム → キャラ → 行動 → API用プロンプト」です。V4/V5は全体欄と個別キャラ欄に分け、V3は1本に結合します。
 
-組立順序は「固定システム → 現在のキャラの検索 → 現在の行動の検索 → API用プロンプト作成」です。V4/V5ではシステムと場面の行動タグを全体プロンプトへ、各キャラのpromptとそのキャラの動作を個別キャラ欄へ渡します。V3では全てを1本のプロンプトへ結合します。登場キャラや行動が変われば次回生成時に組み直します。
+キャラの送信順は **目標キャラ → プレイヤー → その他の接触キャラ** です。`scene` は画像全体、`actor` / `target` は実行者・対象者に追加します。既存画像へ反映するには［再生成］を押してください。
 
-キャラプロンプトは **目標キャラ → プレイヤー → その他の接触キャラ** の順で送信・ログ表示します。動作タグは実行者・対象者それぞれに対応します。既存画像にも順序変更を反映する場合は［再生成］を押してください。
+行動CSVには342件を登録し、77件に初期タグを設定しています。残りは空欄・`要設定`です。キーはゲーム内表示名と完全一致します。行動がない、または場面タグがない場合は `待機` 行の `scene` を使います。`export-csv.cmd` で新しい静的コマンド名と継続動作を追加できます。旧TXTプロンプトはCSVへ移行済みです。
 
-`characters.csv` の記入例:
-
-```csv
-no,prompt
-123,"blue hair, green eyes, white shirt"
-456,"brown hair, glasses, blue jacket"
-```
-
-`actions.csv` の記入例:
-
-```csv
-name,scene,actor,target,source,status
-待機,"relaxed pose, spending time together",,,初期タグ,設定済み
-会話,talking together,,,,設定済み
-写真を撮る,taking a photo,holding a camera,posing for a photo,,設定済み
-```
-
-`scene` は画像全体、`actor` は動作の実行者、`target` は対象者へ追加します。`source` は元の定義ファイル、`status` は編集用メモで、APIには送りません。行動タグはこのCSVから直接組み合わせます。
-
-行動CSVには待機・コマンド・継続動作など342件を登録し、77件に初期タグを設定しました。残り265件はタグ空欄・`要設定`です。キーはゲーム内の名前との完全一致です。画像には同じ対象・場所の直近コマンドだけを反映します。継続動作は接触キャラの取得に使います。追加の文章生成AI・自動翻訳は使用しません。
-
-行動がない場合や、空欄・未登録などで場面タグが得られない場合は、`待機`行の`scene`列を使います。この列で待機用プロンプトを変更できます。空欄にすると補完しません。既存画像にも変更を反映する場合はゲームの［再生成］を押してください。
-
-`export-csv.cmd` を再実行すると、新しい行動定義を追加できます。既存の行・編集済みタグは保持します。抽出対象は `ERB/コマンド` 内の静的コマンド名と継続動作定義です。名前が動的に組み立てられるコマンドやキャラ独自のコマンドは、実際の表示名で行を追加してください。
-
-旧TXTプロンプトはCSVへ移行済みです。不要になった旧ファイルと移行処理は削除しました。
-
-## ゲーム内で編集・モデル変更
+## ゲーム内設定・モデル
 
 `OPTION → [5] NovelAI 自動一枚絵の設定`（または一枚絵欄の `[NovelAI設定]`）:
 
-- `[1]` / `[2]`: `prompts.csv` の固定システム / ネガティブを変更。
-- `[3]`: 現在のプレイヤーの `characters.csv` の行を追加・変更。
-- `[7]`: 現在の相手の `characters.csv` の行を追加・変更。
-- `[9]`: 使用モデル、幅、高さ、Steps、プロンプト強度、Sampler、Seed、最小生成間隔、送信上限、CFG Rescale、Noise schedule、プロンプト形式を変更。
+- `[1]` / `[2]`: `prompts.csv` のsystem / negative。
+- `[3]`: 現在のプレイヤーの`characters.csv`。
+- `[7]`: 現在の相手の`characters.csv`。
+- `[9]`: 幅、高さ、Steps、プロンプト強度、Sampler、Seed、生成間隔、送信上限、CFG Rescale、Noise schedule、prompt format。
 
-**ゲーム内からの保存にはワーカーを起動してください。** 生成中は変更が待機し、生成処理の完了後に保存します。CSV・configは外部エディタでも直接編集できます。不正な設定はゲームからは保存せず、外部編集で不正になった場合は新規生成を停止して状態欄にエラーを表示します。
+ゲーム内から保存するにはワーカーを起動してください。CSVとconfigは外部編集も可能です。不正な設定では新規生成を停止します。ゲーム内で半角括弧を入力する場合は `\(` / `\)` を使います。CSVでは括弧をそのまま書けます。[Emuera仕様](https://evilmask.gitlab.io/emuera.em.doc/Emuera/expression.html#inputs)
 
-ゲーム内で半角の括弧を入力する場合は `\(` と `\)` にしてください。例: `beatrix \(granblue fantasy\)` → 保存内容は `beatrix (granblue fantasy)`。Emueraの`INPUTS`は括弧をマクロ記号として処理するため、エスケープなしでは保存前に消えます。CSVを直接編集する場合は括弧をそのまま書けます。[Emuera公式仕様](https://evilmask.gitlab.io/emuera.em.doc/Emuera/expression.html#inputs)
+`config.json` の `backend` は `novelai` / `comfyui` / `forge`、`api_url` はローカルAPIです。NovelAIの初期モデルは `nai-diffusion-5-full` で、変更は `set-model.cmd` で行います。
 
-`config.json` は生成設定用のJSONです。使用モデルは `nai-diffusion-5-full` に更新しました。モデル選択メニューではV5 Full/Curated、V4.5 Curated/Full、V4 Full/Curated Preview、V3を選べます。モデルIDの直接入力もできますが、利用可能なIDはNovelAI側の仕様に従います。[V5の公式案内](https://novelai.net/v5)でFull/Curatedの公開を確認済みです。
+`prompt_format` は `auto`（V3/V4/V4.5/V5）、`v4`（個別キャラ）、`legacy`（単一プロンプト）です。V5は `auto` または `v4` を指定します。V5は `params_version=4`、`noise_schedule=karras` で送信します。ローカルbackendでは全キャラのタグを1本に結合します。
 
-`prompt_format` は `auto`（既知のV3/V4/V4.5/V5）、`v4`（個別キャラキャプション）、`legacy`（単一プロンプト）です。V5も`v4_prompt`形式を使うため、`auto`または`v4`を指定してください。未知のモデルを入力する場合は、先に対応する形式を指定してください。未確認のモデルの動作を保証する設定ではありません。
+幅・高さは64～2048の64倍数、Stepsは1～50、scaleは0～10、CFG Rescaleは0～1です。Seed=-1は新規生成時にランダム化します。
 
-V5では公式クライアントに合わせて`params_version=4`、`noise_schedule=karras`で送信します。Noise scheduleの保存値は保持し、V3/V4系へ戻すと再び使用します。CSVのタグ・解像度・Steps・scale・生成上限などはそのまま引き継ぎます。
+## キャッシュ・再生成・再開
 
-幅・高さは各64～2048の64倍数、Stepsは1～50、scaleは0～10、CFG Rescaleは0～1です。Seed=-1で新規生成時にランダム化します。同じキャラIDと行動なら、モデル・設定・タグを変更しても保存済み画像を使います。変更した内容で作り直す場合は `[再生成]` を押してください。
+- 画像名は `0-123_会話する.png` の形式です。先頭がプレイヤー、以降が接触相手です。複数行動は `+`、行動なしは `待機` です。Windowsで禁止される文字だけ `_` に置き換え、180文字超は送信前にエラーにします。
+- API送信前に `resources/NovelAI/` の同名PNGを再利用します。キャラIDと行動が同じなら、モデル・設定・タグを変えてもキャッシュを使います。変更を反映するには `[再生成]` を押します。
+- 通常は最新の場面だけを生成します。再生成はキャッシュを無視して1回送信し、固定Seedでも新しいSeedを使います。成功したPNGを受信してから置き換えます。
+- 通信失敗・中断は記録し、自動再送しません。失敗時は以前の画像を保持し、再送はもう一度 `[再生成]` を押します。結果不明の送信は課金済みの可能性があります。
+- 上限到達後は `stop.cmd` → `start.cmd` で再開できます。設定・画像・失敗記録は保持されます。
 
-## 節約・再開・確認
+`runtime/status.txt`: 状態、`runtime/preview.json`: API送信内容（キーなし）、`runtime/unmapped-actions.txt`: 未登録の動作名です。コード作業を再開する場合はルートの `NOVELAI_PROGRESS.md` を先に読んでください。
 
-- 画像名は **`0-123_会話する.png`** のように、キャラIDと行動テキストだけです。先頭がプレイヤー、以降が接触相手のNOです。複数の行動は `+` でつなぎ、行動がない場合は `待機` とします。ハッシュは計算・付加しません。
-- API送信前に `resources/NovelAI/` から同じ名前の画像を探し、あれば再表示します。この名前で手動配置したPNGも再利用できます。空白・括弧などはそのまま残し、Windowsで禁止される文字だけ `_` に置き換えます。長い名前は省略せず、180文字を超えたら送信前にエラーにします。
-- 旧ハッシュ名の画像はそのまま残します。自動照合は行わないため、対応するキャラ・行動が分かる画像は上記の名前へ変更すると再利用できます。
-- 要求を積み上げず、待機後は最新の場面だけを生成します。古い場面の応答を現在の画像として表示しません。
-- 一枚絵欄の `[再生成]` または設定の `[8] 画像を再生成` は、キャッシュがあっても現在の場面を1回だけ新しく生成します。この操作では固定Seedの設定時も新しいSeedを使い、有効なPNGを受け取ってから同じファイルを置き換えます。通常の生成間隔・送信上限は適用されます。
-- 通信失敗・中断は永続記録し、ワーカー再起動でも自動再送しません。再生成要求はその場面専用で、古い要求や書込途中の要求は無視します。失敗時は以前の画像を保持し、もう一度 `[再生成]` を押すと再送します。結果不明の送信は既に課金済みの可能性があります。
-- 上限到達時は `stop.cmd` → `start.cmd` で再開できます。設定・生成画像・失敗記録は保持されます。
-- `runtime/status.txt`: 状態。`runtime/preview.json`: API送信内容（キーなし）。`runtime/unmapped-actions.txt`: 追加が必要な動作名。
-- コード作業を再開する場合はルートの `NOVELAI_PROGRESS.md` を最初に読んでください。
-
-オフライン検証（API送信なし）:
+## オフライン検証
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/test.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/test-render.ps1
 ```
 
-APIキーと生成画像・通信ファイルはGit対象外です。`runtime` 全体を削除するとキー・送信記録も消えるため、画像だけを整理する場合は `resources/NovelAI` を対象にしてください。削除した画像を作り直すには「再生成」を選択します。現在の個別キャラ設定は `characters.csv` に保存されています。
+APIキー、生成画像、通信ファイルはGit対象外です。キー・送信記録を残す場合は `runtime` 全体を削除せず、画像だけ `resources/NovelAI` を整理してください。
 
-API仕様: [NovelAI公式画像生成API](https://image.novelai.net/docs/index.html) / [OpenAPI定義](https://image.novelai.net/docs/doc.json)。認証済みの実生成は利用者のAPIキー設定後に確認してください。
+API: [NovelAI](https://image.novelai.net/docs/index.html) / [OpenAPI](https://image.novelai.net/docs/doc.json) / [ComfyUI routes](https://docs.comfy.org/development/comfyui-server/comms_routes) / [ComfyUI workflow example](https://github.com/comfyanonymous/ComfyUI/blob/master/script_examples/basic_api_example.py) / [Forge Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo)

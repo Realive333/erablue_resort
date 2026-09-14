@@ -1,7 +1,8 @@
 ﻿# 本体の一枚絵関数をEmueraのHTML_PRINTまで通す。API・セーブへのアクセスなし。
 $ErrorActionPreference = 'Stop'
-$root = Split-Path $PSScriptRoot -Parent
-$testRoot = Join-Path $PSScriptRoot ('runtime/render-test-' + [guid]::NewGuid().ToString('N'))
+$novelAiDirectory = Split-Path $PSScriptRoot -Parent
+$root = Split-Path $novelAiDirectory -Parent
+$testRoot = Join-Path $novelAiDirectory ('runtime/render-test-' + [guid]::NewGuid().ToString('N'))
 $utf8 = New-Object Text.UTF8Encoding($true)
 $process = $null
 try {
@@ -196,7 +197,7 @@ RETURN RESULT
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
     $resolved = [IO.Path]::GetFullPath($testRoot)
-    $runtime = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'runtime')) + [IO.Path]::DirectorySeparatorChar
+    $runtime = [IO.Path]::GetFullPath((Join-Path $novelAiDirectory 'runtime')) + [IO.Path]::DirectorySeparatorChar
     if ($resolved.StartsWith($runtime) -and [IO.Path]::GetFileName($resolved) -match '^render-test-[a-f0-9]{32}$') {
         Remove-Item -LiteralPath $resolved -Recurse -Force
     }
