@@ -27,7 +27,7 @@ RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n"
 @NAI_画像取得
 #DIMS シーン
 #DIMS 動作
-#DIMS 画像名
+#DIMS モード行
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -46,7 +46,7 @@ VARSET 登録, -1
 人数 = 1
 シーン '= NAI_キャラ行("player", PLAYER)
 シーン += @"place\t{CFLAG:PLAYER:現在マップ種別}\t{CFLAG:PLAYER:現在位置}\n"
-動作 =
+モード行 =
 
 ; 選択中の相手を第1キャラクターにする。同室者を無差別に追加しない。
 IF TARGET >= 0 && TARGET < CHARANUM && TARGET != PLAYER
@@ -77,11 +77,13 @@ FOR 行, 0, DT_ROW_LENGTH("体位モードデータベース")
 		人数 ++
 		シーン += NAI_キャラ行("character", 接触者)
 	ENDIF
+	動作 '= DT_CELL_GETS("体位モードデータベース", 行, "モード名")
+	モード行 += @"mode\t{実行者}\t{相手}\t%NAI_項目(動作)%\n"
 NEXT
-; 画像の行動は直近コマンドだけ。継続動作のDBは接触キャラの取得に使う。
-IF 人数 > 1 && 登録:1 == TARGET && SELECTCOM_NAME履歴:0 != "" && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
-	動作 '= SELECTCOM_NAME履歴:0
-	シーン += @"mode\t{PLAYER}\t{TARGET}\t%NAI_項目(動作)%\n"
+IF モード行 != ""
+	シーン += モード行
+ELSEIF 人数 > 1 && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
+	シーン += @"action\t%NAI_項目(SELECTCOM_NAME履歴:0)%\n"
 ENDIF
 
 ; 自動コマンド連打中には要求を増やさない。
@@ -96,19 +98,6 @@ ENDIF
 RESULTS =
 SIF 人数 < 2 || シーン != NAI_前回シーン
 	RETURN 0
-; 保存済み画像はワーカーの応答を待たず、その場で表示する。
-画像名 '= TOSTR(NAI_キャラ番号(PLAYER))
-FOR 行, 1, 人数
-	画像名 += "-" + TOSTR(NAI_キャラ番号(登録:行))
-NEXT
-SIF 動作 == ""
-	動作 = 待機
-画像名 += "_" + REPLACE(動作, "[<>:\\x22/\\\\|?*\\x00-\\x1F]", "_") + ".png"
-画像名 '= NAI_画像名(画像名)
-IF 画像名 != "" && EXISTFILE(@"resources/NovelAI/%画像名%")
-	RESULTS = NovelAI/%画像名%
-	RETURN 1
-ENDIF
 SPLIT LOADTEXT("novelai/runtime/response.txt", 0, 1), "\n", 応答
 IF RESULT >= 2 && 応答:0 == NAI_要求ID
 	応答:1 '= NAI_画像名(応答:1)
@@ -155,7 +144,7 @@ $メニュー
 DRAWLINE
 PRINTL NovelAI 自動一枚絵
 PRINTFORML [0] 自動生成: \@ NAI_有効() ? 有効 # 無効 \@
-PRINTL NovelAIタブの表示中、場面に合わせて生成し、完了した画像を自動表示します。
+PRINTL 一枚絵タブの表示中、場面の変化に合わせて生成します。
 PRINTL 最初にnovelai/start.cmdでワーカーを起動してください。
 PRINTL 生成はNovelAIの契約に応じてAnlasを消費します。
 FOR 選択, 0, 2
