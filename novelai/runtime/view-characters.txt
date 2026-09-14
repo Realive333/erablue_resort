@@ -1,9 +1,9 @@
 11	girl, galleon (granblue fantasy),
-12	girl. wamdus /granblue fantasy/, loli, child, petite
+12	girl. wamdus (granblue fantasy), loli, child, petite
 192	girl, lily (granblue fantasy), loli, petite
 195	girl, orchis, loli, petite,
 20	girl, zeta (granblue fantasy),
-21	girl, beatrix (granblue fantasy), focus
+21	girl, beatrix (granblue fantasy),
 24	girl, medusa (shingeki no bahamut), loli, petite
 27	girl, djeeta (granblue fantasy), sage (granblue fantasy)
 28	girl, lyria (granblue fantasy), petite
