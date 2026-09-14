@@ -40,104 +40,35 @@ RETURN 1
 @サイド描画表示種類_NovelAI(表示文字列, 追加表示文字列)
 #DIMS REF 表示文字列
 #DIMS REF 追加表示文字列
+#DIM 画像幅
+#DIMS 生成状態
 ;サイド領域の表示関数
 
-; 入力待ち中は同じキャンバスの中身を更新し、本文やボタンを描き直さない。
-GDISPOSE 19990
-SPRITEDISPOSE "NovelAI"
-GCREATE 19990, 1024, 1024
-SPRITECREATE "NovelAI", 19990
-GDISPOSE 19992
-SPRITEDISPOSE "NovelAI状態"
-GCREATE 19992, 1600, 64
-SPRITECREATE "NovelAI状態", 19992
-NAI_表示キー =
-NAI_表示状態 =
-CALL NAI_表示更新
-表示文字列 += "<img src='NovelAI' width='3650' height='3650'>"
+CALL NAI_画像取得
+IF !RESULT
+	RETURN 0
+ENDIF
+
+IF RESULTS != ""
+	;何番でもいいけどとりあえず19990を使用
+	GDISPOSE 19990
+	SPRITEDISPOSE "NovelAI"
+	CALL GCREATE_拡張子(19990, RESULTS)
+	IF RESULT
+		SPRITECREATE "NovelAI", 19990
+		画像幅 = MIN(4000, 3650 * GWIDTH(19990) / GHEIGHT(19990), GWIDTH(19990) * 100 / GETCONFIG("フォントサイズ"))
+		表示文字列 += @"<img src='NovelAI' width='{画像幅}' height='{画像幅 * GHEIGHT(19990) / GWIDTH(19990)}'>"
+	ENDIF
+ENDIF
 ; 親divを閉じた後に合成される追加領域へ出す（Emueraはdivの入れ子不可）。
 追加表示文字列 += "<div rect='5625,3820,4100,450'><button value='サイド領域_NovelAI設定'>[NovelAI設定]</button> <button value='サイド領域_サイド切り替え_NovelAI'>[画像更新]</button>"
 IF NAI_有効()
 	追加表示文字列 += " <button value='サイド領域_NovelAI再生成'>[再生成]</button>"
+	生成状態 '= LOADTEXT("novelai/runtime/status.txt", 0, 1)
+	生成状態 '= REPLACE(REPLACE(REPLACE(生成状態, "&", "&amp;"), "<", "&lt;"), ">", "&gt;")
+	追加表示文字列 += @"<br>%生成状態%"
 ENDIF
-追加表示文字列 += "<br><img src='NovelAI状態' width='4000' height='160'>"
 追加表示文字列 += "</div>"
-
-@NAI_表示更新
-#DIMS 画像パス
-#DIMS 更新キー
-#DIMS 状態
-#DIM 横幅
-#DIM 縦幅
-#DIM 更新
-更新 = 0
-SIF !GCREATED(19990) || !GCREATED(19992)
-	RETURN 0
-CALL NAI_画像取得
-画像パス '= RESULTS
-更新キー = %NAI_要求ID%|%画像パス%|%LOADTEXT("novelai/runtime/regenerate-result.txt", 0, 1)%
-IF 更新キー != NAI_表示キー
-	IF 画像パス == ""
-		GCLEAR 19990, 0xFF101010
-		NAI_表示キー '= 更新キー
-		更新 = 1
-	ELSE
-		GDISPOSE 19991
-		GCREATEFROMFILE 19991, 画像パス
-		IF RESULT
-			横幅 = MAX(1, MIN(1024, 1024 * GWIDTH(19991) / GHEIGHT(19991)))
-			縦幅 = MAX(1, MIN(1024, 1024 * GHEIGHT(19991) / GWIDTH(19991)))
-			GCLEAR 19990, 0xFF101010
-			GDRAWG 19990, 19991, (1024 - 横幅) / 2, (1024 - 縦幅) / 2, 横幅, 縦幅, 0, 0, GWIDTH(19991), GHEIGHT(19991)
-			NAI_表示キー '= 更新キー
-			更新 = 1
-		ENDIF
-		GDISPOSE 19991
-	ENDIF
-ENDIF
-状態 '= LOADTEXT("novelai/runtime/status.txt", 0, 1)
-IF 状態 != NAI_表示状態
-	GCLEAR 19992, 0xFF101010
-	GSETFONT 19992, GETFONT(), 32
-	GSETBRUSH 19992, 0xFFC0C0C0
-	GDRAWTEXT 19992, 状態, 0, 0
-	NAI_表示状態 '= 状態
-	更新 = 1
-ENDIF
-SIF 更新
-	REDRAW 1
-RETURN 更新
-
-@NAI_コマンド入力
-#DIM 行数
-#DIM 入力数値
-IF サイド描画表示種類 != "NovelAI" || !NAI_有効() || !GCREATED(19990)
-	INPUTANY
-	RETURN RESULT
-ENDIF
-$入力待ち
-行数 = LINECOUNT
-RESULTS =
-RESULTS:1 =
-RESULT:1 = 0
-TINPUTS 200, "__NAI_WAIT__", 0, "", 1
-IF RESULTS == "__NAI_WAIT__"
-	SIF LINECOUNT > 行数
-		CLEARLINE LINECOUNT - 行数
-	CALL NAI_表示更新
-	GOTO 入力待ち
-ENDIF
-SIF RESULT:1 != 0
-	RESULTS '= RESULTS:1
-IF RESULTS == ""
-	GOTO 入力待ち
-ENDIF
-IF ISNUMERIC(RESULTS)
-	入力数値 = TOINT(RESULTS)
-	RESULTS =
-	RETURN 入力数値
-ENDIF
-RETURN -1
 
 
 

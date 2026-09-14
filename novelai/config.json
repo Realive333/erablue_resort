@@ -1,4 +1,13 @@
 {
+    "backend":  "novelai",
+    "api_url":  "http://127.0.0.1:8188",
+    "workflow_path":  "comfyui-workflow.json",
+    "comfyui_prompt_node":  "6",
+    "comfyui_negative_node":  "7",
+    "comfyui_sampler_node":  "3",
+    "comfyui_latent_node":  "5",
+    "comfyui_model_node":  "4",
+    "api_timeout_seconds":  600,
     "steps":  23,
     "scale":  5,
     "sampler":  "k_euler_ancestral",

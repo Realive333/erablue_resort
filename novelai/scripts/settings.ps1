@@ -51,8 +51,26 @@ function Get-PromptFormat($Config) {
     throw 'このモデルはprompt_formatにv4またはlegacyを明示してください。'
 }
 
+function Get-Backend($Config) {
+    $backend = [string](Get-Entry $Config 'backend')
+    if (-not $backend) { return 'novelai' }
+    return $backend.ToLowerInvariant()
+}
+
+function Get-ApiUrl($Config) {
+    $url = [string](Get-Entry $Config 'api_url')
+    if (-not $url) {
+        return $(if ((Get-Backend $Config) -eq 'comfyui') { 'http://127.0.0.1:8188' } else { 'http://127.0.0.1:7860' })
+    }
+    return $url.TrimEnd('/')
+}
+
 function Test-Config($Config) {
-    if ($Config.model -match '^nai-diffusion-5(?:-|$)' -and (Get-PromptFormat $Config) -ne 'v4') {
+    $backend = Get-Backend $Config
+    if ($backend -notin @('novelai', 'comfyui', 'forge')) { throw 'backendはnovelai、comfyui、forgeのいずれかを指定してください。' }
+    if ($backend -ne 'novelai' -and [string](Get-Entry $Config 'api_url') -and
+        [string](Get-Entry $Config 'api_url') -notmatch '^https?://[^\s]+$') { throw 'api_urlはhttpまたはhttpsのURLを指定してください。' }
+    if ($backend -eq 'novelai' -and $Config.model -match '^nai-diffusion-5(?:-|$)' -and (Get-PromptFormat $Config) -ne 'v4') {
         throw 'V5のprompt_formatはautoまたはv4を指定してください。'
     }
     foreach ($key in 'width', 'height') {
@@ -63,12 +81,13 @@ function Test-Config($Config) {
         $value = Get-Entry $Config $key
         if ($null -eq $value -or $value % 1 -ne 0) { throw "$keyには整数が必要です。" }
     }
+    $modelPattern = if ($backend -eq 'novelai') { '^[a-zA-Z0-9_.-]{1,100}$' } else { '^[^<>:"|?*\x00-\x1f]{1,240}$' }
+    $samplerPattern = '^[a-zA-Z0-9_+ .-]{1,80}$'
     if ($Config.width * $Config.height -gt 4194304 -or $Config.steps -lt 1 -or $Config.steps -gt 50 -or
         $null -eq $Config.scale -or $Config.scale -lt 0 -or $Config.scale -gt 10 -or $Config.seed -lt -1 -or $Config.seed -gt 4294967295 -or
         $Config.minimum_interval_seconds -lt 5 -or $Config.maximum_generations_per_run -lt 1 -or
-        $Config.model -notmatch '^[a-zA-Z0-9_.-]{1,100}$' -or
-        $Config.sampler -notin @('k_euler_ancestral', 'k_euler', 'k_dpmpp_2m', 'k_dpmpp_sde', 'k_dpmpp_2s_ancestral', 'ddim_v3') -or
-        (Get-PromptFormat $Config) -notin @('v4', 'legacy')) { throw 'モデル・生成パラメータ・上限が不正です。' }
+        [string]$Config.model -notmatch $modelPattern -or [string]$Config.sampler -notmatch $samplerPattern -or
+        ($backend -eq 'novelai' -and (Get-PromptFormat $Config) -notin @('v4', 'legacy'))) { throw 'モデル・生成パラメータ・上限が不正です。' }
     $rescale = Get-Entry $Config 'cfg_rescale'
     $schedule = Get-Entry $Config 'noise_schedule'
     if ([double]::IsNaN([double]$Config.scale) -or ($null -ne $rescale -and ([double]::IsNaN([double]$rescale) -or $rescale -lt 0 -or $rescale -gt 1)) -or
@@ -78,6 +97,7 @@ function Test-Config($Config) {
 function Update-Setting([string]$Directory, [string]$Kind, [string]$Key, [string]$Value) {
     if ($Kind -eq 'config') {
         if ($Key -notin $script:ConfigKeys) { throw '変更できない設定項目です。' }
+        if ($Key -eq 'model') { throw 'モデルはnovelai/set-model.cmdで変更してください。' }
         $path = Join-Path $Directory 'config.json'
         $config = Read-Text $path | ConvertFrom-Json
         $typedValue = $Value
