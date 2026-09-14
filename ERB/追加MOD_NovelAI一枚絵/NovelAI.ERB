@@ -28,6 +28,7 @@ RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n"
 #DIMS シーン
 #DIMS 動作
 #DIMS モード行
+#DIMS 画像名
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -98,6 +99,19 @@ ENDIF
 RESULTS =
 SIF 人数 < 2 || シーン != NAI_前回シーン
 	RETURN 0
+; 最新コマンドの保存済みPNGは、ワーカーの応答を待たず直接表示する。
+画像名 '= TOSTR(NAI_キャラ番号(PLAYER))
+FOR 行, 1, 人数
+	画像名 += "-" + TOSTR(NAI_キャラ番号(登録:行))
+NEXT
+動作 '= NAI_項目(SELECTCOM_NAME履歴:0)
+SIF 動作 == ""
+	動作 = 待機
+画像名 '= NAI_画像名(画像名 + "_" + REPLACE(動作, "[<>:\\x22/\\\\|?*\\x00-\\x1F]", "_") + ".png")
+IF 画像名 != "" && EXISTFILE(@"resources/NovelAI/%画像名%")
+	RESULTS = NovelAI/%画像名%
+	RETURN 1
+ENDIF
 SPLIT LOADTEXT("novelai/runtime/response.txt", 0, 1), "\n", 応答
 IF RESULT >= 2 && 応答:0 == NAI_要求ID
 	応答:1 '= NAI_画像名(応答:1)
