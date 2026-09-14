@@ -2,7 +2,7 @@
 param([switch]$FillMissingTags)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'worker.ps1') -Library
-$directory = $PSScriptRoot
+$directory = $script:NovelAiDirectory
 [void][IO.Directory]::CreateDirectory($script:Runtime)
 
 # 日常動作の初期タグ。意味を決められない名前は空欄・要設定のまま出力する。
