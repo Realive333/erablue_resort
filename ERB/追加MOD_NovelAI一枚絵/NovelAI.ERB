@@ -269,19 +269,19 @@ NEXT
 PRINTL 変更は処理待ちです。ワーカー起動中なら生成完了後に反映されます。
 
 @OPTION_NOVELAI_CONFIG
-#DIMS キー, 12
-#DIMS 説明, 12
+#DIMS キー, 11
+#DIMS 説明, 11
 #DIMS モデル, 7
 #DIMS 値
 #DIM 選択
 #DIM 番号
-キー '= "model", "width", "height", "steps", "scale", "sampler", "seed", "minimum_interval_seconds", "maximum_generations_per_run", "cfg_rescale", "noise_schedule", "prompt_format"
-説明 '= "使用モデル", "横幅", "縦幅", "Steps", "プロンプト強度", "Sampler", "Seed (-1はランダム)", "最小生成間隔（秒）", "起動1回の送信上限", "CFG Rescale (0～1)", "Noise schedule", "プロンプト形式 (auto/v4/legacy)"
+キー '= "model", "width", "height", "steps", "scale", "sampler", "seed", "minimum_interval_seconds", "cfg_rescale", "noise_schedule", "prompt_format"
+説明 '= "使用モデル", "横幅", "縦幅", "Steps", "プロンプト強度", "Sampler", "Seed (-1はランダム)", "最小生成間隔（秒）", "CFG Rescale (0～1)", "Noise schedule", "プロンプト形式 (auto/v4/legacy)"
 モデル '= "nai-diffusion-5-full", "nai-diffusion-5-curated", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-3"
 $設定メニュー
 DRAWLINE
 PRINTL NovelAI 生成設定（config.json）
-FOR 番号, 0, 12
+FOR 番号, 0, 11
 	PRINTFORML [{番号 + 1}] %説明:番号%: %NAI_設定値("config", キー:番号)%
 NEXT
 PRINTL [999] 戻る
@@ -291,7 +291,7 @@ BINPUT
 選択 = RESULT - 1
 SIF RESULT == 999
 	RETURN
-SIF 選択 < 0 || 選択 >= 12
+SIF 選択 < 0 || 選択 >= 11
 	GOTO 設定メニュー
 IF 選択 == 0
 	FOR 番号, 0, 7

@@ -262,9 +262,31 @@ try {
         Write-Atomic (Join-Path $testDirectory 'request.txt') $newIdentityRequest
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 6) '同じプロンプトでも別キャラIDの新条件を過去の送信記録で止めない'
+
+        # 旧設定が残っていても同じワーカーで21回送信できる。通信と待ち時間だけ置換。
+        $legacyConfig = Read-Text (Join-Path $testDirectory 'config.json') | ConvertFrom-Json
+        $legacyConfig | Add-Member -NotePropertyName maximum_generations_per_run -NotePropertyValue 20 -Force
+        Write-Atomic (Join-Path $testDirectory 'config.json') (ConvertTo-Json $legacyConfig -Depth 15)
+        $script:HttpCalls = 0
+        $script:WorkerIterations = 0
+        function Invoke-WebRequest {
+            $script:HttpCalls++
+            [IO.File]::Copy($archivePath, (Join-Path $script:Runtime 'download.zip'), $true)
+        }
+        function Start-Sleep {
+            param($Milliseconds)
+            $script:WorkerIterations++
+            if ($script:WorkerIterations -ge 21) { Write-Atomic (Join-Path $script:Runtime 'stop.txt') 'stop'; return }
+            Set-Variable -Scope 1 -Name lastRequest -Value ([datetime]::MinValue)
+            Write-Atomic (Join-Path $script:Runtime 'request.txt') ($request.Replace('100-1', ('800-' + ($script:WorkerIterations + 1))).Replace('会話する', ('limit-test-' + $script:WorkerIterations)))
+        }
+        Write-Atomic (Join-Path $testDirectory 'request.txt') ($request.Replace('100-1', '800-1').Replace('会話する', 'limit-test-0'))
+        $unlimitedLog = (@(& { Invoke-Worker -Directory $testDirectory } 6>&1) | Out-String)
+        Assert ($script:HttpCalls -eq 21) 'ワーカーを再起動せず20回を超えて生成できる'
+        Assert ($unlimitedLog.Contains('今回21回目')) '上限なしの送信回数を状態に表示'
     }
     finally { $script:Root = $originalRoot; $env:NOVELAI_API_TOKEN = $originalToken }
-    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker'
+    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker / unlimited submissions'
 }
 finally {
     $script:Runtime = $realRuntime

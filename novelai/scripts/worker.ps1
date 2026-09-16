@@ -417,7 +417,6 @@ function Invoke-Worker {
                 $attemptName = if ($force) { 'regenerate-' + $regenToken + '.txt' } else { $imageName + '.txt' }
                 $attemptPath = Join-Path $attempts $attemptName
                 if (Test-Path -LiteralPath $attemptPath) { Set-Status (Read-Text $attemptPath); continue }
-                if ($count -ge $config.maximum_generations_per_run) { Set-Status '今回の生成上限に達しました。ワーカーを再起動すると再開できます。'; continue }
                 if (([datetime]::UtcNow - $lastRequest).TotalSeconds -lt $config.minimum_interval_seconds) { Set-Status '生成間隔の待機中です（最新の場面だけを処理）。'; continue }
                 $spec = New-Payload $scene $config $Directory
                 if ($spec.UnknownActions.Count) { Write-Log ('未登録の行動タグ: ' + ($spec.UnknownActions -join ', ')) }
@@ -446,7 +445,7 @@ function Invoke-Worker {
                 Write-Atomic (Join-Path $script:Runtime 'preview.json') (ConvertTo-Json $spec.Payload -Depth 100)
                 $lastRequest = [datetime]::UtcNow
                 $count++
-                Set-Status ("生成中（{0}/{1}、{2}）。画像タブで自動表示します。" -f $count, $config.maximum_generations_per_run, $backend)
+                Set-Status ("生成中（今回{0}回目、{1}）。画像タブで自動表示します。" -f $count, $backend)
                 Write-Log ('API送信 | backend={0} | {1}x{2} | steps={3} | seed={4} | プロンプト: novelai/runtime/preview.json' -f $backend, $config.width, $config.height, $config.steps, $seed)
                 Write-Log ('全体プロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.input } else { $spec.Prompt }))
                 Write-Log ('ネガティブプロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.parameters.negative_prompt } else { $spec.NegativePrompt }))

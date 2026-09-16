@@ -45,11 +45,7 @@ RETURN 1
 ;サイド領域の表示関数
 
 CALL NAI_画像取得
-IF !RESULT
-	RETURN 0
-ENDIF
-
-IF RESULTS != ""
+IF RESULT && RESULTS != ""
 	;何番でもいいけどとりあえず19990を使用
 	GDISPOSE 19990
 	SPRITEDISPOSE "NovelAI"

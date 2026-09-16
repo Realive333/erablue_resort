@@ -6,9 +6,9 @@
 
 1. NovelAIを使う場合は `setup-token.cmd` を実行して **Persistent API token** を入力します。トークンは現在のWindowsユーザーだけが復号できる `runtime/token.dpapi` に保存されます。環境変数 `NOVELAI_API_TOKEN` も使え、こちらが優先されます。
 2. `start.cmd` を実行します。Windows標準のPowerShellだけで動作します。
-3. ゲームを再起動し、`OPTION → [5] NovelAI 自動一枚絵の設定 → [0] 有効` にして「複数人一枚絵」タブを開きます。
+3. ゲームを再起動し、`OPTION → [5] NovelAI 自動一枚絵の設定 → [0] 有効` にして「NovelAI」タブを開きます。
 
-初期状態は無効です。初期設定は1回1枚、生成間隔30秒以上、ワーカー起動1回につき最大20送信です。失敗した送信も上限に数えます。生成には契約に応じてAnlasが必要です。
+初期状態は無効です。初期設定は1回1枚、生成間隔30秒以上で、ワーカー起動1回あたりの送信回数に上限はありません。生成には契約に応じてAnlasが必要です。
 
 `stop.cmd` で停止できます。ウィンドウを閉じても停止します。通信中は応答またはタイムアウト後に停止します。ゲーム内で無効にすると新規生成と画像表示を停止します。ログは `runtime/preview.json` でも確認できます（APIキーは含みません）。
 
@@ -48,10 +48,12 @@ NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます�
 
 `OPTION → [5] NovelAI 自動一枚絵の設定`（または一枚絵欄の `[NovelAI設定]`）:
 
+「NovelAI」タブの `[NovelAI設定]` は、画像なし・生成待ち・自動生成無効の状態でも表示されます。
+
 - `[1]` / `[2]`: `prompts.csv` のsystem / negative。
 - `[3]`: 現在のプレイヤーの`characters.csv`。
 - `[7]`: 現在の相手の`characters.csv`。
-- `[9]`: 幅、高さ、Steps、プロンプト強度、Sampler、Seed、生成間隔、送信上限、CFG Rescale、Noise schedule、prompt format。
+- `[9]`: 幅、高さ、Steps、プロンプト強度、Sampler、Seed、生成間隔、CFG Rescale、Noise schedule、prompt format。
 
 ゲーム内から保存するにはワーカーを起動してください。CSVとconfigは外部編集も可能です。不正な設定では新規生成を停止します。ゲーム内で半角括弧を入力する場合は `\(` / `\)` を使います。CSVでは括弧をそのまま書けます。[Emuera仕様](https://evilmask.gitlab.io/emuera.em.doc/Emuera/expression.html#inputs)
 
@@ -67,16 +69,19 @@ NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます�
 - API送信前に `resources/NovelAI/` の同名PNGを再利用します。キャラIDと行動が同じなら、モデル・設定・タグを変えてもキャッシュを使います。変更を反映するには `[再生成]` を押します。
 - 通常は最新の場面だけを生成します。再生成はキャッシュを無視して1回送信し、固定Seedでも新しいSeedを使います。成功したPNGを受信してから置き換えます。
 - 通信失敗・中断は記録し、自動再送しません。失敗時は以前の画像を保持し、再送はもう一度 `[再生成]` を押します。結果不明の送信は課金済みの可能性があります。
-- 上限到達後は `stop.cmd` → `start.cmd` で再開できます。設定・画像・失敗記録は保持されます。
+- `stop.cmd` で停止し、`start.cmd` で再開できます。設定・画像・失敗記録は保持されます。
 
 `runtime/status.txt`: 状態、`runtime/preview.json`: API送信内容（キーなし）、`runtime/unmapped-actions.txt`: 未登録の動作名です。コード作業を再開する場合はルートの `NOVELAI_PROGRESS.md` を先に読んでください。
 
 ## オフライン検証
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/test.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/test-render.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-local.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-controls.ps1
 ```
+
+`test-controls.ps1` は無効・生成待ち・正常画像・画像読込失敗時の設定ボタンを検証します。既存の `test-render.ps1` は現在の実装にない自動更新関数に依存しており、そのままでは実行できません。
 
 APIキー、生成画像、通信ファイルはGit対象外です。キー・送信記録を残す場合は `runtime` 全体を削除せず、画像だけ `resources/NovelAI` を整理してください。
 
