@@ -69,6 +69,7 @@ foreach ($name in $catalog.Keys) {
 }
 Write-CsvTable $actionsPath @($existing.Values | Sort-Object name) @('name', 'scene', 'actor', 'target', 'source', 'status')
 
+& (Join-Path $PSScriptRoot 'export-clothes.ps1') -OutputDirectory $directory
 Sync-Settings $directory
 $ready = @($existing.Values | Where-Object { $_.scene -or $_.actor -or $_.target }).Count
 Write-Host ("CSVを出力しました。行動 {0} 件（タグあり {1} / 要設定 {2}）。既存の編集内容は保持しました。" -f $existing.Count, $ready, ($existing.Count - $ready))

@@ -28,6 +28,7 @@ function Read-Scene([string]$Text) {
     $id = $Matches[1]
     if ($lines[-1] -cne "END`t$id") { return $null } # 書き込み途中は読まない
     $characters = @()
+    $clothes = @()
     $modes = @()
     $action = ''
     $place = ''
@@ -37,6 +38,10 @@ function Read-Scene([string]$Text) {
             { $_ -in 'player', 'character' } {
                 if ($fields.Count -ne 4 -or $fields[1] -notmatch '^\d+$' -or $fields[2] -notmatch '^\d+$') { return $null }
                 $characters += [pscustomobject]@{ Role = $fields[0]; Index = [int]$fields[1]; No = $fields[2]; Name = $fields[3] }
+            }
+            'clothes' {
+                if ($fields.Count -ne 3 -or $fields[1] -notmatch '^\d+$' -or [string]::IsNullOrWhiteSpace($fields[2])) { return $null }
+                $clothes += [pscustomobject]@{ Index = [int]$fields[1]; Name = $fields[2] }
             }
             'mode' {
                 if ($fields.Count -ne 4 -or $fields[1] -notmatch '^\d+$' -or $fields[2] -notmatch '^\d+$') { return $null }
@@ -54,7 +59,8 @@ function Read-Scene([string]$Text) {
         if ($mode.Actor -notin $characters.Index -or $mode.Target -notin $characters.Index -or
             ($mode.Actor -ne $characters[0].Index -and $mode.Target -ne $characters[0].Index)) { return $null }
     }
-    return [pscustomobject]@{ Id = $id; Characters = $characters; Modes = $modes; Action = $action; Place = $place }
+    foreach ($item in $clothes) { if ($item.Index -notin $characters.Index) { return $null } }
+    return [pscustomobject]@{ Id = $id; Characters = $characters; Clothes = $clothes; Modes = $modes; Action = $action; Place = $place }
 }
 
 function Get-Entry($Object, [string]$Key) {
@@ -77,6 +83,7 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     $actions = @()
     $characterActions = @{}
     $unknown = @()
+    $unknownClothes = @()
     $modeList = @($Scene.Modes | Sort-Object Actor, Target, Name)
     if ($modeList.Count -eq 0 -and $Scene.Action) { $modeList = @([pscustomobject]@{ Name = $Scene.Action; Actor = $Scene.Characters[0].Index; Target = $Scene.Characters[-1].Index }) }
     foreach ($mode in $modeList) {
@@ -106,7 +113,11 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     foreach ($character in $promptCharacters) {
         $description = Get-Entry $Data.Characters $character.No
         if ([string]::IsNullOrWhiteSpace($description)) { $description = $character.Name }
-        $caption = Join-Tags (@($description) + @($characterActions[$character.Index]))
+        $clothingTags = @($Scene.Clothes | Where-Object Index -eq $character.Index | ForEach-Object {
+            $tag = Get-Entry $Data.Clothes $_.Name
+            if ([string]::IsNullOrWhiteSpace($tag)) { $unknownClothes += $_.Name } else { $tag }
+        })
+        $caption = Join-Tags (@($description) + $clothingTags + @($characterActions[$character.Index]))
         $centers = @([ordered]@{ x = 0.5; y = 0.5 })
         $captions += [ordered]@{ char_caption = $caption; centers = $centers }
         $negativeCaptions += [ordered]@{ char_caption = ''; centers = $centers }
@@ -136,16 +147,22 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     $json = ConvertTo-Json $payload -Depth 15 -Compress
     if ($json.Length -gt 24000) { throw 'プロンプトが長すぎます。短いタグに整理してください。' }
     return [pscustomobject]@{ Payload = $payload; Prompt = $flatPrompt; NegativePrompt = [string]$negative
-        CharacterNos = @($promptCharacters.No); UnknownActions = @($unknown | Select-Object -Unique) }
+        CharacterNos = @($promptCharacters.No); UnknownActions = @($unknown | Select-Object -Unique)
+        UnknownClothes = @($unknownClothes | Select-Object -Unique) }
 }
 
 function Get-ImageName($Scene) {
     $label = if ($Scene.Modes.Count) { ($Scene.Modes.Name | Sort-Object -Unique) -join '+' } else { $Scene.Action }
     if (-not $label) { $label = '待機' }
-    # Windowsで使えない文字だけ置換し、通常の行動名は省略せずそのまま残す。
-    $label = $label -replace '[<>:"/\\|?*\x00-\x1f]', '_'
-    $name = ($Scene.Characters.No -join '-') + '_' + $label + '.png'
-    if ($name.Length -gt 180) { throw 'キャラIDと行動名の画像名が長すぎます（180文字まで）。' }
+    $parts = foreach ($character in $Scene.Characters) {
+        $clothes = @($Scene.Clothes | Where-Object Index -eq $character.Index | Select-Object -ExpandProperty Name -Unique) -join '+'
+        if (-not $clothes) { $clothes = '普段着' }
+        '{0}_{1}' -f $character.No, $clothes
+    }
+    # 操作キャラを先頭に、服装と脱衣状態もキャッシュの識別に含める。
+    $name = (($parts -join '_') + '_' + $label) -replace '[<>:"/\\|?*\x00-\x1f]', '_'
+    $name += '.png'
+    if ($name.Length -gt 180) { throw 'キャラID・服装・行動の画像名が長すぎます（180文字まで）。' }
     return $name
 }
 
@@ -417,10 +434,10 @@ function Invoke-Worker {
                 $attemptName = if ($force) { 'regenerate-' + $regenToken + '.txt' } else { $imageName + '.txt' }
                 $attemptPath = Join-Path $attempts $attemptName
                 if (Test-Path -LiteralPath $attemptPath) { Set-Status (Read-Text $attemptPath); continue }
-                if ($count -ge $config.maximum_generations_per_run) { Set-Status '今回の生成上限に達しました。ワーカーを再起動すると再開できます。'; continue }
                 if (([datetime]::UtcNow - $lastRequest).TotalSeconds -lt $config.minimum_interval_seconds) { Set-Status '生成間隔の待機中です（最新の場面だけを処理）。'; continue }
                 $spec = New-Payload $scene $config $Directory
                 if ($spec.UnknownActions.Count) { Write-Log ('未登録の行動タグ: ' + ($spec.UnknownActions -join ', ')) }
+                if ($spec.UnknownClothes.Count) { Write-Log ('未設定の服装タグ（clothes.csv）: ' + ($spec.UnknownClothes -join ', ')) }
                 $backend = Get-Backend $config
                 $token = ''
                 if ($backend -eq 'novelai') {
@@ -438,6 +455,7 @@ function Invoke-Worker {
                 Write-Atomic $attemptPath '前回の送信結果が未確認です。必要なら設定画面の「再試行」を選択してください。'
                 if ($force) { Write-Atomic $regenResultPath ($regenToken + "`n" + $imageName + "`n再生成の送信結果が未確認です。必要なら再生成ボタンを押してください。") }
                 Write-Atomic (Join-Path $script:Runtime 'unmapped-actions.txt') ($spec.UnknownActions -join "`n")
+                Write-Atomic (Join-Path $script:Runtime 'unmapped-clothes.txt') ($spec.UnknownClothes -join "`n")
                 $seed = if ($backend -eq 'novelai') { [long]$spec.Payload.parameters.seed } else { [long]$spec.Payload.seed }
                 if ($force -or $seed -eq -1) {
                     $seed = Get-Random -Minimum 0 -Maximum 2147483647
@@ -446,7 +464,7 @@ function Invoke-Worker {
                 Write-Atomic (Join-Path $script:Runtime 'preview.json') (ConvertTo-Json $spec.Payload -Depth 100)
                 $lastRequest = [datetime]::UtcNow
                 $count++
-                Set-Status ("生成中（{0}/{1}、{2}）。画像タブで自動表示します。" -f $count, $config.maximum_generations_per_run, $backend)
+                Set-Status ("生成中（今回{0}回目、{1}）。画像タブで自動表示します。" -f $count, $backend)
                 Write-Log ('API送信 | backend={0} | {1}x{2} | steps={3} | seed={4} | プロンプト: novelai/runtime/preview.json' -f $backend, $config.width, $config.height, $config.steps, $seed)
                 Write-Log ('全体プロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.input } else { $spec.Prompt }))
                 Write-Log ('ネガティブプロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.parameters.negative_prompt } else { $spec.NegativePrompt }))

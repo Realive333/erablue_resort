@@ -23,7 +23,7 @@ Assert ($spec.Payload.input -match 'talking together') '動作の辞書変換'
 Assert ($spec.Payload.parameters.v4_negative_prompt.caption.char_captions.Count -eq 3) '正負プロンプトの人数一致'
 $sameScene = Read-Scene ($request.Replace('100-1', '200-2'))
 $imageName = Get-ImageName $scene
-Assert ($imageName -ceq '0-123-456_会話する.png') '画像名はキャラNOと行動テキストだけ'
+Assert ($imageName -ceq '0_普段着_123_普段着_456_普段着_会話する.png') '画像名はキャラNO・服装を操作キャラから並べ、最後に行動を付ける'
 Assert ((Get-ImageName $sameScene) -ceq $imageName) '同じ条件では要求IDが変わっても同じ画像名'
 $movedIndex = Read-Scene ($request.Replace("character`t7`t", "character`t70`t").Replace("mode`t0`t7`t", "mode`t0`t70`t"))
 Assert ((Get-ImageName $movedIndex) -ceq $imageName) 'ゲーム内配列番号が変わってもキャラNOで再利用'
@@ -31,9 +31,9 @@ $unmappedA = Read-Scene ($request.Replace('会話する', '未登録A'))
 $unmappedB = Read-Scene ($request.Replace('会話する', '未登録B'))
 Assert ((Get-ImageName $unmappedA) -cne (Get-ImageName $unmappedB)) '同じタグでも異なる行動を区別'
 $literalAction = Read-Scene ($request.Replace('会話する', '会話する (テスト)+写真'))
-Assert ((Get-ImageName $literalAction) -ceq '0-123-456_会話する (テスト)+写真.png') '空白や括弧など使える文字はそのまま残す'
+Assert ((Get-ImageName $literalAction) -ceq '0_普段着_123_普段着_456_普段着_会話する (テスト)+写真.png') '空白や括弧など使える文字はそのまま残す'
 $unsafeAction = Read-Scene ($request.Replace('会話する', 'path/with:bad*chars?'))
-Assert ((Get-ImageName $unsafeAction) -ceq '0-123-456_path_with_bad_chars_.png') 'ファイル名の禁止文字だけ置換'
+Assert ((Get-ImageName $unsafeAction) -ceq '0_普段着_123_普段着_456_普段着_path_with_bad_chars_.png') 'ファイル名の禁止文字だけ置換'
 $longAction = Read-Scene ($request.Replace('会話する', ('長い動作' * 60)))
 $rejected = $false
 try { Get-ImageName $longAction | Out-Null } catch { $rejected = $true }
@@ -60,7 +60,7 @@ try {
     $script:Runtime = $testDirectory
     $statusLog = @(& { Set-Status 'test status'; Set-Status 'test status' } 6>&1)
     Assert ($statusLog.Count -eq 1 -and "$($statusLog[0])" -match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] test status$') '状態ログは日時付きで変更時に1回だけ表示'
-    foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
+    foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv', 'clothes.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
     Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target', 'source', 'status')
     $complexPrompt = "comma, quote `"OK`"`nand second line 日本語"
     Update-Setting $testDirectory 'prompts' 'system' $complexPrompt
@@ -79,7 +79,7 @@ try {
         $idle = New-Payload $fallbackScene $idleConfig $testDirectory
         Assert ($idle.Payload.input -ceq 'fixed system, standing together, relaxed') '行動なし・未登録時に待機CSVの編集内容を反映'
     }
-    Assert ((Get-ImageName $idleScene) -ceq '0-123-456_待機.png') '待機タグを編集しても画像名はIDと待機のまま'
+    Assert ((Get-ImageName $idleScene) -ceq '0_普段着_123_普段着_456_普段着_待機.png') '待機タグを編集しても画像名はID・服装と待機のまま'
     Assert ($idle.UnknownActions -contains '未登録A') '待機タグを使っても未登録行動のログ情報を保持'
     Update-Setting $testDirectory 'characters' '0' 'red jacket'
     Update-Setting $testDirectory 'characters' '123' 'blue hair'
@@ -257,14 +257,50 @@ try {
         Update-Setting $testDirectory 'characters' '789' 'green hair'
         $newIdentityRequest = $request.Replace('100-1', '700-1').Replace("character`t7`t123", "character`t7`t789")
         $newIdentity = Read-Scene $newIdentityRequest
-        Assert ((Get-ImageName $newIdentity) -ceq '0-789-456_会話する.png') '同じプロンプトの別キャラはIDで区別'
+        Assert ((Get-ImageName $newIdentity) -ceq '0_普段着_789_普段着_456_普段着_会話する.png') '同じプロンプトの別キャラはIDで区別'
         Write-Atomic (Join-Path $testDirectory 'enabled.txt') '1'
         Write-Atomic (Join-Path $testDirectory 'request.txt') $newIdentityRequest
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 6) '同じプロンプトでも別キャラIDの新条件を過去の送信記録で止めない'
+
+        function Invoke-WebRequest {
+            $script:HttpCalls++
+            [IO.File]::Copy($archivePath, (Join-Path $script:Runtime 'download.zip'), $true)
+        }
+        $wardrobeRequest = $newIdentityRequest.Replace('END', "clothes`t0`t普段着`nclothes`t7`tメイド服`nclothes`t8`t水着`nEND")
+        Write-Atomic (Join-Path $testDirectory 'request.txt') $wardrobeRequest
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 7 -and (Test-Path -LiteralPath (Join-Path $cacheDirectory '0_普段着_789_メイド服_456_水着_会話する.png'))) '服装を含む新しい名前で画像を保存'
+        Write-Atomic (Join-Path $testDirectory 'request.txt') ($wardrobeRequest.Replace("clothes`t0`t普段着", "clothes`t0`t浴衣"))
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 8 -and (Test-Path -LiteralPath (Join-Path $cacheDirectory '0_浴衣_789_メイド服_456_水着_会話する.png'))) '操作キャラの着替えだけでも別画像を生成'
+        Invoke-Worker -Once -Directory $testDirectory
+        Assert ($script:HttpCalls -eq 8) 'キャラ・服装・行動が同じなら保存済み画像を再利用'
+
+        # 旧設定が残っていても同じワーカーで21回送信できる。通信と待ち時間だけ置換。
+        $legacyConfig = Read-Text (Join-Path $testDirectory 'config.json') | ConvertFrom-Json
+        $legacyConfig | Add-Member -NotePropertyName maximum_generations_per_run -NotePropertyValue 20 -Force
+        Write-Atomic (Join-Path $testDirectory 'config.json') (ConvertTo-Json $legacyConfig -Depth 15)
+        $script:HttpCalls = 0
+        $script:WorkerIterations = 0
+        function Invoke-WebRequest {
+            $script:HttpCalls++
+            [IO.File]::Copy($archivePath, (Join-Path $script:Runtime 'download.zip'), $true)
+        }
+        function Start-Sleep {
+            param($Milliseconds)
+            $script:WorkerIterations++
+            if ($script:WorkerIterations -ge 21) { Write-Atomic (Join-Path $script:Runtime 'stop.txt') 'stop'; return }
+            Set-Variable -Scope 1 -Name lastRequest -Value ([datetime]::MinValue)
+            Write-Atomic (Join-Path $script:Runtime 'request.txt') ($request.Replace('100-1', ('800-' + ($script:WorkerIterations + 1))).Replace('会話する', ('limit-test-' + $script:WorkerIterations)))
+        }
+        Write-Atomic (Join-Path $testDirectory 'request.txt') ($request.Replace('100-1', '800-1').Replace('会話する', 'limit-test-0'))
+        $unlimitedLog = (@(& { Invoke-Worker -Directory $testDirectory } 6>&1) | Out-String)
+        Assert ($script:HttpCalls -eq 21) 'ワーカーを再起動せず20回を超えて生成できる'
+        Assert ($unlimitedLog.Contains('今回21回目')) '上限なしの送信回数を状態に表示'
     }
     finally { $script:Root = $originalRoot; $env:NOVELAI_API_TOKEN = $originalToken }
-    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker'
+    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker / unlimited submissions'
 }
 finally {
     $script:Runtime = $realRuntime

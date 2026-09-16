@@ -22,13 +22,60 @@ RETURNF NO:対象
 #DIM 対象
 #DIM CSV番号
 CSV番号 = NAI_キャラ番号(対象)
-RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n"
+RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n" + NAI_服装行(対象)
+
+@NAI_服装行(対象)
+#FUNCTIONS
+#DIM 対象
+#DIM 上服
+#DIM 下服
+#DIM 上下着
+#DIM 下下着
+#DIMS 服装名
+#DIMS 行
+; EQUIP（初期装備）ではなく、着替え・脱衣後のTEQUIPを読む。
+上服 = TEQUIP:対象:上半身鎧あり || TEQUIP:対象:上半身服あり
+下服 = TEQUIP:対象:下腹部後鎧あり || TEQUIP:対象:下腹部前鎧あり || TEQUIP:対象:下半身服あり
+上下着 = TEQUIP:対象:上半身下着あり
+下下着 = TEQUIP:対象:下半身下着あり
+IF !上服 && !下服 && !TEQUIP:対象:上タイツあり && !TEQUIP:対象:下タイツあり && GROUPMATCH(上下着, 0, -2, -3) && GROUPMATCH(下下着, 0, -2, -3)
+	RETURNF @"clothes\t{対象}\t全裸\n"
+ENDIF
+行 =
+IF 上服 || 下服
+	服装名 '= CSTR:対象:着せ替え服
+	; キャラ固有の服名称と、キャラ番号で指定する衣装は共通の普段着扱い。
+	SIF 服装名 == "" || 服装名 == "デフォルト" || ISNUMERIC(服装名)
+		服装名 = 普段着
+	行 += @"clothes\t{対象}\t%NAI_項目(服装名)%\n"
+	SIF CSTR:対象:着せ替え服追加名 != ""
+		行 += @"clothes\t{対象}\t%NAI_項目(CSTR:対象:着せ替え服追加名)%\n"
+ENDIF
+; 外側の服を脱いだ部位だけ下着・タイツ・露出を追加する。
+IF !上服
+	IF TEQUIP:対象:上タイツあり
+		行 += @"clothes\t{対象}\t上タイツ\n"
+	ELSEIF 上下着 != 0
+		行 += @"clothes\t{対象}\t上半身下着_{上下着}\n"
+	ELSE
+		行 += @"clothes\t{対象}\t上半身裸\n"
+	ENDIF
+ENDIF
+IF !下服
+	IF TEQUIP:対象:下タイツあり
+		行 += @"clothes\t{対象}\t下タイツ\n"
+	ELSEIF 下下着 != 0
+		行 += @"clothes\t{対象}\t下半身下着_{下下着}\n"
+	ELSE
+		行 += @"clothes\t{対象}\t下半身裸\n"
+	ENDIF
+ENDIF
+RETURNF 行
 
 @NAI_画像取得
 #DIMS シーン
 #DIMS 動作
 #DIMS モード行
-#DIMS 画像名
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -99,19 +146,7 @@ ENDIF
 RESULTS =
 SIF 人数 < 2 || シーン != NAI_前回シーン
 	RETURN 0
-; 最新コマンドの保存済みPNGは、ワーカーの応答を待たず直接表示する。
-画像名 '= TOSTR(NAI_キャラ番号(PLAYER))
-FOR 行, 1, 人数
-	画像名 += "-" + TOSTR(NAI_キャラ番号(登録:行))
-NEXT
-動作 '= NAI_項目(SELECTCOM_NAME履歴:0)
-SIF 動作 == ""
-	動作 = 待機
-画像名 '= NAI_画像名(画像名 + "_" + REPLACE(動作, "[<>:\\x22/\\\\|?*\\x00-\\x1F]", "_") + ".png")
-IF 画像名 != "" && EXISTFILE(@"resources/NovelAI/%画像名%")
-	RESULTS = NovelAI/%画像名%
-	RETURN 1
-ENDIF
+; 命名とキャッシュ検索はワーカーで共用し、現在の要求に対応した画像だけ表示する。
 SPLIT LOADTEXT("novelai/runtime/response.txt", 0, 1), "\n", 応答
 IF RESULT >= 2 && 応答:0 == NAI_要求ID
 	応答:1 '= NAI_画像名(応答:1)
@@ -269,19 +304,19 @@ NEXT
 PRINTL 変更は処理待ちです。ワーカー起動中なら生成完了後に反映されます。
 
 @OPTION_NOVELAI_CONFIG
-#DIMS キー, 12
-#DIMS 説明, 12
+#DIMS キー, 11
+#DIMS 説明, 11
 #DIMS モデル, 7
 #DIMS 値
 #DIM 選択
 #DIM 番号
-キー '= "model", "width", "height", "steps", "scale", "sampler", "seed", "minimum_interval_seconds", "maximum_generations_per_run", "cfg_rescale", "noise_schedule", "prompt_format"
-説明 '= "使用モデル", "横幅", "縦幅", "Steps", "プロンプト強度", "Sampler", "Seed (-1はランダム)", "最小生成間隔（秒）", "起動1回の送信上限", "CFG Rescale (0～1)", "Noise schedule", "プロンプト形式 (auto/v4/legacy)"
+キー '= "model", "width", "height", "steps", "scale", "sampler", "seed", "minimum_interval_seconds", "cfg_rescale", "noise_schedule", "prompt_format"
+説明 '= "使用モデル", "横幅", "縦幅", "Steps", "プロンプト強度", "Sampler", "Seed (-1はランダム)", "最小生成間隔（秒）", "CFG Rescale (0～1)", "Noise schedule", "プロンプト形式 (auto/v4/legacy)"
 モデル '= "nai-diffusion-5-full", "nai-diffusion-5-curated", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-3"
 $設定メニュー
 DRAWLINE
 PRINTL NovelAI 生成設定（config.json）
-FOR 番号, 0, 12
+FOR 番号, 0, 11
 	PRINTFORML [{番号 + 1}] %説明:番号%: %NAI_設定値("config", キー:番号)%
 NEXT
 PRINTL [999] 戻る
@@ -291,7 +326,7 @@ BINPUT
 選択 = RESULT - 1
 SIF RESULT == 999
 	RETURN
-SIF 選択 < 0 || 選択 >= 12
+SIF 選択 < 0 || 選択 >= 11
 	GOTO 設定メニュー
 IF 選択 == 0
 	FOR 番号, 0, 7

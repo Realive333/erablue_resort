@@ -11,7 +11,7 @@ $realRoot = $script:Root
 try {
     $script:Runtime = $testDirectory
     $script:Root = $testDirectory
-    foreach ($file in 'prompts.csv', 'characters.csv', 'actions.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
+    foreach ($file in 'prompts.csv', 'characters.csv', 'actions.csv', 'clothes.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
     $config = Read-Text (Join-Path $script:NovelAiDirectory 'config.json') | ConvertFrom-Json
     $config.backend = 'comfyui'
     $config.api_url = 'http://127.0.0.1:8188'
