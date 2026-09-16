@@ -34,6 +34,7 @@ The worker reloads the files after editing. Save them as **CSV UTF-8** in spread
 | --- | --- | --- |
 | `prompts.csv` | `key,prompt` | `system` (global instructions) and `negative` |
 | `characters.csv` | `no,prompt` | Appearance tags by character number |
+| `clothes.csv` | `name,prompt,source,status` | Tags for current outfit names and clothing states |
 | `actions.csv` | `name,scene,actor,target,source,status` | Action tags |
 
 Only `system` and `negative` are valid keys in `prompts.csv`. `source` and `status` are management fields and are not sent to the API. Do not duplicate keys.
@@ -41,6 +42,12 @@ Only `system` and `negative` are valid keys in `prompts.csv`. `source` and `stat
 At runtime, character numbers are looked up in `characters.csv`; a missing or blank entry falls back to the in-game name. Construction order is “fixed system → characters → actions → API prompt.” V4/V5 use global and per-character fields; V3 combines everything into one prompt.
 
 Character submission order is **target character → player → other contact characters**. `scene` applies to the overall image; `actor` and `target` apply to the actor and target. Press [Regenerate] to apply changes to existing images.
+
+Each character caption uses **appearance → current clothing → action tags**. Outfit names come from the current costume or the character's default `CSTR:服名称`. Current `TEQUIP` values account for undressing: underwear, tights, and exposed areas are added only where outer clothing is absent. Fully undressed characters use the `全裸` entry without the former outfit. Numeric character costumes are resolved to their owner's outfit name.
+
+`clothes.csv` extracts `CLOTHES_CHANGE_*` and outfit-name definitions from ERB plus outfit names from character CSV files. Common clothes and states have initial English tags; unique names retain their Japanese text. Edit `prompt` freely or leave it blank to omit it. Keys such as `上半身下着_1` (bra) and `下半身下着_1` (regular underwear) follow the game's clothing values. Missing or blank tags are logged and listed in `runtime/unmapped-clothes.txt`.
+
+`export-csv.cmd` adds new action and clothing definitions while preserving edited tags. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Image names still use character IDs plus the action, so press `[Regenerate]` to recreate an existing image with current clothes. Restart the worker and game after installing this change.
 
 The action CSV contains 342 entries; 77 have initial tags and the rest are blank or marked `要設定`. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
 
@@ -79,6 +86,7 @@ Width and height must be multiples of 64 from 64 to 2048. Steps: 1–50; scale: 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-local.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-controls.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-clothes.ps1
 ```
 
 `test-controls.ps1` checks settings controls when disabled, waiting, displaying a valid image, or failing to load an image. The existing `test-render.ps1` depends on automatic refresh functions absent from the current implementation and cannot run as-is.

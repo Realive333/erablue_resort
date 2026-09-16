@@ -40,7 +40,9 @@ function Read-PromptData([string]$Directory) {
     foreach ($row in (Read-CsvTable $Directory 'actions' @('name', 'scene', 'actor', 'target') 'name')) {
         if ($row.scene -or $row.actor -or $row.target) { $actions[$row.name] = $row }
     }
-    return [pscustomobject]@{ Prompts = $prompts; Characters = $characters; Actions = $actions }
+    $clothes = @{}
+    foreach ($row in (Read-CsvTable $Directory 'clothes' @('name', 'prompt') 'name')) { $clothes[$row.name] = $row.prompt }
+    return [pscustomobject]@{ Prompts = $prompts; Characters = $characters; Actions = $actions; Clothes = $clothes }
 }
 
 function Get-PromptFormat($Config) {

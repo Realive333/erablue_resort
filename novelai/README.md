@@ -34,6 +34,7 @@ NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます�
 | --- | --- | --- |
 | `prompts.csv` | `key,prompt` | `system`（全体指示）と`negative` |
 | `characters.csv` | `no,prompt` | キャラNOごとの外見タグ |
+| `clothes.csv` | `name,prompt,source,status` | 現在の服装名・着用状態に対応するタグ |
 | `actions.csv` | `name,scene,actor,target,source,status` | 行動タグ |
 
 `prompts.csv` のkeyは `system` と `negative` のみです。`source` と `status` は管理用でAPIには送りません。同じkeyは重複させないでください。
@@ -41,6 +42,12 @@ NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます�
 実行時にキャラNOを検索し、`characters.csv` のpromptを使います。未登録・空欄ならゲーム内の名前を使います。組立順序は「固定システム → キャラ → 行動 → API用プロンプト」です。V4/V5は全体欄と個別キャラ欄に分け、V3は1本に結合します。
 
 キャラの送信順は **目標キャラ → プレイヤー → その他の接触キャラ** です。`scene` は画像全体、`actor` / `target` は実行者・対象者に追加します。既存画像へ反映するには［再生成］を押してください。
+
+キャラ欄には **外見タグ → 現在の服装タグ → 行動タグ** の順で追加します。服装名は着せ替え中の名前、普段着は `CSTR:服名称` から取得します。脱衣後の `TEQUIP` を参照し、外側の服がない部位だけ下着・タイツ・露出を追加します。全部脱いだ場合は元の服を追加せず `全裸` の行を使います。キャラ番号で指定する衣装も、そのキャラの服名称へ変換します。
+
+`clothes.csv` はERBの `CLOTHES_CHANGE_*`・服名称の定義と、既存キャラクターCSVの服名称から抽出しています。一般的な衣装・着用状態には英語の初期タグ、独自名称には元の日本語名を設定しています。`prompt` は自由に編集でき、空欄なら追加しません。`上半身下着_1` はブラ、`下半身下着_1` は通常の下着など、番号はゲームの着用状態に対応します。未登録・空欄の服装はログと `runtime/unmapped-clothes.txt` に記録します。
+
+`export-csv.cmd` は行動と服装の新しい定義を追加し、編集済みタグを保持します。服装だけ更新する場合は `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1` を実行します。服装の変更でも画像名は従来のキャラID＋行動名を使うため、保存済み画像を現在の服装で作り直すには `[再生成]` を押してください。導入後はワーカーとゲームの再起動が必要です。
 
 行動CSVには342件を登録し、77件に初期タグを設定しています。残りは空欄・`要設定`です。キーはゲーム内表示名と完全一致します。行動がない、または場面タグがない場合は `待機` 行の `scene` を使います。`export-csv.cmd` で新しい静的コマンド名と継続動作を追加できます。旧TXTプロンプトはCSVへ移行済みです。
 
@@ -79,6 +86,7 @@ NovelAIの代わりにComfyUIまたはForge Neo（Reforge-Neo）を使えます�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-local.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-controls.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/test-clothes.ps1
 ```
 
 `test-controls.ps1` は無効・生成待ち・正常画像・画像読込失敗時の設定ボタンを検証します。既存の `test-render.ps1` は現在の実装にない自動更新関数に依存しており、そのままでは実行できません。

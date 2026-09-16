@@ -5,8 +5,7 @@ steps	23
 scale	5
 sampler	k_euler_ancestral
 seed	-1
-minimum_interval_seconds	30
-maximum_generations_per_run	20
+minimum_interval_seconds	10
 cfg_rescale	0
 noise_schedule	karras
 prompt_format	auto

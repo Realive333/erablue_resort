@@ -1,14 +1,15 @@
 # NovelAI 自動一枚絵・再開メモ
 
-最新更新: 2026-09-14。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
+最新更新: 2026-09-16。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
 
 ## 実装済み
+- 2026-09-16: `novelai/clothes.csv`を追加。ERBの衣装関数・服名称とキャラCSVの普段着名を抽出（647件、100件は英語初期タグ、固有名は日本語）。NAI_キャラ行から服装行を送り、着替え・脱衣後のTEQUIPとCSTRを使用。New-Payloadで本人のキャラプロンプトに追加。キャッシュ名は従来どおりなので既存画像への反映は再生成。`scripts/export-clothes.ps1`単独・`export-csv.cmd`で一覧更新、編集済みタグを保持。`scripts/test-clothes.ps1`で実EmueraからCSV・送信形式まで検証済み。旧`test-render.ps1`は現行にない関数へ依存するため、表示は`test-controls.ps1`を使用。
 - 接触キャラ（TARGET＋PLAYERが関与する進行中モード、別室・無関係キャラは除外）から一枚絵を生成。プレイヤー＋最大5人。
 - ERBは要求をtxtへ書き、Windows PowerShellワーカーがNovelAIへ送信。追加LLM・外部パッケージ不要。
 - start.cmdは表示付きコンソール内でワーカーを実行。ウィンドウを閉じれば停止。stop.cmd・異常終了後はpauseでログ確認用に残る。隠し子プロセスは起動しない。
 - Write-Logで日時付き状態・場面/モデル/キャラNO/行動・API送信/保存/エラー・設定更新を表示。同一状態は繰り返さず、エラー詳細のAPIキーは伏せる。送信時に全体・ネガティブ・全キャラの正負プロンプトを全文表示。preview.jsonも維持。
 - 2026-09-13: 継続動作があると直近コマンドを無視するELSEIFが画像固定の原因。ユーザー指定で画像には直近コマンドだけを反映。PLAYER→TARGETのmode行で送り、継続動作DBは接触キャラの取得にだけ使用。有効な直近コマンドがなければ待機。ERB反映にはゲームの保存・再起動が必要。
-- 設定: `novelai/config.json`。プロンプト: `prompts.csv`, `characters.csv`, `actions.csv`。この4ファイルが現在の設定元。
+- 設定: `novelai/config.json`。プロンプト: `prompts.csv`, `characters.csv`, `clothes.csv`, `actions.csv`。この5ファイルが現在の設定元。
 - 行動342件、タグあり77件、要設定265件。`export-csv.cmd`で静的コマンド/継続動作の新規行を追加。編集済みタグは保持する。
 - 2026-09-13: actions.csvに「待機」を追加。場面タグがない場合は待機行のscene列を参照し、コード内の固定タグを廃止。空欄なら補完なし。export-csvの初期タグにも登録。既存画像への反映は［再生成］。
 - OPTION→[5]→[9]からモデル・解像度・Steps・scale・Sampler・Seed・間隔・上限・CFG Rescale・Noise schedule・prompt_formatを変更。
