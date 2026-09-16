@@ -1,5 +1,5 @@
 ﻿# CSVはPowerShell標準のCSVパーサーで読む。ゲームとの連絡は既存のtxt通信。
-$script:ConfigKeys = @('model', 'width', 'height', 'steps', 'scale', 'sampler', 'seed', 'minimum_interval_seconds', 'maximum_generations_per_run', 'cfg_rescale', 'noise_schedule', 'prompt_format')
+$script:ConfigKeys = @('model', 'width', 'height', 'steps', 'scale', 'sampler', 'seed', 'minimum_interval_seconds', 'cfg_rescale', 'noise_schedule', 'prompt_format')
 $script:PromptKeys = @('system', 'negative')
 
 function Read-CsvTable([string]$Directory, [string]$Name, [string[]]$Columns, [string]$Key) {
@@ -77,7 +77,7 @@ function Test-Config($Config) {
         $value = Get-Entry $Config $key
         if ($null -eq $value -or $value -lt 64 -or $value -gt 2048 -or $value % 64 -ne 0) { throw '幅・高さは64～2048の64倍数で設定してください。' }
     }
-    foreach ($key in 'steps', 'seed', 'minimum_interval_seconds', 'maximum_generations_per_run') {
+    foreach ($key in 'steps', 'seed', 'minimum_interval_seconds') {
         $value = Get-Entry $Config $key
         if ($null -eq $value -or $value % 1 -ne 0) { throw "$keyには整数が必要です。" }
     }
@@ -85,9 +85,9 @@ function Test-Config($Config) {
     $samplerPattern = '^[a-zA-Z0-9_+ .-]{1,80}$'
     if ($Config.width * $Config.height -gt 4194304 -or $Config.steps -lt 1 -or $Config.steps -gt 50 -or
         $null -eq $Config.scale -or $Config.scale -lt 0 -or $Config.scale -gt 10 -or $Config.seed -lt -1 -or $Config.seed -gt 4294967295 -or
-        $Config.minimum_interval_seconds -lt 5 -or $Config.maximum_generations_per_run -lt 1 -or
+        $Config.minimum_interval_seconds -lt 5 -or
         [string]$Config.model -notmatch $modelPattern -or [string]$Config.sampler -notmatch $samplerPattern -or
-        ($backend -eq 'novelai' -and (Get-PromptFormat $Config) -notin @('v4', 'legacy'))) { throw 'モデル・生成パラメータ・上限が不正です。' }
+        ($backend -eq 'novelai' -and (Get-PromptFormat $Config) -notin @('v4', 'legacy'))) { throw 'モデル・生成パラメータが不正です。' }
     $rescale = Get-Entry $Config 'cfg_rescale'
     $schedule = Get-Entry $Config 'noise_schedule'
     if ([double]::IsNaN([double]$Config.scale) -or ($null -ne $rescale -and ([double]::IsNaN([double]$rescale) -or $rescale -lt 0 -or $rescale -gt 1)) -or
