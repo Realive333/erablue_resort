@@ -1,14 +1,16 @@
 # NovelAI 自動一枚絵・再開メモ
 
-最新更新: 2026-09-14。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
+最新更新: 2026-09-18。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
 
 ## 実装済み
+- 2026-09-18: プロンプトと識別キー以外のCSV列を削除。服装は`name,prompt`、行動は`name,scene,actor,target`。出力スクリプトもsource/statusを生成しない。旧形式の読み込みは許可し、編集済みタグ・空欄は保持。`-FillMissingTags`を明示した場合だけ空欄の行動タグを補完する。
+- 2026-09-17: `novelai/clothes.csv`は共通衣装のみ117件（英語初期タグ91件）。`ERB/通常衣装関連`だけを抽出し、キャラCSV・個別口上ERBの専用衣装は既存行からも除外。固有の普段着名と番号指定衣装は「普段着」扱い。NAI_キャラ行から現在のTEQUIP/CSTRを送り、操作キャラと相手それぞれのプロンプトへ服装を追加。画像名は操作キャラから`{NO}_{服装}_{NO}_{服装}_{行動}.png`。服装の追加名・脱衣状態は+連結、着替えで別キャッシュになる。命名・キャッシュ検索はGet-ImageNameに一本化し、ゲームは現在の要求IDの応答名で読む。旧画像は保持し新キャッシュには流用しない。`export-clothes.ps1`・`export-csv.cmd`で更新可能、共通服の編集は保持。test-clothesで実Emueraの抽出・操作キャラ切替・新画像読込・脱衣後の古い応答除外、test.ps1で服別保存・再利用を検証済み。旧test-renderは現行にない関数へ依存するため表示はtest-controlsを使用。
 - 接触キャラ（TARGET＋PLAYERが関与する進行中モード、別室・無関係キャラは除外）から一枚絵を生成。プレイヤー＋最大5人。
 - ERBは要求をtxtへ書き、Windows PowerShellワーカーがNovelAIへ送信。追加LLM・外部パッケージ不要。
 - start.cmdは表示付きコンソール内でワーカーを実行。ウィンドウを閉じれば停止。stop.cmd・異常終了後はpauseでログ確認用に残る。隠し子プロセスは起動しない。
 - Write-Logで日時付き状態・場面/モデル/キャラNO/行動・API送信/保存/エラー・設定更新を表示。同一状態は繰り返さず、エラー詳細のAPIキーは伏せる。送信時に全体・ネガティブ・全キャラの正負プロンプトを全文表示。preview.jsonも維持。
 - 2026-09-13: 継続動作があると直近コマンドを無視するELSEIFが画像固定の原因。ユーザー指定で画像には直近コマンドだけを反映。PLAYER→TARGETのmode行で送り、継続動作DBは接触キャラの取得にだけ使用。有効な直近コマンドがなければ待機。ERB反映にはゲームの保存・再起動が必要。
-- 設定: `novelai/config.json`。プロンプト: `prompts.csv`, `characters.csv`, `actions.csv`。この4ファイルが現在の設定元。
+- 設定: `novelai/config.json`。プロンプト: `prompts.csv`, `characters.csv`, `clothes.csv`, `actions.csv`。この5ファイルが現在の設定元。
 - 行動342件、タグあり77件、要設定265件。`export-csv.cmd`で静的コマンド/継続動作の新規行を追加。編集済みタグは保持する。
 - 2026-09-13: actions.csvに「待機」を追加。場面タグがない場合は待機行のscene列を参照し、コード内の固定タグを廃止。空欄なら補完なし。export-csvの初期タグにも登録。既存画像への反映は［再生成］。
 - OPTION→[5]→[9]からモデル・解像度・Steps・scale・Sampler・Seed・間隔・上限・CFG Rescale・Noise schedule・prompt_formatを変更。
