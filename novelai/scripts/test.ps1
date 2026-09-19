@@ -6,9 +6,9 @@ $config = Read-Text (Join-Path $script:NovelAiDirectory 'config.json') | Convert
 $data = Read-PromptData $script:NovelAiDirectory
 # ユーザーが編集した行動タグに依存せず、テスト用の短いタグで検証する。
 $actionFixtures = @(
-    [pscustomobject]@{ name = '会話する'; scene = 'talking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
-    [pscustomobject]@{ name = '散歩する'; scene = 'walking together'; actor = ''; target = ''; source = 'test'; status = '設定済み' }
-    [pscustomobject]@{ name = '待機'; scene = ''; actor = ''; target = ''; source = 'test'; status = '設定済み' }
+    [pscustomobject]@{ name = '会話する'; scene = 'talking together'; actor = ''; target = '' }
+    [pscustomobject]@{ name = '散歩する'; scene = 'walking together'; actor = ''; target = '' }
+    [pscustomobject]@{ name = '待機'; scene = ''; actor = ''; target = '' }
 )
 foreach ($row in $actionFixtures) { $data.Actions[$row.name] = $row }
 $request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`tテスト相手`ncharacter`t8`t456`t二人目`nplace`t0`t1`nmode`t0`t7`t会話する`nEND`t100-1"
@@ -61,7 +61,7 @@ try {
     $statusLog = @(& { Set-Status 'test status'; Set-Status 'test status' } 6>&1)
     Assert ($statusLog.Count -eq 1 -and "$($statusLog[0])" -match '^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] test status$') '状態ログは日時付きで変更時に1回だけ表示'
     foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv', 'clothes.csv') { Copy-Item -LiteralPath (Join-Path $script:NovelAiDirectory $file) -Destination (Join-Path $testDirectory $file) }
-    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target', 'source', 'status')
+    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionFixtures @('name', 'scene', 'actor', 'target')
     $complexPrompt = "comma, quote `"OK`"`nand second line 日本語"
     Update-Setting $testDirectory 'prompts' 'system' $complexPrompt
     Assert ((Read-PromptData $testDirectory).Prompts.system -ceq $complexPrompt) 'CSVのカンマ・引用符・改行・日本語を保持'
@@ -74,7 +74,7 @@ try {
     $idleRow = $actionRows | Where-Object name -eq '待機'
     Assert ($null -ne $idleRow) '待機項目をCSVに定義（タグ空欄も許可）'
     $idleRow.scene = 'standing together, relaxed'
-    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionRows @('name', 'scene', 'actor', 'target', 'source', 'status')
+    Write-CsvTable (Join-Path $testDirectory 'actions.csv') $actionRows @('name', 'scene', 'actor', 'target')
     foreach ($fallbackScene in @($idleScene, $unmappedA)) {
         $idle = New-Payload $fallbackScene $idleConfig $testDirectory
         Assert ($idle.Payload.input -ceq 'fixed system, standing together, relaxed') '行動なし・未登録時に待機CSVの編集内容を反映'
@@ -300,7 +300,7 @@ try {
         Assert ($unlimitedLog.Contains('今回21回目')) '上限なしの送信回数を状態に表示'
     }
     finally { $script:Root = $originalRoot; $env:NOVELAI_API_TOKEN = $originalToken }
-    Write-Host 'PASS: CSV / models / ID-action filenames / cache reuse / regeneration / atomic image replacement / stale requests / worker / unlimited submissions'
+    Write-Host 'PASS: CSV / models / ID-clothes-action filenames / outfit cache / regeneration / atomic image replacement / stale requests / worker / unlimited submissions'
 }
 finally {
     $script:Runtime = $realRuntime

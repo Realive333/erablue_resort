@@ -34,22 +34,22 @@ The worker reloads the files after editing. Save them as **CSV UTF-8** in spread
 | --- | --- | --- |
 | `prompts.csv` | `key,prompt` | `system` (global instructions) and `negative` |
 | `characters.csv` | `no,prompt` | Appearance tags by character number |
-| `clothes.csv` | `name,prompt,source,status` | Tags for current outfit names and clothing states |
-| `actions.csv` | `name,scene,actor,target,source,status` | Action tags |
+| `clothes.csv` | `name,prompt` | Tags for current outfit names and clothing states |
+| `actions.csv` | `name,scene,actor,target` | Action tags |
 
-Only `system` and `negative` are valid keys in `prompts.csv`. `source` and `status` are management fields and are not sent to the API. Do not duplicate keys.
+CSV files contain only lookup keys and prompt columns. Only `system` and `negative` are valid keys in `prompts.csv`. Do not duplicate keys.
 
 At runtime, character numbers are looked up in `characters.csv`; a missing or blank entry falls back to the in-game name. Construction order is “fixed system → characters → actions → API prompt.” V4/V5 use global and per-character fields; V3 combines everything into one prompt.
 
 Character submission order is **target character → player → other contact characters**. `scene` applies to the overall image; `actor` and `target` apply to the actor and target. Press [Regenerate] to apply changes to existing images.
 
-Each character caption uses **appearance → current clothing → action tags**. Outfit names come from the current costume or the character's default `CSTR:服名称`. Current `TEQUIP` values account for undressing: underwear, tights, and exposed areas are added only where outer clothing is absent. Fully undressed characters use the `全裸` entry without the former outfit. Numeric character costumes are resolved to their owner's outfit name.
+Both the controlled character and their contacts use **appearance → current clothing → action tags**. Outfit names come from the current costume; character-specific default outfits and numeric character costumes use `普段着`. Current `TEQUIP` values account for undressing: underwear, tights, and exposed areas are added only where outer clothing is absent. Fully undressed characters use the `全裸` entry without the former outfit. Switching the controlled character also switches whose clothing tags are applied.
 
-`clothes.csv` extracts `CLOTHES_CHANGE_*` and outfit-name definitions from ERB plus outfit names from character CSV files. Common clothes and states have initial English tags; unique names retain their Japanese text. Edit `prompt` freely or leave it blank to omit it. Keys such as `上半身下着_1` (bra) and `下半身下着_1` (regular underwear) follow the game's clothing values. Missing or blank tags are logged and listed in `runtime/unmapped-clothes.txt`.
+`clothes.csv` extracts shared outfit definitions from `ERB/通常衣装関連`. Character-specific outfits from `CSV/キャラデータ` and `ERB/口上_キャラ個別ERB` are excluded. Common clothes and states have initial English tags; other shared outfits retain their Japanese names. Edit `prompt` freely or leave it blank to omit it. Keys such as `上半身下着_1` (bra) and `下半身下着_1` (regular underwear) follow the game's clothing values. Missing or blank tags are logged and listed in `runtime/unmapped-clothes.txt`.
 
-`export-csv.cmd` adds new action and clothing definitions while preserving edited tags. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Image names still use character IDs plus the action, so press `[Regenerate]` to recreate an existing image with current clothes. Restart the worker and game after installing this change.
+`export-csv.cmd` adds new action and clothing definitions while preserving edited shared-outfit tags, and removes previously exported character-specific outfits. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Clothing is part of image names, so changing or removing clothes selects a separate image for generation or reuse. Restart the worker and game after installing this change.
 
-The action CSV contains 342 entries; 77 have initial tags and the rest are blank or marked `要設定`. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
+The action CSV contains 342 entries; 77 have initial tags and the rest are blank. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
 
 ## In-game settings and models
 
@@ -72,8 +72,8 @@ Width and height must be multiples of 64 from 64 to 2048. Steps: 1–50; scale: 
 
 ## Caching, regeneration, and resuming
 
-- Image names use `0-123_会話する.png`: the first ID is the player, followed by contact characters. Join multiple actions with `+`; use `待機` when there is no action. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
-- Before an API request, an image with the same name in `resources/NovelAI/` is reused. The cache is reused for the same character IDs and action even if the model, settings, or tags change. Press `[Regenerate]` to apply changes.
+- Image names use `{char1}_{cloth1}_{char2}_{cloth2}_{action}.png`, for example `0_普段着_123_メイド服_会話する.png`. Each pair contains a character NO and clothing, starting with the currently controlled character, then their contacts. Additional clothing names, undressing states, and multiple actions are joined with `+`; use `待機` when there is no action. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
+- Before an API request, an image with the same name in `resources/NovelAI/` is reused. The cache is reused for the same character IDs, clothing, and action even if the model, settings, or tags change. Press `[Regenerate]` to apply tag changes. The game displays the filename returned for its current request ID. Older images without clothing in their names are retained but are not reused as the new cache.
 - Normal generation uses only the latest scene. Regeneration ignores the cache, sends once, uses a new Seed even with a fixed Seed, and replaces the file only after receiving a valid PNG.
 - Communication failures and interruptions are recorded and not resubmitted automatically. The previous image is kept; press `[Regenerate]` again to retry. An unknown result may already have been charged.
 - Stop with `stop.cmd` and resume with `start.cmd`. Settings, images, and failure records are retained.
