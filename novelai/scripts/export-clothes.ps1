@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 if (-not $OutputDirectory) { $OutputDirectory = $script:NovelAiDirectory }
 if (-not $CatalogRoot) { $CatalogRoot = Join-Path $script:Root 'ERB/通常衣装関連' }
 $seeds = @{
-    '普段着' = 'default outfit'; 'おしゃれ着' = 'formal clothes'
+    'おしゃれ着' = 'formal clothes'
     '全裸' = 'nude'; '上半身裸' = 'topless'; '下半身裸' = 'bottomless'
     '上タイツ' = 'bodystocking'; '下タイツ' = 'pantyhose'
     '上半身下着_1' = 'bra'; '上半身下着_2' = 'pasties'; '上半身下着_3' = 'sarashi'; '上半身下着_4' = 'ribbon bra'
@@ -40,10 +40,10 @@ $seeds = @{
 $path = Join-Path $OutputDirectory 'clothes.csv'
 $existing = @{}
 if (Test-Path -LiteralPath $path) {
-    foreach ($row in (Read-CsvTable $OutputDirectory 'clothes' @('name', 'prompt', 'source', 'status') 'name')) { $existing[$row.name] = $row }
+    foreach ($row in (Read-CsvTable $OutputDirectory 'clothes' @('name', 'prompt') 'name')) { $existing[$row.name] = $row }
 }
 $catalog = @{}
-foreach ($name in $seeds.Keys) { $catalog[$name] = @('初期タグ / TEQUIP着用状態') }
+foreach ($name in $seeds.Keys) { $catalog[$name] = $true }
 foreach ($file in (Get-ChildItem -LiteralPath $CatalogRoot -Recurse -File -Filter '*.ERB')) {
     $source = [IO.File]::ReadAllText($file.FullName, [Text.Encoding]::UTF8)
     $names = @([regex]::Matches($source, '(?m)^@CLOTHES_CHANGE_([^\(\r\n]+)') | ForEach-Object { $_.Groups[1].Value.Trim() })
@@ -51,7 +51,7 @@ foreach ($file in (Get-ChildItem -LiteralPath $CatalogRoot -Recurse -File -Filte
     $names += @([regex]::Matches($source, '(?m)^[ \t]*CSTR:[^:\r\n]+:(?:着せ替え服(?:追加名)?|服名称)[ \t]*''=[ \t]*"([^"\r\n]*)"') | ForEach-Object { $_.Groups[1].Value.Trim() })
     foreach ($name in $names) {
         if (-not $name -or $name -eq 'CHARA' -or $name -match '[%{}"\\;]' -or $name -match '^\d+$') { continue }
-        $catalog[$name] = @($catalog[$name]) + $file.FullName.Substring($CatalogRoot.TrimEnd('\', '/').Length + 1)
+        $catalog[$name] = $true
     }
 }
 foreach ($name in @($existing.Keys)) {
@@ -61,15 +61,13 @@ foreach ($name in @($existing.Keys)) {
     }
 }
 foreach ($name in $catalog.Keys) {
-    if ($existing.ContainsKey($name)) {
-        $existing[$name].source = @($catalog[$name] | Select-Object -Unique) -join '; '
-        continue
-    }
+    if ($existing.ContainsKey($name)) { continue }
     $tag = if ($seeds.ContainsKey($name)) { $seeds[$name] } else { $name }
     $existing[$name] = [pscustomobject]@{
-        name = $name; prompt = $tag; source = (@($catalog[$name] | Select-Object -Unique) -join '; ')
-        status = $(if ($seeds.ContainsKey($name)) { '初期タグ' } else { '服装名（日本語）' })
+        name = $name; prompt = $tag
     }
 }
-Write-CsvTable $path @($existing.Values | Sort-Object name) @('name', 'prompt', 'source', 'status')
+# 普段着はcharacters.csvのキャラ別設定だけを使う。
+$existing.Remove('普段着')
+Write-CsvTable $path @($existing.Values | Sort-Object name) @('name', 'prompt')
 Write-Host ("服装CSV: {0}件。既存の編集内容は保持しました。" -f $existing.Count)

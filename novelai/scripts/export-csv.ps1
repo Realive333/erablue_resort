@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $directory = $script:NovelAiDirectory
 [void][IO.Directory]::CreateDirectory($script:Runtime)
 
-# 日常動作の初期タグ。意味を決められない名前は空欄・要設定のまま出力する。
+# 日常動作の初期タグ。意味を決められない名前は空欄のまま出力する。
 $seeds = @{
     '待機' = 'relaxed pose, spending time together'
     '会話' = 'talking together'; '会話する' = 'talking together'; 'お茶を淹れる' = 'serving tea, teacup'
@@ -37,10 +37,10 @@ $seeds = @{
 $actionsPath = Join-Path $directory 'actions.csv'
 $existing = @{}
 if (Test-Path $actionsPath) {
-    foreach ($row in (Read-CsvTable $directory 'actions' @('name', 'scene', 'actor', 'target', 'source', 'status') 'name')) { $existing[$row.name] = $row }
+    foreach ($row in (Read-CsvTable $directory 'actions' @('name', 'scene', 'actor', 'target') 'name')) { $existing[$row.name] = $row }
 }
 $catalog = @{}
-foreach ($name in $seeds.Keys) { $catalog[$name] = @('初期タグ') }
+foreach ($name in $seeds.Keys) { $catalog[$name] = $true }
 # ゲーム内の定義から取得。表示名が条件で変わる場合は静的に読める全候補を登録する。
 foreach ($file in (Get-ChildItem -LiteralPath (Join-Path $script:Root 'ERB/コマンド') -Recurse -File -Filter '*.ERB')) {
     $source = [IO.File]::ReadAllText($file.FullName, [Text.Encoding]::UTF8)
@@ -48,26 +48,23 @@ foreach ($file in (Get-ChildItem -LiteralPath (Join-Path $script:Root 'ERB/コ�
     $names += @([regex]::Matches($source, '(?m)^@(?:MODE_持続快楽_|MODETYPE_)([^\(\r\n]+)') | ForEach-Object { $_.Groups[1].Value.Trim() })
     foreach ($name in $names) {
         if (-not $name -or $name -match '[%{}"\\]') { continue }
-        $catalog[$name] = @($catalog[$name]) + $file.Name
+        $catalog[$name] = $true
     }
 }
 foreach ($name in $catalog.Keys) {
     if ($existing.ContainsKey($name)) {
         $row = $existing[$name]
-        if ($FillMissingTags -and $row.status -eq '要設定' -and -not ($row.scene -or $row.actor -or $row.target) -and $seeds.ContainsKey($name)) {
+        if ($FillMissingTags -and -not ($row.scene -or $row.actor -or $row.target) -and $seeds.ContainsKey($name)) {
             $row.scene = $seeds[$name]
-            $row.status = '初期タグ'
         }
         continue
     }
     $tag = [string]$seeds[$name]
     $existing[$name] = [pscustomobject]@{
         name = $name; scene = $tag; actor = ''; target = ''
-        source = (@($catalog[$name] | Where-Object { $_ } | Select-Object -Unique) -join '; ')
-        status = $(if ($tag) { '初期タグ' } else { '要設定' })
     }
 }
-Write-CsvTable $actionsPath @($existing.Values | Sort-Object name) @('name', 'scene', 'actor', 'target', 'source', 'status')
+Write-CsvTable $actionsPath @($existing.Values | Sort-Object name) @('name', 'scene', 'actor', 'target')
 
 & (Join-Path $PSScriptRoot 'export-clothes.ps1') -OutputDirectory $directory
 Sync-Settings $directory

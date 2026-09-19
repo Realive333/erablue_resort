@@ -1,8 +1,10 @@
 1040	girl, takarada rikka,
 11	girl, galleon (granblue fantasy),
+1178	boy, rance, rance (series)
 12	girl. wamdus (granblue fantasy), loli, child, petite
 1350	boy, shinonome akito,
 1747	girl, yoisaki kanade, flat chest
+1865	girl, saijo juri,
 192	girl, lily (granblue fantasy), loli, petite
 195	girl, orchis, loli, petite,
 20	girl, zeta (granblue fantasy),
@@ -14,6 +16,7 @@
 2726	girl, senkawa chihiro,
 28	girl, lyria (granblue fantasy), petite
 3006	boy, akiyama mizuki, otoko no ko, shota, clothed, possessive desire expression
-3007	girl, asahina mafuyu, school uniform, emotionless
-3008	girl, shinonome ena, school uniform
+3007	girl, asahina mafuyu, 0.1::emotionless::
+3008	girl, shinonome ena
+3252	girl, shinosawa hiro,
 64	girl, nier (granblue fantasy), small chest

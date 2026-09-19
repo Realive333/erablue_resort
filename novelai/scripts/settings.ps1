@@ -32,9 +32,11 @@ function Read-PromptData([string]$Directory) {
     foreach ($row in (Read-CsvTable $Directory 'prompts' @('key', 'prompt') 'key')) { $prompts[$row.key] = $row.prompt }
     foreach ($key in $script:PromptKeys) { if (-not $prompts.ContainsKey($key)) { throw "prompts.csvに$keyがありません。" } }
     $characters = @{}
+    $defaultOutfits = @{}
     foreach ($row in (Read-CsvTable $Directory 'characters' @('no', 'prompt') 'no')) {
         if ($row.no -notmatch '^\d+$') { throw 'characters.csvのnoはキャラ番号を指定してください。' }
         $characters[$row.no] = $row.prompt
+        $defaultOutfits[$row.no] = [string](Get-Entry $row 'default_outfit')
     }
     $actions = @{}
     foreach ($row in (Read-CsvTable $Directory 'actions' @('name', 'scene', 'actor', 'target') 'name')) {
@@ -42,7 +44,7 @@ function Read-PromptData([string]$Directory) {
     }
     $clothes = @{}
     foreach ($row in (Read-CsvTable $Directory 'clothes' @('name', 'prompt') 'name')) { $clothes[$row.name] = $row.prompt }
-    return [pscustomobject]@{ Prompts = $prompts; Characters = $characters; Actions = $actions; Clothes = $clothes }
+    return [pscustomobject]@{ Prompts = $prompts; Characters = $characters; DefaultOutfits = $defaultOutfits; Actions = $actions; Clothes = $clothes }
 }
 
 function Get-PromptFormat($Config) {
@@ -118,7 +120,9 @@ function Update-Setting([string]$Directory, [string]$Kind, [string]$Key, [string
     $row = $rows | Where-Object { $_.$keyColumn -ceq $Key }
     if ($null -eq $row) { $rows += [pscustomobject]@{ $keyColumn = $Key; prompt = $Value } }
     else { $row.prompt = $Value }
-    Write-CsvTable (Join-Path $Directory ($Kind + '.csv')) $rows @($keyColumn, 'prompt')
+    $columns = @($keyColumn, 'prompt')
+    if ($Kind -eq 'characters') { $columns += 'default_outfit' }
+    Write-CsvTable (Join-Path $Directory ($Kind + '.csv')) $rows $columns
 }
 
 function Sync-Settings([string]$Directory) {

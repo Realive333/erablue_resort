@@ -1,6 +1,8 @@
 # NovelAI Automatic Single-Image Generation
 
-The in-game “NovelAI” tab generates images from the player, contact characters, and the most recent action. It includes one player and up to five contact characters.
+The in-game “NovelAI” tab generates images from the player, contact characters, and the most recent command executed by the user. It includes one player and up to five contact characters.
+
+Ongoing mode names are excluded from prompts, filenames, and logs. Without a command history matching the current target and location, the action is `待機` (idle). Mode data is used only to find contact characters. Command actor tags apply to the controlled character, and target tags apply to the selected partner. Restart both the game and worker to apply this change.
 
 ## Setup and startup
 
@@ -10,7 +12,9 @@ The in-game “NovelAI” tab generates images from the player, contact characte
 
 Generation is disabled by default. Defaults are one image per request and a 30-second minimum interval, with no submission limit per worker startup. Generation consumes Anlas according to the plan.
 
-Run `stop.cmd` or close the worker window to stop it. A request in progress stops after its response or timeout. Disabling the feature in-game stops new generation and image display. Logs are also available in `runtime/preview.json` without the API key.
+Run `stop.cmd` or close the worker window to stop it. A request in progress stops after its response or timeout. Disabling the feature in-game stops new generation and image display.
+
+Before generation, console logs show the global prompt and a separate section for each character, including name, number, player/contact role, and individual prompt. Outfit names and their tags appear on dedicated lines; missing clothing data or tags are identified. Negative prompts are applied to API requests but omitted from console logs. `runtime/preview.json` retains the request data, including negative prompts, without the API key. Cached-image reuse does not send an API request or print prompts.
 
 Saved images appear in the “NovelAI” tab and completed generation or regeneration results update automatically. Display updates do not advance in-game time. After installation or updates, save and restart the game. The MOD is `ERB/追加MOD_NovelAI一枚絵/`; updates while waiting for input also require the hook in `ERB/TRAIN_MAIN.ERB`.
 
@@ -33,23 +37,25 @@ The worker reloads the files after editing. Save them as **CSV UTF-8** in spread
 | File | Columns | Contents |
 | --- | --- | --- |
 | `prompts.csv` | `key,prompt` | `system` (global instructions) and `negative` |
-| `characters.csv` | `no,prompt` | Appearance tags by character number |
-| `clothes.csv` | `name,prompt,source,status` | Tags for current outfit names and clothing states |
-| `actions.csv` | `name,scene,actor,target,source,status` | Action tags |
+| `characters.csv` | `no,prompt,default_outfit` | Appearance and default-outfit tags by character number |
+| `clothes.csv` | `name,prompt` | Tags for current outfit names and clothing states |
+| `actions.csv` | `name,scene,actor,target` | Action tags |
 
-Only `system` and `negative` are valid keys in `prompts.csv`. `source` and `status` are management fields and are not sent to the API. Do not duplicate keys.
+CSV files contain only lookup keys and prompt columns. Only `system` and `negative` are valid keys in `prompts.csv`. Do not duplicate keys.
 
 At runtime, character numbers are looked up in `characters.csv`; a missing or blank entry falls back to the in-game name. Construction order is “fixed system → characters → actions → API prompt.” V4/V5 use global and per-character fields; V3 combines everything into one prompt.
 
+`default_outfit` is added only when that character wears `普段着`. Both the player and contacts use their own character-number row. Edit this column directly in the CSV; there is no in-game outfit editor. The initial value is blank. Blank or missing entries add no outfit tags, and logs identify the character number and column to edit. The `普段着` entry in `clothes.csv` is no longer used. Changing into another outfit uses that outfit's `clothes.csv` row without `default_outfit`. Existing in-game appearance edits change only `prompt` and preserve `default_outfit`. CSV edits are loaded at the next generation; press [Regenerate] to apply them to an already saved image.
+
 Character submission order is **target character → player → other contact characters**. `scene` applies to the overall image; `actor` and `target` apply to the actor and target. Press [Regenerate] to apply changes to existing images.
 
-Each character caption uses **appearance → current clothing → action tags**. Outfit names come from the current costume or the character's default `CSTR:服名称`. Current `TEQUIP` values account for undressing: underwear, tights, and exposed areas are added only where outer clothing is absent. Fully undressed characters use the `全裸` entry without the former outfit. Numeric character costumes are resolved to their owner's outfit name.
+Both the controlled character and their contacts use **appearance → current clothing → action tags**. Outfit names come from the current costume; character-specific default outfits and numeric character costumes use `普段着`. Current `TEQUIP` values account for undressing: underwear, tights, and exposed areas are added only where outer clothing is absent. Fully undressed characters use the `全裸` entry without the former outfit. Switching the controlled character also switches whose clothing tags are applied.
 
-`clothes.csv` extracts `CLOTHES_CHANGE_*` and outfit-name definitions from ERB plus outfit names from character CSV files. Common clothes and states have initial English tags; unique names retain their Japanese text. Edit `prompt` freely or leave it blank to omit it. Keys such as `上半身下着_1` (bra) and `下半身下着_1` (regular underwear) follow the game's clothing values. Missing or blank tags are logged and listed in `runtime/unmapped-clothes.txt`.
+`clothes.csv` extracts shared outfit definitions from `ERB/通常衣装関連`. Character-specific outfits from `CSV/キャラデータ` and `ERB/口上_キャラ個別ERB` are excluded. Common clothes and states have initial English tags; other shared outfits retain their Japanese names. Edit `prompt` freely or leave it blank to omit it. Keys such as `上半身下着_1` (bra) and `下半身下着_1` (regular underwear) follow the game's clothing values. Missing or blank tags are logged and listed in `runtime/unmapped-clothes.txt`.
 
-`export-csv.cmd` adds new action and clothing definitions while preserving edited tags. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Image names still use character IDs plus the action, so press `[Regenerate]` to recreate an existing image with current clothes. Restart the worker and game after installing this change.
+`export-csv.cmd` adds new action and clothing definitions while preserving edited shared-outfit tags, and removes previously exported character-specific outfits. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Clothing is part of image names, so changing or removing clothes selects a separate image for generation or reuse. Restart the worker and game after installing this change.
 
-The action CSV contains 342 entries; 77 have initial tags and the rest are blank or marked `要設定`. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
+The action CSV contains 342 entries; 77 have initial tags and the rest are blank. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
 
 ## In-game settings and models
 
@@ -58,8 +64,8 @@ The action CSV contains 342 entries; 77 have initial tags and the rest are blank
 `[NovelAI設定]` remains visible in the NovelAI tab when no image is available, generation is pending, or automatic generation is disabled.
 
 - `[1]` / `[2]`: `system` / `negative` in `prompts.csv`.
-- `[3]`: The current player’s row in `characters.csv`.
-- `[7]`: The current partner’s row in `characters.csv`.
+- `[3]`: The current player’s `prompt` in `characters.csv`.
+- `[7]`: The current partner’s `prompt` in `characters.csv`.
 - `[9]`: Width, height, Steps, prompt strength, Sampler, Seed, interval, CFG Rescale, Noise schedule, and prompt format.
 
 The worker must be running to save in-game changes. CSV and config files can also be edited externally; invalid settings stop new generation. Use `\(` / `\)` for half-width parentheses in-game. Parentheses can be written normally in CSV. [Emuera specification](https://evilmask.gitlab.io/emuera.em.doc/Emuera/expression.html#inputs)
@@ -72,8 +78,8 @@ Width and height must be multiples of 64 from 64 to 2048. Steps: 1–50; scale: 
 
 ## Caching, regeneration, and resuming
 
-- Image names use `0-123_会話する.png`: the first ID is the player, followed by contact characters. Join multiple actions with `+`; use `待機` when there is no action. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
-- Before an API request, an image with the same name in `resources/NovelAI/` is reused. The cache is reused for the same character IDs and action even if the model, settings, or tags change. Press `[Regenerate]` to apply changes.
+- Image names use `{char1}_{cloth1}_{char2}_{cloth2}_{action}.png`, for example `0_普段着_123_メイド服_会話する.png`. Each pair contains a character NO and clothing, starting with the currently controlled character, then their contacts. Additional clothing names and undressing states are joined with `+`. The action is the single latest user command, or `待機` when there is no matching history. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
+- Before an API request, an image with the same name in `resources/NovelAI/` is reused. The cache is reused for the same character IDs, clothing, and action even if the model, settings, or tags change. Press `[Regenerate]` to apply tag changes. The game displays the filename returned for its current request ID. Older images without clothing in their names are retained but are not reused as the new cache.
 - Normal generation uses only the latest scene. Regeneration ignores the cache, sends once, uses a new Seed even with a fixed Seed, and replaces the file only after receiving a valid PNG.
 - Communication failures and interruptions are recorded and not resubmitted automatically. The previous image is kept; press `[Regenerate]` again to retry. An unknown result may already have been charged.
 - Stop with `stop.cmd` and resume with `start.cmd`. Settings, images, and failure records are retained.
