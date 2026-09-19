@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 if (-not $OutputDirectory) { $OutputDirectory = $script:NovelAiDirectory }
 if (-not $CatalogRoot) { $CatalogRoot = Join-Path $script:Root 'ERB/通常衣装関連' }
 $seeds = @{
-    '普段着' = 'default outfit'; 'おしゃれ着' = 'formal clothes'
+    'おしゃれ着' = 'formal clothes'
     '全裸' = 'nude'; '上半身裸' = 'topless'; '下半身裸' = 'bottomless'
     '上タイツ' = 'bodystocking'; '下タイツ' = 'pantyhose'
     '上半身下着_1' = 'bra'; '上半身下着_2' = 'pasties'; '上半身下着_3' = 'sarashi'; '上半身下着_4' = 'ribbon bra'
@@ -67,5 +67,7 @@ foreach ($name in $catalog.Keys) {
         name = $name; prompt = $tag
     }
 }
+# 普段着はcharacters.csvのキャラ別設定だけを使う。
+$existing.Remove('普段着')
 Write-CsvTable $path @($existing.Values | Sort-Object name) @('name', 'prompt')
 Write-Host ("服装CSV: {0}件。既存の編集内容は保持しました。" -f $existing.Count)

@@ -201,16 +201,19 @@ try {
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 0) '同じIDと行動の送信記録で自動再送を防止'
         Remove-Item -LiteralPath $recordPath
+        Update-Setting $testDirectory 'prompts' 'negative' 'negative-log-sentinel'
         $promptLog = (@(& { Invoke-Worker -Once -Directory $testDirectory } 6>&1) | ForEach-Object { [string]$_ }) -join "`n"
         Assert ($script:HttpCalls -eq 1) '新しい場面で1回だけ生成'
         Assert ($promptLog.Contains('全体プロンプト: ' + ($script:SentPayload.input -replace '[\r\n\t]', ' '))) '送信した全体プロンプトを省略せずログ表示'
-        Assert ($promptLog.Contains('ネガティブプロンプト: ' + ($script:SentPayload.parameters.negative_prompt -replace '[\r\n\t]', ' '))) '送信したネガティブをログ表示'
+        Assert ($script:SentPayload.parameters.negative_prompt -ceq 'negative-log-sentinel') 'ネガティブはAPI送信に保持'
+        Assert ($promptLog -notmatch 'negative-log-sentinel|ネガティブ') 'ネガティブの内容と見出しをログに出さない'
         $expectedNos = @('123', '0', '456')
         for ($i = 0; $i -lt $expectedNos.Count; $i++) {
             $caption = $script:SentPayload.parameters.v4_prompt.caption.char_captions[$i].char_caption
-            Assert ($promptLog.Contains(('キャラ{0}（NO={1}）プロンプト: {2}' -f ($i + 1), $expectedNos[$i], ($caption -replace '[\r\n\t]', ' ')))) '全キャラの送信プロンプトを並び順に合うNO付きでログ表示'
-            Assert ($promptLog.Contains(('キャラ{0}（NO={1}）ネガティブ:' -f ($i + 1), $expectedNos[$i]))) '全キャラのネガティブ欄も表示'
+            Assert ($promptLog -match ('キャラ{0}: .*（NO={1} / ' -f ($i + 1), $expectedNos[$i])) '送信順にキャラ名とNOを表示'
+            Assert ($promptLog.Contains('    プロンプト: ' + ($caption -replace '[\r\n\t]', ' '))) 'キャラ別プロンプトを全文表示'
         }
+        Assert ($promptLog.Contains('服装: ゲームから未受信')) '服装行が届いていない場合は理由を表示'
         Assert (-not $promptLog.Contains($env:NOVELAI_API_TOKEN)) 'プロンプトログにAPIキーを含めない'
         Invoke-Worker -Once -Directory $testDirectory
         Assert ($script:HttpCalls -eq 1) '再起動後はキャッシュを使用'

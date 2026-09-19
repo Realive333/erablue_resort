@@ -104,6 +104,7 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     $negative = $Data.Prompts.negative
     $captions = @()
     $negativeCaptions = @()
+    $characterPrompts = @()
     # APIの先頭2人だけを目標→プレイヤーにする。シーンと画像名のID順は保持。
     $promptCharacters = $Scene.Characters.Clone()
     if ($promptCharacters.Count -gt 1) {
@@ -113,14 +114,21 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     foreach ($character in $promptCharacters) {
         $description = Get-Entry $Data.Characters $character.No
         if ([string]::IsNullOrWhiteSpace($description)) { $description = $character.Name }
-        $clothingTags = @($Scene.Clothes | Where-Object Index -eq $character.Index | ForEach-Object {
-            $tag = Get-Entry $Data.Clothes $_.Name
-            if ([string]::IsNullOrWhiteSpace($tag)) { $unknownClothes += $_.Name } else { $tag }
+        $clothing = @($Scene.Clothes | Where-Object Index -eq $character.Index | ForEach-Object {
+            if ($_.Name -eq '普段着') {
+                $tag = Get-Entry $Data.DefaultOutfits $character.No
+                if ([string]::IsNullOrWhiteSpace($tag)) { $unknownClothes += ('普段着（NO={0}, characters.csv:default_outfit）' -f $character.No) }
+            } else {
+                $tag = Get-Entry $Data.Clothes $_.Name
+                if ([string]::IsNullOrWhiteSpace($tag)) { $unknownClothes += $_.Name }
+            }
+            [pscustomobject]@{ Name = $_.Name; Prompt = [string]$tag }
         })
-        $caption = Join-Tags (@($description) + $clothingTags + @($characterActions[$character.Index]))
+        $caption = Join-Tags (@($description) + @($clothing.Prompt) + @($characterActions[$character.Index]))
         $centers = @([ordered]@{ x = 0.5; y = 0.5 })
         $captions += [ordered]@{ char_caption = $caption; centers = $centers }
         $negativeCaptions += [ordered]@{ char_caption = ''; centers = $centers }
+        $characterPrompts += [pscustomobject]@{ No = $character.No; Name = $character.Name; Role = $character.Role; Clothes = $clothing; Prompt = $caption }
     }
     # V5は公式クライアントと同じversion 4 / Karrasで送る。
     $isV5 = $backend -eq 'novelai' -and $Config.model -match '^nai-diffusion-5(?:-|$)'
@@ -137,9 +145,8 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
         $parameters.v4_prompt = [ordered]@{ caption = [ordered]@{ base_caption = $basePrompt; char_captions = $captions }; use_coords = $false; use_order = $true }
         $parameters.v4_negative_prompt = [ordered]@{ caption = [ordered]@{ base_caption = $negative; char_captions = $negativeCaptions }; legacy_uc = $false }
     }
-    else { $basePrompt = $flatPrompt }
     $payload = if ($backend -eq 'novelai') {
-        [ordered]@{ input = $basePrompt; model = $Config.model; action = 'generate'; parameters = $parameters }
+        [ordered]@{ input = $(if ($format -eq 'v4') { $basePrompt } else { $flatPrompt }); model = $Config.model; action = 'generate'; parameters = $parameters }
     } else {
         [ordered]@{ prompt = $flatPrompt; negative_prompt = [string]$negative; model = $Config.model; width = [int]$Config.width; height = [int]$Config.height
             steps = [int]$Config.steps; scale = [double]$Config.scale; sampler = [string]$Config.sampler; seed = [long]$Config.seed }
@@ -147,6 +154,7 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     $json = ConvertTo-Json $payload -Depth 15 -Compress
     if ($json.Length -gt 24000) { throw 'プロンプトが長すぎます。短いタグに整理してください。' }
     return [pscustomobject]@{ Payload = $payload; Prompt = $flatPrompt; NegativePrompt = [string]$negative
+        BasePrompt = $basePrompt; CharacterPrompts = $characterPrompts
         CharacterNos = @($promptCharacters.No); UnknownActions = @($unknown | Select-Object -Unique)
         UnknownClothes = @($unknownClothes | Select-Object -Unique) }
 }
@@ -374,6 +382,27 @@ function Write-Log([string]$Text) {
     Write-Host ('[{0:yyyy-MM-dd HH:mm:ss}] {1}' -f (Get-Date), ($Text -replace '[\r\n\t]', ' '))
 }
 
+function Write-PromptLog($Spec) {
+    Write-Log '送信プロンプト（全体・キャラ別）'
+    $lines = @('  全体プロンプト: ' + $Spec.BasePrompt)
+    for ($i = 0; $i -lt $Spec.CharacterPrompts.Count; $i++) {
+        $character = $Spec.CharacterPrompts[$i]
+        $role = if ($character.Role -eq 'player') { '操作キャラ' } else { '相手キャラ' }
+        $lines += ''
+        $lines += '  キャラ{0}: {1}（NO={2} / {3}）' -f ($i + 1), $character.Name, $character.No, $role
+        if (-not $character.Clothes.Count) { $lines += '    服装: ゲームから未受信（ゲームを再起動して確認してください）' }
+        foreach ($clothing in $character.Clothes) {
+            $tag = if (-not [string]::IsNullOrWhiteSpace($clothing.Prompt)) { $clothing.Prompt }
+                elseif ($clothing.Name -eq '普段着') { '未設定（characters.csv の default_outfit、追加なし）' }
+                else { '未登録または空欄（追加なし）' }
+            $lines += '    服装 [{0}]: {1}' -f $clothing.Name, $tag
+        }
+        $lines += '    プロンプト: ' + $character.Prompt
+    }
+    foreach ($line in $lines) { Write-Host ($line -replace '[\r\n\t]', ' ') }
+    Write-Host ''
+}
+
 function Set-Status([string]$Text) {
     $path = Join-Path $script:Runtime 'status.txt'
     if ((Read-Text $path) -ne $Text) { Write-Atomic $path $Text; Write-Log $Text }
@@ -407,8 +436,9 @@ function Invoke-Worker {
                 $sceneKey = $scene.Id + ':' + $imageName
                 $sceneChanged = $sceneKey -ne $lastSceneKey
                 if ($sceneChanged) {
-                    $actionNames = if ($scene.Modes.Count) { $scene.Modes.Name -join ', ' } else { $scene.Action }
-                    Write-Log ('要求 {0} | model={1} | キャラNO={2} | 動作={3} | 画像={4}' -f $scene.Id, $config.model, ($scene.Characters.No -join ','), $actionNames, $imageName)
+                    $actionNames = if ($scene.Modes.Count) { $scene.Modes.Name -join ', ' } elseif ($scene.Action) { $scene.Action } else { '待機' }
+                    Write-Log ('要求 {0} | モデル: {1} | 動作: {2}' -f $scene.Id, $config.model, $actionNames)
+                    Write-Log ('画像名: ' + $imageName)
                     $lastSceneKey = $sceneKey
                 }
                 $imagePath = Join-Path $cache $imageName
@@ -424,7 +454,7 @@ function Invoke-Worker {
                 $force = $regenToken -and -not $handled
                 if ($cachedName) {
                     Publish-Image $scene $cachedName
-                    if ($sceneChanged) { Write-Log ('画像再利用: ' + $cachedName) }
+                    if ($sceneChanged) { Write-Log ('画像再利用（API送信なし）: ' + $cachedName) }
                 }
                 if (-not $force -and ($cachedName -or $sameRegeneration)) {
                     if ($sameRegeneration) { Set-Status $regenResult[2] }
@@ -437,7 +467,7 @@ function Invoke-Worker {
                 if (([datetime]::UtcNow - $lastRequest).TotalSeconds -lt $config.minimum_interval_seconds) { Set-Status '生成間隔の待機中です（最新の場面だけを処理）。'; continue }
                 $spec = New-Payload $scene $config $Directory
                 if ($spec.UnknownActions.Count) { Write-Log ('未登録の行動タグ: ' + ($spec.UnknownActions -join ', ')) }
-                if ($spec.UnknownClothes.Count) { Write-Log ('未設定の服装タグ（clothes.csv）: ' + ($spec.UnknownClothes -join ', ')) }
+                if ($spec.UnknownClothes.Count) { Write-Log ('未設定の服装タグ: ' + ($spec.UnknownClothes -join ', ')) }
                 $backend = Get-Backend $config
                 $token = ''
                 if ($backend -eq 'novelai') {
@@ -465,15 +495,8 @@ function Invoke-Worker {
                 $lastRequest = [datetime]::UtcNow
                 $count++
                 Set-Status ("生成中（今回{0}回目、{1}）。画像タブで自動表示します。" -f $count, $backend)
-                Write-Log ('API送信 | backend={0} | {1}x{2} | steps={3} | seed={4} | プロンプト: novelai/runtime/preview.json' -f $backend, $config.width, $config.height, $config.steps, $seed)
-                Write-Log ('全体プロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.input } else { $spec.Prompt }))
-                Write-Log ('ネガティブプロンプト: ' + $(if ($backend -eq 'novelai') { $spec.Payload.parameters.negative_prompt } else { $spec.NegativePrompt }))
-                if ($backend -eq 'novelai' -and $spec.Payload.parameters.Contains('v4_prompt')) {
-                    for ($i = 0; $i -lt $scene.Characters.Count; $i++) {
-                        Write-Log ('キャラ{0}（NO={1}）プロンプト: {2}' -f ($i + 1), $spec.CharacterNos[$i], $spec.Payload.parameters.v4_prompt.caption.char_captions[$i].char_caption)
-                        Write-Log ('キャラ{0}（NO={1}）ネガティブ: {2}' -f ($i + 1), $spec.CharacterNos[$i], $spec.Payload.parameters.v4_negative_prompt.caption.char_captions[$i].char_caption)
-                    }
-                }
+                Write-Log ('API送信 | {0} | {1}x{2} | steps={3} | seed={4}' -f $backend, $config.width, $config.height, $config.steps, $seed)
+                Write-PromptLog $spec
                 try {
                     Invoke-ImageGeneration $spec $config $imagePath $token
                     Write-Log ('画像保存: ' + $imagePath)

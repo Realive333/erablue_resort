@@ -121,10 +121,15 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     Assert ($scene.Clothes.Count -eq 2) 'プレイヤーと相手の衣装を個別に抽出'
     Assert ($scene.Clothes[0].Name -ceq '普段着' -and $scene.Clothes[1].Name -ceq 'メイド服') '固有の服名称を除外し、共通の服装名を取得'
     Assert ($null -eq (Read-Scene ((Read-Text (Join-Path $testRoot 'dressed.txt')).Replace("clothes`t1", "clothes`t9")))) '場面にいないキャラの衣装を拒否'
+    $characterPath = Join-Path $testRoot 'characters.csv'
+    $characterRows = @(
+        [pscustomobject]@{ no = '0'; prompt = 'player identity'; default_outfit = 'default outfit' }
+        [pscustomobject]@{ no = '123'; prompt = 'partner identity'; default_outfit = 'partner default outfit' }
+    )
+    Write-CsvTable $characterPath $characterRows @('no', 'prompt', 'default_outfit')
     $data = Read-PromptData $testRoot
-    $data.Characters['0'] = 'player identity'
-    $data.Characters['123'] = 'partner identity'
-    $data.Clothes['普段着'] = 'default outfit'
+    $data.Prompts.negative = 'negative-log-sentinel'
+    $data.Clothes['普段着'] = 'unused shared outfit'
     $data.Clothes['メイド服'] = 'maid outfit'
     $data.Clothes['全裸'] = 'nude'
     $data.Clothes['上半身下着_1'] = 'bra'
@@ -134,7 +139,24 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     $spec = New-Payload $scene $config $testRoot $data
     $captions = $spec.Payload.parameters.v4_prompt.caption.char_captions
     Assert ($captions[0].char_caption -ceq 'partner identity, maid outfit' -and $captions[1].char_caption -ceq 'player identity, default outfit') 'API順変更後も操作キャラを含む本人の衣装だけを追加'
+    $promptLog = (@(& { Write-PromptLog $spec } 6>&1) | Out-String)
+    Assert ($promptLog.Contains('    服装 [メイド服]: maid outfit') -and $promptLog.Contains('    服装 [普段着]: default outfit')) '服装名と実際の服装プロンプトを独立した行で表示'
+    Assert ($promptLog.Contains('NO=0 / 操作キャラ') -and $promptLog.Contains('NO=123 / 相手キャラ')) 'キャラの送信順を変えても操作キャラと相手の表記を維持'
+    Assert ($promptLog -notmatch 'negative-log-sentinel|ネガティブ') '服装ログにネガティブを含めない'
     Assert ((Get-ImageName $scene) -ceq '0_普段着_123_メイド服_待機.png') '画像名に本人のIDと服装を交互に含める'
+    $bothDefaults = Read-Scene ((Read-Text (Join-Path $testRoot 'dressed.txt')).Replace("clothes`t1`tメイド服", "clothes`t1`t普段着"))
+    $defaultSpec = New-Payload $bothDefaults $config $testRoot $data
+    Assert ($defaultSpec.CharacterPrompts[0].Prompt -ceq 'partner identity, partner default outfit' -and $defaultSpec.CharacterPrompts[1].Prompt -ceq 'player identity, default outfit') '操作キャラ・相手とも普段着はキャラNOごとの設定を使用'
+    Assert (-not $defaultSpec.Prompt.Contains('unused shared outfit')) 'clothes.csvの普段着は参照しない'
+    $data.DefaultOutfits['0'] = ' '
+    $emptyDefault = New-Payload $scene $config $testRoot $data
+    Assert ($emptyDefault.CharacterPrompts[1].Prompt -ceq 'player identity') '普段着の空欄を共通服や他キャラの服で補完しない'
+    $promptLog = (@(& { Write-PromptLog $emptyDefault } 6>&1) | Out-String)
+    Assert ($promptLog.Contains('characters.csv の default_outfit、追加なし')) '普段着が空欄の場合は編集すべき列をログに表示'
+    $data.DefaultOutfits['0'] = 'default outfit'
+    $unregistered = Read-Scene ((Read-Text (Join-Path $testRoot 'dressed.txt')).Replace("player`t0`t0", "player`t0`t9999"))
+    $missingDefault = New-Payload $unregistered $config $testRoot $data
+    Assert ($missingDefault.CharacterPrompts[1].Clothes[0].Prompt -ceq '' -and $missingDefault.UnknownClothes -contains '普段着（NO=9999, characters.csv:default_outfit）') '未登録キャラの普段着は追加せずNO付きで通知'
     $switched = Read-Scene (Read-Text (Join-Path $testRoot 'switched-player.txt'))
     $switchedSpec = New-Payload $switched $config $testRoot $data
     Assert ($switchedSpec.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -ceq 'partner identity, maid outfit') '操作キャラ切替後にも本人の服装プロンプトを適用'
@@ -151,14 +173,30 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
         $config.backend = $backend; $config.model = 'nai-diffusion-3'
         $flat = New-Payload $scene $config $testRoot $data
         Assert ($flat.Prompt -match 'partner identity, maid outfit, player identity, default outfit') 'V3・ローカル生成にも操作キャラと相手の服装を追加'
+        $promptLog = (@(& { Write-PromptLog $flat } 6>&1) | Out-String)
+        Assert ($promptLog.Contains('服装 [メイド服]: maid outfit') -and $promptLog.Contains('服装 [普段着]: default outfit') -and $promptLog -notmatch 'negative-log-sentinel|ネガティブ') 'V3・ローカルでも服装ログを表示しネガティブは非表示'
+        Assert ((Join-Tags (@($flat.BasePrompt) + @($flat.CharacterPrompts.Prompt))) -ceq $flat.Prompt) '表示した全体・キャラ別の内訳が実送信プロンプトと一致'
     }
     $blank = Read-Scene "NAI1`t200-1`nplayer`t0`t0`t主人公`ncharacter`t1`t123`t相手`nclothes`t1`t未登録服`nEND`t200-1"
     $unknown = New-Payload $blank $config $testRoot $data
     Assert ($unknown.UnknownClothes -contains '未登録服') '未登録服をログ用に収集'
-    $rows = @(Import-Csv -LiteralPath (Join-Path $testRoot 'clothes.csv') -Encoding UTF8)
+    $promptLog = (@(& { Write-PromptLog $unknown } 6>&1) | Out-String)
+    Assert ($promptLog.Contains('服装 [未登録服]: 未登録または空欄（追加なし）')) '服装タグがない場合は追加されない理由を表示'
+    $editedOutfit = "custom outfit, `"quoted`"`n日本語"
+    $characterRows[0].default_outfit = $editedOutfit
+    Write-CsvTable $characterPath $characterRows @('no', 'prompt', 'default_outfit')
+    $reloadedSpec = New-Payload $scene $config $testRoot
+    Assert ($reloadedSpec.CharacterPrompts[1].Clothes[0].Prompt -ceq $editedOutfit) 'CSV直接編集した普段着を次回の組立に反映'
+    Update-Setting $testRoot 'characters' '0' 'edited player identity'
+    Update-Setting $testRoot 'characters' '9999' 'new character identity'
+    $updatedCharacters = Read-PromptData $testRoot
+    Assert ($updatedCharacters.Characters['0'] -ceq 'edited player identity' -and $updatedCharacters.DefaultOutfits['0'] -ceq $editedOutfit -and $updatedCharacters.DefaultOutfits['123'] -ceq 'partner default outfit') 'ゲーム内の外見編集と行追加で普段着列を消さない'
+    Assert ($updatedCharacters.DefaultOutfits['9999'] -ceq '') 'ゲーム内で追加したキャラの普段着は空欄'
+    $rows = @(Import-Csv -LiteralPath (Join-Path $testRoot 'clothes.csv') -Encoding UTF8 | Where-Object name -ne '普段着')
     ($rows | Where-Object name -eq 'メイド服').prompt = 'edited maid outfit'
     $rows += [pscustomobject]@{ name = '『碧』の竜服'; prompt = 'exclusive outfit'; source = 'CSV/キャラデータ/Chara12 ワムデュス.csv'; status = 'test' }
     $rows += [pscustomobject]@{ name = '固有キャラ衣装'; prompt = 'exclusive costume'; source = '口上_キャラ個別ERB/test.ERB'; status = 'test' }
+    $rows += [pscustomobject]@{ name = '普段着'; prompt = 'unused shared outfit' }
     Write-CsvTable (Join-Path $testRoot 'clothes.csv') $rows @('name', 'prompt', 'source', 'status')
     Assert ((Read-PromptData $testRoot).Clothes['メイド服'] -ceq 'edited maid outfit') '服装CSVの編集を次回読み込みで反映'
     [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/通常衣装関連/catalog.ERB'), "@CLOTHES_CHANGE_テスト衣装(ARG)`nCSTR:ARG:服名称 '= `"共通の普段着`"`nCSTR:ARG:着せ替え服追加名 =`nRETURN 0", $testUtf8)
@@ -167,6 +205,7 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     & (Join-Path $PSScriptRoot 'export-clothes.ps1') -OutputDirectory $testRoot -CatalogRoot (Join-Path $testRoot 'ERB/通常衣装関連')
     $updated = Read-PromptData $testRoot
     Assert ($updated.Clothes['メイド服'] -ceq 'edited maid outfit') '一覧再出力でユーザー編集を保持'
+    Assert (-not $updated.Clothes.ContainsKey('普段着')) '一覧再出力で共通の普段着行を復活させない'
     Assert ($updated.Clothes['テスト衣装'] -ceq 'テスト衣装' -and $updated.Clothes['共通の普段着'] -ceq '共通の普段着') '共通ERBの服装定義を抽出'
     Assert (-not $updated.Clothes.ContainsKey('『碧』の竜服') -and -not $updated.Clothes.ContainsKey('固有の普段着') -and -not $updated.Clothes.ContainsKey('固有キャラ衣装')) '既存行・CSV・ERBからキャラ専用衣装を除外'
     Assert (-not $updated.Clothes.ContainsKey('RETURN 0')) '空欄の定義で次の行を服装名にしない'
@@ -201,7 +240,8 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     Assert ($reloaded.Actions['会話する'].scene -ceq $editedTag -and $reloaded.Actions['会話する'].actor -ceq 'speaker' -and $reloaded.Actions['会話する'].target -ceq 'listener') '新形式での再出力でも全プロンプトを保持'
     Assert ($reloaded.Actions['待機'].scene -ceq 'relaxed pose, spending time together') '明示した場合だけ空欄を初期タグで補完'
     Assert ($reloaded.Clothes['メイド服'] -ceq 'edited maid outfit') '服装CSVの2列形式での再出力でも編集を保持'
-    Write-Host 'PASS: Emuera current clothes / per-character prompts / CSV reload / minimal columns / repeated export preservation'
+    Assert ($reloaded.DefaultOutfits['0'] -ceq $editedOutfit -and -not $reloaded.Clothes.ContainsKey('普段着')) '一括再出力でもキャラ別の普段着と共通服の分離を保持'
+    Write-Host 'PASS: Emuera current clothes / per-character default outfits / CSV reload / game edit preservation / repeated export'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }

@@ -10,7 +10,9 @@ The in-game “NovelAI” tab generates images from the player, contact characte
 
 Generation is disabled by default. Defaults are one image per request and a 30-second minimum interval, with no submission limit per worker startup. Generation consumes Anlas according to the plan.
 
-Run `stop.cmd` or close the worker window to stop it. A request in progress stops after its response or timeout. Disabling the feature in-game stops new generation and image display. Logs are also available in `runtime/preview.json` without the API key.
+Run `stop.cmd` or close the worker window to stop it. A request in progress stops after its response or timeout. Disabling the feature in-game stops new generation and image display.
+
+Before generation, console logs show the global prompt and a separate section for each character, including name, number, player/contact role, and individual prompt. Outfit names and their tags appear on dedicated lines; missing clothing data or tags are identified. Negative prompts are applied to API requests but omitted from console logs. `runtime/preview.json` retains the request data, including negative prompts, without the API key. Cached-image reuse does not send an API request or print prompts.
 
 Saved images appear in the “NovelAI” tab and completed generation or regeneration results update automatically. Display updates do not advance in-game time. After installation or updates, save and restart the game. The MOD is `ERB/追加MOD_NovelAI一枚絵/`; updates while waiting for input also require the hook in `ERB/TRAIN_MAIN.ERB`.
 
@@ -33,13 +35,15 @@ The worker reloads the files after editing. Save them as **CSV UTF-8** in spread
 | File | Columns | Contents |
 | --- | --- | --- |
 | `prompts.csv` | `key,prompt` | `system` (global instructions) and `negative` |
-| `characters.csv` | `no,prompt` | Appearance tags by character number |
+| `characters.csv` | `no,prompt,default_outfit` | Appearance and default-outfit tags by character number |
 | `clothes.csv` | `name,prompt` | Tags for current outfit names and clothing states |
 | `actions.csv` | `name,scene,actor,target` | Action tags |
 
 CSV files contain only lookup keys and prompt columns. Only `system` and `negative` are valid keys in `prompts.csv`. Do not duplicate keys.
 
 At runtime, character numbers are looked up in `characters.csv`; a missing or blank entry falls back to the in-game name. Construction order is “fixed system → characters → actions → API prompt.” V4/V5 use global and per-character fields; V3 combines everything into one prompt.
+
+`default_outfit` is added only when that character wears `普段着`. Both the player and contacts use their own character-number row. Edit this column directly in the CSV; there is no in-game outfit editor. The initial value is blank. Blank or missing entries add no outfit tags, and logs identify the character number and column to edit. The `普段着` entry in `clothes.csv` is no longer used. Changing into another outfit uses that outfit's `clothes.csv` row without `default_outfit`. Existing in-game appearance edits change only `prompt` and preserve `default_outfit`. CSV edits are loaded at the next generation; press [Regenerate] to apply them to an already saved image.
 
 Character submission order is **target character → player → other contact characters**. `scene` applies to the overall image; `actor` and `target` apply to the actor and target. Press [Regenerate] to apply changes to existing images.
 
@@ -58,8 +62,8 @@ The action CSV contains 342 entries; 77 have initial tags and the rest are blank
 `[NovelAI設定]` remains visible in the NovelAI tab when no image is available, generation is pending, or automatic generation is disabled.
 
 - `[1]` / `[2]`: `system` / `negative` in `prompts.csv`.
-- `[3]`: The current player’s row in `characters.csv`.
-- `[7]`: The current partner’s row in `characters.csv`.
+- `[3]`: The current player’s `prompt` in `characters.csv`.
+- `[7]`: The current partner’s `prompt` in `characters.csv`.
 - `[9]`: Width, height, Steps, prompt strength, Sampler, Seed, interval, CFG Rescale, Noise schedule, and prompt format.
 
 The worker must be running to save in-game changes. CSV and config files can also be edited externally; invalid settings stop new generation. Use `\(` / `\)` for half-width parentheses in-game. Parentheses can be written normally in CSV. [Emuera specification](https://evilmask.gitlab.io/emuera.em.doc/Emuera/expression.html#inputs)
