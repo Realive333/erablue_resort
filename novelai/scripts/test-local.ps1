@@ -60,7 +60,7 @@ try {
 
     $data = Read-PromptData $testDirectory
     $data.Actions['会話する'] = [pscustomobject]@{ scene = 'talking'; actor = ''; target = '' }
-    $request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`t相手`nmode`t0`t7`t会話する`nEND`t100-1"
+    $request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`t相手`naction`t会話する`nEND`t100-1"
     $scene = Read-Scene $request
     $spec = New-Payload $scene $config $testDirectory $data
     $destination = Join-Path $testDirectory 'comfy.png'

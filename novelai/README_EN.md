@@ -1,6 +1,8 @@
 # NovelAI Automatic Single-Image Generation
 
-The in-game “NovelAI” tab generates images from the player, contact characters, and the most recent action. It includes one player and up to five contact characters.
+The in-game “NovelAI” tab generates images from the player, contact characters, and the most recent command executed by the user. It includes one player and up to five contact characters.
+
+Ongoing mode names are excluded from prompts, filenames, and logs. Without a command history matching the current target and location, the action is `待機` (idle). Mode data is used only to find contact characters. Command actor tags apply to the controlled character, and target tags apply to the selected partner. Restart both the game and worker to apply this change.
 
 ## Setup and startup
 
@@ -76,7 +78,7 @@ Width and height must be multiples of 64 from 64 to 2048. Steps: 1–50; scale: 
 
 ## Caching, regeneration, and resuming
 
-- Image names use `{char1}_{cloth1}_{char2}_{cloth2}_{action}.png`, for example `0_普段着_123_メイド服_会話する.png`. Each pair contains a character NO and clothing, starting with the currently controlled character, then their contacts. Additional clothing names, undressing states, and multiple actions are joined with `+`; use `待機` when there is no action. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
+- Image names use `{char1}_{cloth1}_{char2}_{cloth2}_{action}.png`, for example `0_普段着_123_メイド服_会話する.png`. Each pair contains a character NO and clothing, starting with the currently controlled character, then their contacts. Additional clothing names and undressing states are joined with `+`. The action is the single latest user command, or `待機` when there is no matching history. Windows-forbidden characters become `_`; names over 180 characters fail before submission.
 - Before an API request, an image with the same name in `resources/NovelAI/` is reused. The cache is reused for the same character IDs, clothing, and action even if the model, settings, or tags change. Press `[Regenerate]` to apply tag changes. The game displays the filename returned for its current request ID. Older images without clothing in their names are retained but are not reused as the new cache.
 - Normal generation uses only the latest scene. Regeneration ignores the cache, sends once, uses a new Seed even with a fixed Seed, and replaces the file only after receiving a valid PNG.
 - Communication failures and interruptions are recorded and not resubmitted automatically. The previous image is kept; press `[Regenerate]` again to retry. An unknown result may already have been charged.
