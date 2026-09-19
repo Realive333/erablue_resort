@@ -48,6 +48,7 @@ DT_CREATE "体位モードデータベース"
 DT_COLUMN_ADD "体位モードデータベース", "モード名"
 DT_COLUMN_ADD "体位モードデータベース", "実行キャラ", 3
 DT_COLUMN_ADD "体位モードデータベース", "対象キャラ", 3
+DT_ROW_ADD "体位モードデータベース", "モード名", "手を繋ぐ", "実行キャラ", PLAYER, "対象キャラ", TARGET
 コマンド履歴:5 = TARGET
 SELECTCOM_NAME履歴:0 = 会話する
 TEQUIP:0:上半身服あり = 1
@@ -75,6 +76,26 @@ PLAYER = 0
 CALL NAI_画像取得
 SIF RESULT
     THROW 服装を含まない旧画像を再利用しています。
+要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(要求, "action\t会話する") < 0 || STRFIND(要求, "mode\t") >= 0 || STRFIND(要求, "手を繋ぐ") >= 0
+    THROW 継続行動ではなく直近のコマンドを送信する必要があります。
+SAVETEXT 要求, "command-scene.txt", 0, 1
+; 継続モードを変えずにコマンドだけ変更した場合も要求を更新する。
+SELECTCOM_NAME履歴:0 = 散歩する
+CALL NAI_画像取得
+要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(要求, "action\t散歩する") < 0 || STRFIND(要求, "会話する") >= 0
+    THROW コマンドの変更が反映されていません。
+SAVETEXT 要求, "changed-command-scene.txt", 0, 1
+; コマンドが未実行なら継続モードがあっても行動を送らない。
+SELECTCOM_NAME履歴:0 =
+CALL NAI_画像取得
+要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
+SIF STRFIND(要求, "action\t") >= 0 || STRFIND(要求, "mode\t") >= 0
+    THROW 未実行のコマンドを継続行動で補完しています。
+SAVETEXT 要求, "idle-command-scene.txt", 0, 1
+SELECTCOM_NAME履歴:0 = 会話する
+CALL NAI_画像取得
 SAVETEXT @"%NAI_要求ID%\n0_普段着_123_メイド服_会話する.png", "novelai/runtime/response.txt", 0, 1
 CALL NAI_画像取得
 SIF RESULT != 1 || RESULTS != "NovelAI/0_普段着_123_メイド服_会話する.png"
@@ -118,6 +139,12 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
         throw 'Emueraの服装抽出テストが完了しませんでした。'
     }
     $scene = Read-Scene (Read-Text (Join-Path $testRoot 'dressed.txt'))
+    $commandScene = Read-Scene (Read-Text (Join-Path $testRoot 'command-scene.txt'))
+    $changedCommand = Read-Scene (Read-Text (Join-Path $testRoot 'changed-command-scene.txt'))
+    $idleCommand = Read-Scene (Read-Text (Join-Path $testRoot 'idle-command-scene.txt'))
+    Assert ($commandScene.Action -ceq '会話する' -and (Get-ImageName $commandScene) -ceq '0_普段着_123_メイド服_会話する.png') 'ゲームからワーカーまでユーザーのコマンドで画像名を決定'
+    Assert ($changedCommand.Action -ceq '散歩する' -and $changedCommand.Id -ne $commandScene.Id -and (Get-ImageName $changedCommand) -ceq '0_普段着_123_メイド服_散歩する.png') '継続モードが同じでもコマンド変更で要求IDと画像名が変わる'
+    Assert ($idleCommand.Action -ceq '' -and (Get-ImageName $idleCommand) -ceq '0_普段着_123_メイド服_待機.png') '未実行時は継続行動の代わりに待機'
     Assert ($scene.Clothes.Count -eq 2) 'プレイヤーと相手の衣装を個別に抽出'
     Assert ($scene.Clothes[0].Name -ceq '普段着' -and $scene.Clothes[1].Name -ceq 'メイド服') '固有の服名称を除外し、共通の服装名を取得'
     Assert ($null -eq (Read-Scene ((Read-Text (Join-Path $testRoot 'dressed.txt')).Replace("clothes`t1", "clothes`t9")))) '場面にいないキャラの衣装を拒否'

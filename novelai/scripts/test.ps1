@@ -11,11 +11,11 @@ $actionFixtures = @(
     [pscustomobject]@{ name = '待機'; scene = ''; actor = ''; target = '' }
 )
 foreach ($row in $actionFixtures) { $data.Actions[$row.name] = $row }
-$request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`tテスト相手`ncharacter`t8`t456`t二人目`nplace`t0`t1`nmode`t0`t7`t会話する`nEND`t100-1"
+$request = "NAI1`t100-1`nplayer`t0`t0`t主人公`ncharacter`t7`t123`tテスト相手`ncharacter`t8`t456`t二人目`nplace`t0`t1`naction`t会話する`nEND`t100-1"
 $scene = Read-Scene $request
 Assert ($scene.Characters.Count -eq 3) 'プレイヤーと接触相手の読込'
 Assert ($null -eq (Read-Scene ($request.Replace('END', 'BROKEN')))) '途中の要求を拒否'
-Assert ($null -eq (Read-Scene ($request.Replace('mode' + "`t0`t7", 'mode' + "`t7`t8")))) 'プレイヤー無関係の動作を拒否'
+Assert ($null -eq (Read-Scene ($request.Replace("action`t会話する", "action`t0`t7`t会話する")))) '壊れたコマンド行を拒否'
 Assert ($null -eq (Read-Scene ($request.Replace("character`t8", "character`t7")))) '重複キャラを拒否'
 $spec = New-Payload $scene $config $script:NovelAiDirectory $data
 Assert ($spec.Payload.parameters.v4_prompt.caption.char_captions.Count -eq 3) 'V4個別キャプション'
@@ -25,8 +25,14 @@ $sameScene = Read-Scene ($request.Replace('100-1', '200-2'))
 $imageName = Get-ImageName $scene
 Assert ($imageName -ceq '0_普段着_123_普段着_456_普段着_会話する.png') '画像名はキャラNO・服装を操作キャラから並べ、最後に行動を付ける'
 Assert ((Get-ImageName $sameScene) -ceq $imageName) '同じ条件では要求IDが変わっても同じ画像名'
-$movedIndex = Read-Scene ($request.Replace("character`t7`t", "character`t70`t").Replace("mode`t0`t7`t", "mode`t0`t70`t"))
+$movedIndex = Read-Scene ($request.Replace("character`t7`t", "character`t70`t"))
 Assert ((Get-ImageName $movedIndex) -ceq $imageName) 'ゲーム内配列番号が変わってもキャラNOで再利用'
+$mixedRequest = $request.Replace('END', "mode`t0`t8`t継続中の別行動`nmode`t8`t0`t別の継続行動`nEND")
+$mixedScene = Read-Scene $mixedRequest
+$mixedSpec = New-Payload $mixedScene $config $script:NovelAiDirectory $data
+Assert ($mixedSpec.Prompt -ceq $spec.Prompt -and $mixedSpec.UnknownActions.Count -eq 0 -and (Get-ImageName $mixedScene) -ceq $imageName) '継続行動が混在してもユーザーのコマンドだけをプロンプトと画像名へ反映'
+$modeOnly = Read-Scene ($mixedRequest.Replace("action`t会話する`n", ''))
+Assert ((Get-ImageName $modeOnly) -ceq '0_普段着_123_普段着_456_普段着_待機.png' -and (New-Payload $modeOnly $config $script:NovelAiDirectory $data).UnknownActions.Count -eq 0) 'コマンドがない場合も継続行動へ戻らず待機'
 $unmappedA = Read-Scene ($request.Replace('会話する', '未登録A'))
 $unmappedB = Read-Scene ($request.Replace('会話する', '未登録B'))
 Assert ((Get-ImageName $unmappedA) -cne (Get-ImageName $unmappedB)) '同じタグでも異なる行動を区別'
@@ -46,6 +52,7 @@ $data.Actions['会話する'] = [pscustomobject]@{ scene = 'conversation'; actor
 $roles = New-Payload $scene $config $script:NovelAiDirectory $data
 Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[1].char_caption -match 'speaking') '順序変更後も実行者に動作を付与'
 Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[0].char_caption -match 'listening') '順序変更後も対象者に動作を付与'
+Assert ($roles.Payload.parameters.v4_prompt.caption.char_captions[2].char_caption -notmatch 'speaking|listening') '追加の接触者をコマンド対象として扱わない'
 Assert (($roles.CharacterNos -join ',') -ceq '123,0,456') 'APIのキャラ順は目標・プレイヤー・追加の接触相手'
 Assert ((Get-ImageName $scene) -ceq $imageName -and ($scene.Characters.No -join ',') -ceq '0,123,456') 'プロンプト順を変えてもシーンと画像名のID順を維持'
 $config.width = 833
@@ -68,7 +75,7 @@ try {
     Update-Setting $testDirectory 'characters' '9999' $complexPrompt
     Assert ((Read-PromptData $testDirectory).Characters['9999'] -ceq $complexPrompt) 'CSV個別キャラの追加'
     Update-Setting $testDirectory 'prompts' 'system' 'fixed system'
-    $idleScene = Read-Scene ($request.Replace("mode`t0`t7`t会話する`n", ''))
+    $idleScene = Read-Scene ($request.Replace("action`t会話する`n", ''))
     $idleConfig = Read-Text (Join-Path $testDirectory 'config.json') | ConvertFrom-Json
     $actionRows = @(Import-Csv -LiteralPath (Join-Path $testDirectory 'actions.csv') -Encoding UTF8)
     $idleRow = $actionRows | Where-Object name -eq '待機'
@@ -189,6 +196,7 @@ try {
     }
     try {
         Write-Atomic (Join-Path $testDirectory 'enabled.txt') '1'
+        Write-Atomic (Join-Path $testDirectory 'request.txt') $mixedRequest
         $cacheDirectory = Join-Path $testDirectory 'resources/NovelAI'
         [void][IO.Directory]::CreateDirectory($cacheDirectory)
         $namedImage = Join-Path $cacheDirectory $imageName
@@ -204,6 +212,7 @@ try {
         Update-Setting $testDirectory 'prompts' 'negative' 'negative-log-sentinel'
         $promptLog = (@(& { Invoke-Worker -Once -Directory $testDirectory } 6>&1) | ForEach-Object { [string]$_ }) -join "`n"
         Assert ($script:HttpCalls -eq 1) '新しい場面で1回だけ生成'
+        Assert ($promptLog.Contains('動作: 会話する') -and $promptLog -notmatch '継続中の別行動|別の継続行動') 'ワーカーの実送信・ログでも継続行動を参照しない'
         Assert ($promptLog.Contains('全体プロンプト: ' + ($script:SentPayload.input -replace '[\r\n\t]', ' '))) '送信した全体プロンプトを省略せずログ表示'
         Assert ($script:SentPayload.parameters.negative_prompt -ceq 'negative-log-sentinel') 'ネガティブはAPI送信に保持'
         Assert ($promptLog -notmatch 'negative-log-sentinel|ネガティブ') 'ネガティブの内容と見出しをログに出さない'

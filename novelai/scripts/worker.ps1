@@ -29,7 +29,6 @@ function Read-Scene([string]$Text) {
     if ($lines[-1] -cne "END`t$id") { return $null } # 書き込み途中は読まない
     $characters = @()
     $clothes = @()
-    $modes = @()
     $action = ''
     $place = ''
     foreach ($line in $lines[1..($lines.Count - 2)]) {
@@ -43,10 +42,7 @@ function Read-Scene([string]$Text) {
                 if ($fields.Count -ne 3 -or $fields[1] -notmatch '^\d+$' -or [string]::IsNullOrWhiteSpace($fields[2])) { return $null }
                 $clothes += [pscustomobject]@{ Index = [int]$fields[1]; Name = $fields[2] }
             }
-            'mode' {
-                if ($fields.Count -ne 4 -or $fields[1] -notmatch '^\d+$' -or $fields[2] -notmatch '^\d+$') { return $null }
-                $modes += [pscustomobject]@{ Actor = [int]$fields[1]; Target = [int]$fields[2]; Name = $fields[3] }
-            }
+            'mode' { continue } # 旧形式の継続行動は画像生成に使わない。
             'action' { if ($fields.Count -ne 2) { return $null }; $action = $fields[1] }
             'place' { if ($fields.Count -ne 3) { return $null }; $place = $line }
             default { return $null }
@@ -55,12 +51,8 @@ function Read-Scene([string]$Text) {
     if ($characters.Count -lt 1 -or $characters.Count -gt 6 -or $characters[0].Role -ne 'player' -or
         @($characters | Where-Object Role -eq 'player').Count -ne 1 -or
         @($characters.Index | Select-Object -Unique).Count -ne $characters.Count) { return $null }
-    foreach ($mode in $modes) {
-        if ($mode.Actor -notin $characters.Index -or $mode.Target -notin $characters.Index -or
-            ($mode.Actor -ne $characters[0].Index -and $mode.Target -ne $characters[0].Index)) { return $null }
-    }
     foreach ($item in $clothes) { if ($item.Index -notin $characters.Index) { return $null } }
-    return [pscustomobject]@{ Id = $id; Characters = $characters; Clothes = $clothes; Modes = $modes; Action = $action; Place = $place }
+    return [pscustomobject]@{ Id = $id; Characters = $characters; Clothes = $clothes; Action = $action; Place = $place }
 }
 
 function Get-Entry($Object, [string]$Key) {
@@ -80,25 +72,21 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
     Test-Config $Config
     $backend = Get-Backend $Config
     if ($null -eq $Data) { $Data = Read-PromptData $Directory }
-    $actions = @()
     $characterActions = @{}
     $unknown = @()
     $unknownClothes = @()
-    $modeList = @($Scene.Modes | Sort-Object Actor, Target, Name)
-    if ($modeList.Count -eq 0 -and $Scene.Action) { $modeList = @([pscustomobject]@{ Name = $Scene.Action; Actor = $Scene.Characters[0].Index; Target = $Scene.Characters[-1].Index }) }
-    foreach ($mode in $modeList) {
-        $entry = Get-Entry $Data.Actions $mode.Name
-        if ($entry -is [string]) { $actions += $entry }
+    $actionText = ''
+    if ($Scene.Action) {
+        $entry = Get-Entry $Data.Actions $Scene.Action
+        if ($entry -is [string]) { $actionText = $entry }
         elseif ($null -ne $entry) {
-            $actions += [string](Get-Entry $entry 'scene')
-            foreach ($role in 'actor', 'target') {
-                $index = if ($role -eq 'actor') { $mode.Actor } else { $mode.Target }
-                $characterActions[$index] = @($characterActions[$index]) + [string](Get-Entry $entry $role)
-            }
+            $actionText = [string](Get-Entry $entry 'scene')
+            $characterActions[$Scene.Characters[0].Index] = [string](Get-Entry $entry 'actor')
+            # ゲームは選択中のTARGETを最初の相手として送る。追加の接触者には付けない。
+            if ($Scene.Characters.Count -gt 1) { $characterActions[$Scene.Characters[1].Index] = [string](Get-Entry $entry 'target') }
         }
-        else { $unknown += $mode.Name }
+        else { $unknown += $Scene.Action }
     }
-    $actionText = Join-Tags $actions
     if (-not $actionText) { $actionText = [string](Get-Entry (Get-Entry $Data.Actions '待機') 'scene') }
     $basePrompt = Join-Tags @($Data.Prompts.system, $actionText)
     $negative = $Data.Prompts.negative
@@ -160,7 +148,7 @@ function New-Payload($Scene, $Config, [string]$Directory, $Data = $null) {
 }
 
 function Get-ImageName($Scene) {
-    $label = if ($Scene.Modes.Count) { ($Scene.Modes.Name | Sort-Object -Unique) -join '+' } else { $Scene.Action }
+    $label = $Scene.Action
     if (-not $label) { $label = '待機' }
     $parts = foreach ($character in $Scene.Characters) {
         $clothes = @($Scene.Clothes | Where-Object Index -eq $character.Index | Select-Object -ExpandProperty Name -Unique) -join '+'
@@ -436,8 +424,8 @@ function Invoke-Worker {
                 $sceneKey = $scene.Id + ':' + $imageName
                 $sceneChanged = $sceneKey -ne $lastSceneKey
                 if ($sceneChanged) {
-                    $actionNames = if ($scene.Modes.Count) { $scene.Modes.Name -join ', ' } elseif ($scene.Action) { $scene.Action } else { '待機' }
-                    Write-Log ('要求 {0} | モデル: {1} | 動作: {2}' -f $scene.Id, $config.model, $actionNames)
+                    $actionName = if ($scene.Action) { $scene.Action } else { '待機' }
+                    Write-Log ('要求 {0} | モデル: {1} | 動作: {2}' -f $scene.Id, $config.model, $actionName)
                     Write-Log ('画像名: ' + $imageName)
                     $lastSceneKey = $sceneKey
                 }
