@@ -14,6 +14,6 @@
 2726	girl, senkawa chihiro,
 28	girl, lyria (granblue fantasy), petite
 3006	boy, akiyama mizuki, otoko no ko, shota, clothed, possessive desire expression
-3007	girl, asahina mafuyu, school uniform, emotionless
+3007	girl, asahina mafuyu, 0.1::emotionless::
 3008	girl, shinonome ena, school uniform
 64	girl, nier (granblue fantasy), small chest
