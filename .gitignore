@@ -40,3 +40,5 @@ ERB/ローカル改造用ERB
 !/novelai/runtime/.gitkeep
 !/novelai/config.json
 /resources/NovelAI/
+/novelai/text/runtime/*
+!/novelai/text/runtime/.gitkeep

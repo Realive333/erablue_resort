@@ -6,21 +6,8 @@ $script:NovelAiDirectory = Split-Path $PSScriptRoot -Parent
 $script:Root = Split-Path $script:NovelAiDirectory -Parent
 $script:Runtime = Join-Path $script:NovelAiDirectory 'runtime'
 $script:Utf8 = New-Object Text.UTF8Encoding($false)
+. (Join-Path $PSScriptRoot 'common.ps1')
 . (Join-Path $PSScriptRoot 'settings.ps1')
-
-function Read-Text([string]$Path) {
-    if (Test-Path -LiteralPath $Path -PathType Leaf) {
-        return [IO.File]::ReadAllText($Path, $script:Utf8).TrimEnd("`r", "`n")
-    }
-    return ''
-}
-
-function Write-Atomic([string]$Path, [string]$Value) {
-    $temporary = $Path + '.tmp'
-    [IO.File]::WriteAllText($temporary, $Value, $script:Utf8)
-    if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temporary, $Path, $Path + '.bak'); [IO.File]::Delete($Path + '.bak') }
-    else { [IO.File]::Move($temporary, $Path) }
-}
 
 function Read-Scene([string]$Text) {
     $lines = @($Text -split '\r?\n')
