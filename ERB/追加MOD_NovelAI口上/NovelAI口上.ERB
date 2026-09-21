@@ -1,0 +1,137 @@
+﻿; 画像MODの関数・有効設定・CSVには依存しない。
+@NAIT_有効()
+#FUNCTION
+RETURNF LOADTEXT("novelai/text/runtime/enabled.txt", 0, 1) == "1"
+
+@NAIT_項目(文字列)
+#FUNCTIONS
+#DIMS 文字列
+RETURNF REPLACE(文字列, "[\\r\\n\\t]", " ")
+
+@NAIT_キャラ行(種別, 対象)
+#FUNCTIONS
+#DIMS 種別
+#DIM 対象
+#DIM 番号
+番号 = NO:対象
+SIF 対象 == MASTER && FLAG:あなたキャラ化記録 > 0
+    番号 = FLAG:あなたキャラ化記録
+RETURNF @"%種別%\t{番号}\t%NAIT_項目(CALLNAME:対象)%\n"
+
+@NAIT_コマンド口上
+#DIM 対象
+#DIMS 要求ID
+#DIMS 要求
+#DIMS 本文
+#DIM 開始時刻
+#DIM 受理済み
+#DIM 生成成功
+SIF !NAIT_有効() || FLAG:口上表示切り替えオプション <= 0
+    RETURN 0
+SIF TFLAG:オートコマンドフラグ || TFLAG:オートコマンド連続発動 || RFLAG:サイドボタン操作 || SELECTCOM_NAME == ""
+    RETURN 0
+対象 = TARGET
+SIF 自慰ターゲット保存 > -1
+    対象 = 自慰ターゲット保存
+SIF SELECTCOM == 404 || (SELECTCOM == 414 && RFLAG:コマンド結果受渡し変数３ == 3)
+    対象 = RFLAG:コマンド結果受渡し変数２
+SIF PLAYER < 0 || PLAYER >= CHARANUM || 対象 < 0 || 対象 >= CHARANUM || 対象 == PLAYER
+    RETURN 0
+SIF CFLAG:対象:睡眠 || CFLAG:対象:体力限界 || TCVAR:対象:食いしばりフラグ
+    RETURN 0
+
+NAIT_連番 ++
+要求ID = {GETTIME()}-{NAIT_連番}
+要求 '= NAIT_キャラ行("player", PLAYER) + NAIT_キャラ行("character", 対象)
+要求 += @"action\t%NAIT_項目(SELECTCOM_NAME)%\n"
+要求 += @"place\t%NAIT_項目(GETPLACENAME(CFLAG:PLAYER:現在マップ種別, CFLAG:PLAYER:現在位置))%\n"
+要求 += @"state\tフェイズ=%NAIT_項目(SAVESTR:ゲームフェイズ管理)%; 好感度レベル={CFLAG:対象:好感度レベル}; 信頼度={CFLAG:対象:信頼度}; コマンド結果値={RFLAG:コマンド結果受渡し変数}\n"
+SAVETEXT @"NAITEXT1\t%要求ID%\n%要求%END\t%要求ID%", "novelai/text/runtime/request.txt", 0, 1
+SIF !RESULT
+    RETURN 0
+開始時刻 = GETMILLISECOND()
+受理済み = 0
+; ワーカー未起動なら1.5秒、受理済みなら最大30秒。待機中にゲーム時間は進めない。
+WHILE GETMILLISECOND() - 開始時刻 < 30000
+    SIF !NAIT_有効() || LOADTEXT("novelai/text/runtime/stop.txt", 0, 1) != ""
+        BREAK
+    CALL NAIT_応答取得(要求ID)
+    IF RESULT != 0
+        生成成功 = RESULT == 1
+        IF 生成成功
+            本文 '= RESULTS
+            PRINTL
+            PRINTL 【NovelAI口上】
+            ; PRINTSは生成文をERB式・HTMLとして評価しない。
+            PRINTSL 本文
+        ENDIF
+        SAVETEXT "", "novelai/text/runtime/request.txt", 0, 1
+        RETURN 生成成功
+    ENDIF
+    SIF LOADTEXT("novelai/text/runtime/processing.txt", 0, 1) == 要求ID
+        受理済み = 1
+    SIF !受理済み && GETMILLISECOND() - 開始時刻 >= 1500
+        BREAK
+    AWAIT 100
+WEND
+; 遅れて届いた応答を次のコマンドに混ぜない。
+SAVETEXT "", "novelai/text/runtime/request.txt", 0, 1
+RETURN 0
+
+@NAIT_応答取得(要求ID)
+#DIMS 要求ID
+#DIMS 応答
+#DIMS 行, 260
+#DIMS 本文
+#DIM 行数
+#DIM 番号
+RESULTS =
+応答 '= REPLACE(LOADTEXT("novelai/text/runtime/response.txt", 0, 1), "\\r", "")
+SIF STRLENS(応答) > 12000 || STRCOUNT(応答, "\\n") >= 260
+    RETURN 0
+SPLIT 応答, "\n", 行
+行数 = RESULT
+SIF 行数 < 3 || 行:0 != @"NAITEXT1\t%要求ID%" || 行:(行数 - 1) != @"END\t%要求ID%"
+    RETURN 0
+SIF 行:1 == "error"
+    RETURN -1
+SIF 行:1 != "ok" || 行数 < 4
+    RETURN 0
+本文 =
+FOR 番号, 2, 行数 - 1
+    SIF SUBSTRING(行:番号, 0, 5) != "text\t"
+        RETURN 0
+    SIF 番号 > 2
+        本文 += "\n"
+    本文 += SUBSTRING(行:番号, 5)
+NEXT
+SIF 本文 == ""
+    RETURN 0
+RESULTS '= 本文
+RETURN 1
+
+@追加MOD_OPTION項目_NovelAI自動口上の設定()
+$MENU
+DRAWLINE
+PRINTL NovelAI 自動口上（画像生成とは独立）
+PRINTFORML [0] 自動生成: \@ NAIT_有効() ? 有効 # 無効 \@
+PRINTL 既存口上に、直前のコマンドへの反応を追加します。
+PRINTL 有効にするとキャラ名・行動・場所・状態をNovelAIへ送信します。
+PRINTL novelai/text/start.cmdで口上ワーカーを起動してください。
+PRINTL 設定・人物の口調はnovelai/text/内のCSVで編集できます。
+PRINTSL LOADTEXT("novelai/text/runtime/status.txt", 0, 1)
+PRINTL [100] 戻る
+INPUT
+IF RESULT == 0
+    IF NAIT_有効()
+        SAVETEXT "0", "novelai/text/runtime/enabled.txt", 0, 1
+        SAVETEXT "", "novelai/text/runtime/request.txt", 0, 1
+    ELSE
+        SAVETEXT "1", "novelai/text/runtime/enabled.txt", 0, 1
+        SIF !RESULT
+            PRINTW 設定を保存できません。novelai/text/runtimeフォルダーを確認してください。
+    ENDIF
+ELSEIF RESULT == 100
+    RETURN 0
+ENDIF
+GOTO MENU

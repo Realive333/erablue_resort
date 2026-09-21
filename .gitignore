@@ -41,3 +41,5 @@ resources/汎用グラフィック/*.webp
 !/novelai/runtime/.gitkeep
 !/novelai/config.json
 /resources/NovelAI/
+/novelai/text/runtime/*
+!/novelai/text/runtime/.gitkeep

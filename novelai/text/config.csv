@@ -1,0 +1,7 @@
+﻿key,value
+model,kayra-v1
+max_length,150
+temperature,0.8
+top_p,0.9
+repetition_penalty,1.1
+timeout_seconds,25

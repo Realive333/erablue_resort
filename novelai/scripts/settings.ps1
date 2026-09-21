@@ -2,25 +2,6 @@
 $script:ConfigKeys = @('model', 'width', 'height', 'steps', 'scale', 'sampler', 'seed', 'minimum_interval_seconds', 'cfg_rescale', 'noise_schedule', 'prompt_format')
 $script:PromptKeys = @('system', 'negative')
 
-function Read-CsvTable([string]$Directory, [string]$Name, [string[]]$Columns, [string]$Key) {
-    $path = Join-Path $Directory ($Name + '.csv')
-    if (-not (Test-Path -LiteralPath $path)) { throw "$Name.csvがありません。ファイルの配置を確認してください。" }
-    $text = Read-Text $path
-    $rows = @($text | ConvertFrom-Csv)
-    # 空のキャラ表でもヘッダーを検証する。
-    $probe = @(($text.Split("`n")[0] + "`n" + (($Columns | ForEach-Object { 'x' }) -join ',')) | ConvertFrom-Csv)
-    foreach ($column in $Columns) {
-        if ($column -notin $probe[0].PSObject.Properties.Name) { throw "$Name.csvに列 $column がありません。" }
-    }
-    $seen = @{}
-    foreach ($row in $rows) {
-        $id = [string]$row.$Key
-        if (-not $id -or $seen.ContainsKey($id)) { throw "$Name.csvのキーが空欄または重複しています: $id" }
-        $seen[$id] = $true
-    }
-    return $rows
-}
-
 function Write-CsvTable([string]$Path, $Rows, [string[]]$Columns) {
     $lines = if (@($Rows).Count) { @($Rows | Select-Object $Columns | ConvertTo-Csv -NoTypeInformation) } else { @(($Columns -join ',')) }
     # Excelでも日本語を判別できるUTF-8 BOM付き。

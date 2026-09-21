@@ -243,7 +243,7 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     $exportDirectory = Join-Path $testRoot 'novelai'
     [void][IO.Directory]::CreateDirectory((Join-Path $exportDirectory 'scripts'))
     [void][IO.Directory]::CreateDirectory((Join-Path $testRoot 'ERB/コマンド'))
-    foreach ($file in 'worker.ps1', 'settings.ps1', 'export-csv.ps1', 'export-clothes.ps1') {
+    foreach ($file in 'worker.ps1', 'settings.ps1', 'common.ps1', 'export-csv.ps1', 'export-clothes.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $exportDirectory ('scripts/' + $file))
     }
     foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'clothes.csv') {

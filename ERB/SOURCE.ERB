@@ -176,6 +176,9 @@ ENDIF
 
 TRYCALLFORM KOJO_MESSAGE_COM_%SAVESTR:ゲームフェイズ管理%()
 
+; 画像生成とは独立した自動口上。MOD未配置時は従来どおり。
+TRYCALL NAIT_コマンド口上
+
 ;オノマトペ
 IF !OPTION変数:オノマトペ表示
 	LOCALS '= MODE_取得_順不同(PLAYER, TARGET)
