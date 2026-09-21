@@ -1,10 +1,11 @@
 1040	girl, takarada rikka,
 11	girl, galleon (granblue fantasy),
-1178	boy, rance, rance (series)
+1178	boy, rance, rance (series), evil grin
 12	girl. wamdus (granblue fantasy), loli, child, petite
 1350	boy, shinonome akito,
 1747	girl, yoisaki kanade, flat chest
 1865	girl, saijo juri,
+1866	girl, morino rinze, flat chest,
 192	girl, lily (granblue fantasy), loli, petite
 195	girl, orchis, loli, petite,
 20	girl, zeta (granblue fantasy),
@@ -19,5 +20,8 @@
 3007	girl, asahina mafuyu, 0.1::emotionless::
 3008	girl, shinonome ena
 3252	girl, shinosawa hiro,
+4000	girl, still in love umamusume, small breast
+4001	girl, rice shower umamusume, loli, petite, flat chest
+4002	girl, neo universe umamusume
 4003	girl, shioriha ruri, small breast
 64	girl, nier (granblue fantasy), small chest
