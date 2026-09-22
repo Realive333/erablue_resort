@@ -38,7 +38,8 @@ function Read-TextConfig([string]$Directory) {
     $config = @{}
     foreach ($row in (Read-CsvTable $Directory 'config' @('key', 'value') 'key')) { $config[$row.key] = $row.value }
     $ranges = @{ max_length = @(1, 250); temperature = @(0.1, 100); top_p = @(0, 1); repetition_penalty = @(1, 8); timeout_seconds = @(1, 25) }
-    if ($config.model -notin 'kayra-v1', 'llama-3-erato-v1') { throw 'config.csvのmodelはkayra-v1 / llama-3-erato-v1を指定してください。' }
+    if ($config.model -notin 'kayra-v1', 'llama-3-erato-v1', 'glm-4-6') { throw 'config.csvのmodelはkayra-v1 / llama-3-erato-v1 / glm-4-6を指定してください。' }
+    if ($config.model -eq 'glm-4-6') { $ranges.temperature = @(0.1, 2) }
     foreach ($key in $config.Keys) {
         if ($key -ne 'model' -and -not $ranges.ContainsKey($key)) { throw "config.csvの未対応キー: $key" }
     }
@@ -66,8 +67,7 @@ function New-TextPayload($Request, $Config, [string]$Directory) {
     }
     $actions = @{}
     foreach ($row in (Read-CsvTable $Directory 'actions' @('name', 'prompt') 'name')) { $actions[$row.name] = $row.prompt }
-    # /ai/generateにはsystem/messagesフィールドがない。編集用CSVを物語の文脈へ組み立てる。
-    $parts = @($prompts.system, $prompts.memory)
+    $parts = @($prompts.memory)
     $parts += '実行者: {0}。{1}' -f $Request.player.Name, $characters[$Request.player.No]
     $parts += '反応する人物: {0}。{1}' -f $Request.character.Name, $characters[$Request.character.No]
     $parts += '場所: ' + $Request.place
@@ -75,9 +75,22 @@ function New-TextPayload($Request, $Config, [string]$Directory) {
     $parts += '直前の行動: {0}。{1}' -f $Request.action, $actions[$Request.action]
     $parts += $prompts.authors_note
     $parts += 'この行動に対する{0}の反応：' -f $Request.character.Name
-    $inputText = ($parts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+    $contextText = ($parts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+    $inputText = $prompts.system + "`n" + $contextText
     # ponytail: 自前tokenizerは持たない。長文は拒否し、契約別の厳密なtoken数検証はAPIへ任せる。
     if ($inputText.Length -gt 6000) { throw '口上の文脈が6000文字を超えています。CSVの説明を短くしてください。' }
+    if ($Config.model -eq 'glm-4-6') {
+        return [ordered]@{
+            model = $Config.model
+            # messagesのAPIはtoken_idsだけ返すことがある。文字列promptならtextが返る。
+            prompt = $inputText
+            max_tokens = [int]$Config.max_length
+            temperature = $Config.temperature
+            top_p = $Config.top_p
+            stream = $false
+        }
+    }
+    # Kayra/Eratoの/ai/generateは、systemを含む1本の物語文脈を受け取る。
     return [ordered]@{
         input = $inputText
         model = $Config.model
@@ -106,10 +119,16 @@ function Get-TextToken {
 function Invoke-TextGeneration($Payload, [string]$Token, [int]$TimeoutSeconds) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $body = $script:Utf8.GetBytes((ConvertTo-Json $Payload -Depth 10 -Compress))
-    $response = Invoke-RestMethod -Method Post -Uri 'https://text.novelai.net/ai/generate' -MaximumRedirection 0 `
-        -Headers @{ Authorization = 'Bearer ' + $Token } -ContentType 'application/json' -Body $body -TimeoutSec $TimeoutSeconds
-    if ($response.output -isnot [string] -or [string]::IsNullOrWhiteSpace($response.output)) { throw 'API応答に口上テキストがありません。' }
-    $result = ($response.output -replace '\r\n?', "`n" -replace '[\x00-\x08\x0B-\x1F\x7F]', '').Trim()
+    $completion = $Payload.model -eq 'glm-4-6'
+    $uri = if ($completion) { 'https://text.novelai.net/oa/v1/completions' } else { 'https://text.novelai.net/ai/generate' }
+    $httpResponse = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $uri -MaximumRedirection 0 `
+        -Headers @{ Authorization = 'Bearer ' + $Token } -ContentType 'application/json; charset=utf-8' -Body $body -TimeoutSec $TimeoutSeconds
+    # Windows PowerShell 5.1はcharsetなしのJSONをLatin-1として読む。生バイトをUTF-8で復号する。
+    try { $response = ([Text.UTF8Encoding]::new($false, $true).GetString($httpResponse.RawContentStream.ToArray())) | ConvertFrom-Json }
+    finally { $httpResponse.RawContentStream.Dispose() }
+    $outputText = if ($completion -and @($response.choices).Count -gt 0) { $response.choices[0].text } elseif (-not $completion) { $response.output }
+    if ($outputText -isnot [string] -or [string]::IsNullOrWhiteSpace($outputText)) { throw 'API応答に口上テキストがありません。' }
+    $result = ($outputText -replace '\r\n?', "`n" -replace '[\x00-\x08\x0B-\x1F\x7F]', '').Trim()
     if (-not $result -or $result.Length -gt 8000 -or @($result -split "`n").Count -gt 250) { throw '生成テキストの長さが不正です。' }
     return $result
 }
@@ -169,6 +188,15 @@ function Invoke-TextWorker {
             }
             catch {
                 $message = [string]$_.Exception.Message
+                $detail = [string]$_.ErrorDetails.Message
+                if ($detail) {
+                    try {
+                        $apiError = $detail | ConvertFrom-Json
+                        if ($apiError.message) { $detail = [string]$apiError.message }
+                        elseif ($apiError.error.message) { $detail = [string]$apiError.error.message }
+                    } catch { } # JSON以外のエラー本文も表示する。
+                    $message += ' | API: ' + $detail
+                }
                 if ($token) { $message = $message.Replace($token, '[redacted]') }
                 $message = $message -replace '[\r\n\t]', ' '
                 Set-TextStatus $runtime ('口上生成失敗（自動再送なし）: ' + $message)
