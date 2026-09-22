@@ -1,8 +1,10 @@
 # NovelAI 自動一枚絵・再開メモ
 
-最新更新: 2026-09-19。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
+最新更新: 2026-09-22。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
 
 ## 実装済み
+- 2026-09-22: 口上の文字化けはWindows PowerShell 5.1がcharsetなしのAPI JSONをLatin-1で誤読したことが原因。Invoke-WebRequestのRawContentStreamをUTF-8で復号するよう修正。prompts.csvで日本語・台詞の指定を強化。GLMで日本語を実生成し、その本文を同梱のEmuera 1.824+v24+EMv18+EEv55へ渡して表示ログの文字一致まで検証。通信はUTF-8、ERBもLOADTEXT/SAVETEXTでUTF-8を明示済み。test.ps1にcharsetなし応答の回帰検証と実生成文の表示検証オプションを追加しPASS。反映には口上ワーカーを再起動する。
+- 2026-09-21: 口上のHTTP 400を実APIで調査。原因はKayra/Eratoのメンテナンス停止（公式statusでも確認）。APIのErrorDetailsから理由をログ表示するよう修正し、GLM-4.6の`/oa/v1/completions`文字列prompt/choices.textに対応。config.csvのモデルをglm-4-6へ変更。chat/completionsは実応答がtoken_idsのみだったため使用しない。テキストの共通CSV・画像との分離・自動再送禁止は保持。
 - 2026-09-21: 独立した自動口上MODを追加。`ERB/追加MOD_NovelAI口上/` と `novelai/text/`。SOURCEの既存口上処理後に手動コマンドの相手1人へ生成口上を追加。画像とは有効設定・ワーカー・CSV・通信先を分離し、CSV/原子的書込の共通関数だけ`novelai/scripts/common.ps1`へ移動。専用CSVはconfig/prompts/characters/actions、公式`text.novelai.net/ai/generate`の文字列API（Kayra/Erato）を使用。失敗の自動再送・遅延応答混入を防止。口上は初期無効、起動と仕様は`novelai/text/README.md`。APIモックと実Emueraの往復・待機上限を`novelai/text/test.ps1`で検証。実API通信は未実施。
 - 2026-09-19: 継続行動優先の実装を削除。ERBは現在の相手・場所に対応するSELECTCOM_NAME履歴:0だけをaction行で送信し、継続DBは接触キャラ取得にだけ使用。ワーカーのModes参照も削除し、旧mode行は無視。プロンプト・画像名・ログは直近コマンド1件に統一、未実行時は待機。actorは先頭の操作キャラ、targetは最初の選択相手（最後の追加接触者ではない）。継続モード中の会話→散歩→未実行を実Emueraとワーカーのテストで確認。
 - 2026-09-19: characters.csvに空欄のdefault_outfit列を追加。普段着はキャラNO別のこの列だけを参照し、空欄・未登録時は追加なし（編集先をログ表示）。着替え後はclothes.csvを使用。操作キャラにも適用。ゲームUIに新項目は追加せずCSV直接編集のみ、既存の外見編集で新列を保持。clothes.csvの普段着行を削除し、出力時も除外。画像名は従来どおりでタグ編集後は再生成が必要。

@@ -1,4 +1,5 @@
 ﻿# API通信なし。隔離CSV・APIモック・実Emueraで口上連携を検証する。
+param([string]$GeneratedTextPath)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'worker.ps1') -Library
 function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
@@ -17,6 +18,8 @@ try {
     foreach ($file in 'config.csv', 'prompts.csv', 'characters.csv', 'actions.csv') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $testRoot $file)
     }
+    $configPath = Join-Path $testRoot 'config.csv'
+    Write-Atomic $configPath ((Read-Text $configPath) -replace '(?m)^model,[^\r\n]+', 'model,kayra-v1')
     Write-Atomic (Join-Path $testRoot 'characters.csv') "no,prompt`n123,丁寧な話し方`n0,旅人"
     Write-Atomic (Join-Path $testRoot 'actions.csv') "name,prompt`n会話する,短い返事"
     $wire = "NAITEXT1`t100-1`nplayer`t0`t主人公`ncharacter`t123`tテスト相手`naction`t会話する`nplace`t海辺`nstate`t信頼度=10`nEND`t100-1"
@@ -48,17 +51,35 @@ try {
     function Get-TextToken { return 'TEST-TOKEN-ONLY' }
     $script:Calls = 0
     $script:ApiMode = 'ok'
-    function Invoke-RestMethod($Method, $Uri, $MaximumRedirection, $Headers, $ContentType, $Body, $TimeoutSec) {
+    function New-HttpReply($Value) {
+        $rawBytes = $script:Utf8.GetBytes((ConvertTo-Json $Value -Depth 10 -Compress))
+        # charsetなしをPS5.1が誤読したContentと、正しいUTF-8のRawContentStream。
+        return [pscustomobject]@{ Content = [Text.Encoding]::GetEncoding(28591).GetString($rawBytes); RawContentStream = [IO.MemoryStream]::new($rawBytes) }
+    }
+    function Invoke-WebRequest($Method, $Uri, $MaximumRedirection, $Headers, $ContentType, $Body, $TimeoutSec, [switch]$UseBasicParsing) {
         $script:Calls++
-        Assert ($Uri -ceq 'https://text.novelai.net/ai/generate' -and $Method -eq 'Post' -and $MaximumRedirection -eq 0) '画像APIへ送信しない'
+        Assert ($Method -eq 'Post' -and $MaximumRedirection -eq 0) 'POST・リダイレクト禁止'
         Assert ($Headers.Authorization -ceq 'Bearer TEST-TOKEN-ONLY') '認証ヘッダー'
+        Assert ($ContentType -ceq 'application/json; charset=utf-8') '送信もUTF-8を明示'
         $sent = $script:Utf8.GetString($Body) | ConvertFrom-Json
+        if ($sent.model -eq 'glm-4-6') {
+            Assert ($Uri -ceq 'https://text.novelai.net/oa/v1/completions') 'GLMのAPI'
+            Assert ($sent.prompt -is [string] -and $sent.prompt.Contains('テスト相手') -and $null -eq $sent.messages) 'GLMにはtoken_idsではなく文字列promptを送る'
+            Assert ($sent.max_tokens -eq 150 -and $sent.stream -eq $false -and $null -eq $sent.parameters) 'GLMの生成条件'
+            if ($script:ApiMode -eq 'empty') { return New-HttpReply @{ choices = @() } }
+            return New-HttpReply @{ choices = @(@{ text = '「こんにちは、今日はいい天気ですね」'; token_ids = @(1, 2) }) }
+        }
+        Assert ($Uri -ceq 'https://text.novelai.net/ai/generate') 'Kayra/EratoのAPI'
         Assert ($sent.input.Contains('テスト相手') -and $sent.parameters.use_string) 'UTF-8のAPI本文'
-        if ($script:ApiMode -eq 'error') { throw 'TEST-TOKEN-ONLY failed' }
-        if ($script:ApiMode -eq 'empty') { return @{ output = '' } }
+        if ($script:ApiMode -eq 'error') {
+            $record = New-Object Management.Automation.ErrorRecord ([Exception]::new('400 Bad Request')), 'Api400', 'InvalidOperation', $null
+            $record.ErrorDetails = [Management.Automation.ErrorDetails]::new('{"statusCode":400,"message":"kayra-v1 is unavailable due to maintenance TEST-TOKEN-ONLY"}')
+            throw $record
+        }
+        if ($script:ApiMode -eq 'empty') { return New-HttpReply @{ output = '' } }
         if ($script:ApiMode -eq 'late') { Write-Atomic (Join-Path $runtime 'request.txt') '' }
         if ($script:ApiMode -eq 'disabled') { Write-Atomic (Join-Path $runtime 'enabled.txt') '0' }
-        return @{ output = "「こんにちは」`nEND`t100-1`n%NAME:0% <button>literal</button>" }
+        return New-HttpReply @{ output = "「こんにちは」`nEND`t100-1`n%NAME:0% <button>literal</button>" }
     }
     Write-Atomic (Join-Path $runtime 'request.txt') $wire
     Write-Atomic (Join-Path $runtime 'enabled.txt') '0'
@@ -77,6 +98,7 @@ try {
     Invoke-TextWorker -Once -Directory $testRoot
     Assert ($script:Calls -eq 2 -and (Read-Text $responsePath).Contains("`nerror`n")) '失敗後も自動再送なし'
     Assert (-not (Read-Text (Join-Path $runtime 'status.txt')).Contains('TEST-TOKEN-ONLY')) 'エラーにキーを残さない'
+    Assert ((Read-Text (Join-Path $runtime 'status.txt')).Contains('kayra-v1 is unavailable due to maintenance')) '400の具体的理由を表示'
     foreach ($mode in 'empty', 'late', 'disabled') {
         $script:ApiMode = $mode
         Write-Atomic (Join-Path $runtime 'enabled.txt') '1'
@@ -86,6 +108,20 @@ try {
         if ($mode -eq 'empty') { Assert ((Read-Text $responsePath).Contains("`nerror`n")) '空応答は失敗' }
         else { Assert ((Read-Text $responsePath) -ceq $goodResponse) '取消し・無効化後の応答を破棄' }
     }
+    Write-Atomic $configPath ($originalConfig.Replace('model,kayra-v1', 'model,glm-4-6'))
+    Write-Atomic (Join-Path $runtime 'enabled.txt') '1'
+    Write-Atomic (Join-Path $runtime 'request.txt') ($wire.Replace('100-1', '300-1'))
+    Invoke-TextWorker -Once -Directory $testRoot
+    Assert ((Read-Text $responsePath).Contains('今日はいい天気ですね')) 'GLMの応答を既存の口上通信へ接続'
+    $script:ApiMode = 'empty'
+    Write-Atomic (Join-Path $runtime 'request.txt') ($wire.Replace('100-1', '300-2'))
+    Invoke-TextWorker -Once -Directory $testRoot
+    Assert ((Read-Text $responsePath).Contains("`nerror`n")) 'GLMの空応答も失敗として扱う'
+
+    $displayText = if ($GeneratedTextPath) { Read-Text $GeneratedTextPath } else { '「こんにちは、今日はいい天気ですね」' }
+    Assert (-not [string]::IsNullOrWhiteSpace($displayText)) '表示検証用の日本語本文'
+    $displayLines = @($displayText.Trim() -split '\r?\n')
+    $displayBody = ($displayLines | ForEach-Object { "text`t$_" }) -join "`n"
 
     $gameRoot = Join-Path $testRoot 'game'
     foreach ($dir in 'CSV', 'ERB', 'novelai/text/runtime') { [void][IO.Directory]::CreateDirectory((Join-Path $gameRoot $dir)) }
@@ -145,6 +181,7 @@ SAVETEXT "ready", "ready.txt", 0, 1
 CALL NAIT_コマンド口上
 SIF NAIT_連番 != 1 || LOADTEXT("novelai/text/runtime/request.txt", 0, 1) != ""
     THROW 要求が完了していない
+OUTPUTLOG "display.txt"
 ; ワーカーなしの待機上限。
 開始 = GETMILLISECOND()
 CALL NAIT_コマンド口上
@@ -168,7 +205,7 @@ RETURNF "海辺"
         if (-not $answered -and $null -ne $gameRequest) {
             Assert ($gameRequest.player.No -eq '456' -and $gameRequest.character.No -eq '123' -and $gameRequest.action -eq '会話する') '実Emueraの人物・行動要求'
             Write-Atomic (Join-Path $gameRuntime 'processing.txt') $gameRequest.Id
-            Write-Atomic (Join-Path $gameRuntime 'response.txt') ($goodResponse.Replace('100-1', $gameRequest.Id))
+            Write-Atomic (Join-Path $gameRuntime 'response.txt') ("NAITEXT1`t$($gameRequest.Id)`nok`n$displayBody`nEND`t$($gameRequest.Id)")
             $answered = $true
         }
         Start-Sleep -Milliseconds 100
@@ -178,7 +215,9 @@ RETURNF "海辺"
         throw 'Emueraの口上テストが完了しませんでした。'
     }
     Assert $answered '実Emueraとの往復'
-    Write-Host 'PASS: independent CSV / native API / duplicate and failure handling / cancellation / Emuera request, response and timeout'
+    $displayLog = [IO.File]::ReadAllText((Join-Path $gameRoot 'display.txt'))
+    foreach ($line in $displayLines) { Assert ($displayLog.Contains($line)) '実Emueraの表示ログで日本語が一致' }
+    Write-Host 'PASS: independent CSV / native and GLM APIs / UTF-8 decoding / failure handling / Emuera Japanese display and timeout'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }

@@ -1,5 +1,5 @@
 ﻿key,value
-model,kayra-v1
+model,glm-4-6
 max_length,150
 temperature,0.8
 top_p,0.9
