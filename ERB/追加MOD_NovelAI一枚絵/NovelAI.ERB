@@ -1,0 +1,348 @@
+﻿; NovelAI連携。通信・API呼び出しはnovelai/worker.ps1が担当する。
+@NAI_有効()
+#FUNCTION
+RETURNF LOADTEXT("novelai/runtime/enabled.txt", 0, 1) == "1"
+
+@NAI_項目(文字列)
+#FUNCTIONS
+#DIMS 文字列
+; タブ区切り通信にユーザー指定名の改行などを混入させない。
+RETURNF REPLACE(文字列, "[\\r\\n\\t]", " ")
+
+@NAI_キャラ番号(対象)
+#FUNCTION
+#DIM 対象
+SIF 対象 == MASTER && FLAG:あなたキャラ化記録 > 0
+	RETURNF FLAG:あなたキャラ化記録
+RETURNF NO:対象
+
+@NAI_キャラ行(種別, 対象)
+#FUNCTIONS
+#DIMS 種別
+#DIM 対象
+#DIM CSV番号
+CSV番号 = NAI_キャラ番号(対象)
+RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n" + NAI_服装行(対象)
+
+@NAI_服装行(対象)
+#FUNCTIONS
+#DIM 対象
+#DIM 上服
+#DIM 下服
+#DIM 上下着
+#DIM 下下着
+#DIMS 服装名
+#DIMS 行
+; EQUIP（初期装備）ではなく、着替え・脱衣後のTEQUIPを読む。
+上服 = TEQUIP:対象:上半身鎧あり || TEQUIP:対象:上半身服あり
+下服 = TEQUIP:対象:下腹部後鎧あり || TEQUIP:対象:下腹部前鎧あり || TEQUIP:対象:下半身服あり
+上下着 = TEQUIP:対象:上半身下着あり
+下下着 = TEQUIP:対象:下半身下着あり
+IF !上服 && !下服 && !TEQUIP:対象:上タイツあり && !TEQUIP:対象:下タイツあり && GROUPMATCH(上下着, 0, -2, -3) && GROUPMATCH(下下着, 0, -2, -3)
+	RETURNF @"clothes\t{対象}\t全裸\n"
+ENDIF
+行 =
+IF 上服 || 下服
+	服装名 '= CSTR:対象:着せ替え服
+	; キャラ固有の服名称と、キャラ番号で指定する衣装は共通の普段着扱い。
+	SIF 服装名 == "" || 服装名 == "デフォルト" || ISNUMERIC(服装名)
+		服装名 = 普段着
+	行 += @"clothes\t{対象}\t%NAI_項目(服装名)%\n"
+	SIF CSTR:対象:着せ替え服追加名 != ""
+		行 += @"clothes\t{対象}\t%NAI_項目(CSTR:対象:着せ替え服追加名)%\n"
+ENDIF
+; 外側の服を脱いだ部位だけ下着・タイツ・露出を追加する。
+IF !上服
+	IF TEQUIP:対象:上タイツあり
+		行 += @"clothes\t{対象}\t上タイツ\n"
+	ELSEIF 上下着 != 0
+		行 += @"clothes\t{対象}\t上半身下着_{上下着}\n"
+	ELSE
+		行 += @"clothes\t{対象}\t上半身裸\n"
+	ENDIF
+ENDIF
+IF !下服
+	IF TEQUIP:対象:下タイツあり
+		行 += @"clothes\t{対象}\t下タイツ\n"
+	ELSEIF 下下着 != 0
+		行 += @"clothes\t{対象}\t下半身下着_{下下着}\n"
+	ELSE
+		行 += @"clothes\t{対象}\t下半身裸\n"
+	ENDIF
+ENDIF
+RETURNF 行
+
+@NAI_画像取得
+#DIMS シーン
+#DIMS 応答, 4
+#DIM 登録, 6
+#DIM 人数
+#DIM 行
+#DIM 実行者
+#DIM 相手
+#DIM 接触者
+
+RESULTS =
+SIF !NAI_有効()
+	RETURN 0
+SIF PLAYER < 0 || PLAYER >= CHARANUM
+	RETURN 0
+VARSET 登録, -1
+登録:0 = PLAYER
+人数 = 1
+シーン '= NAI_キャラ行("player", PLAYER)
+シーン += @"place\t{CFLAG:PLAYER:現在マップ種別}\t{CFLAG:PLAYER:現在位置}\n"
+
+; 選択中の相手を第1キャラクターにする。同室者を無差別に追加しない。
+IF TARGET >= 0 && TARGET < CHARANUM && TARGET != PLAYER
+	IF IS_SAME_ROOM(TARGET, PLAYER)
+		登録:人数 = TARGET
+		人数 ++
+		シーン += NAI_キャラ行("character", TARGET)
+	ENDIF
+ENDIF
+; 継続モードは接触中のキャラの取得にだけ使用する。
+FOR 行, 0, DT_ROW_LENGTH("体位モードデータベース")
+	実行者 = DT_CELL_GET("体位モードデータベース", 行, "実行キャラ")
+	相手 = DT_CELL_GET("体位モードデータベース", 行, "対象キャラ")
+	SIF 実行者 < 0 || 実行者 >= CHARANUM || 相手 < 0 || 相手 >= CHARANUM
+		CONTINUE
+	IF 実行者 == PLAYER
+		接触者 = 相手
+	ELSEIF 相手 == PLAYER
+		接触者 = 実行者
+	ELSE
+		CONTINUE
+	ENDIF
+	SIF 接触者 == PLAYER || !IS_SAME_ROOM(接触者, PLAYER)
+		CONTINUE
+	IF MATCH(登録, 接触者) == 0
+		SIF 人数 >= 6
+			CONTINUE
+		登録:人数 = 接触者
+		人数 ++
+		シーン += NAI_キャラ行("character", 接触者)
+	ENDIF
+NEXT
+; 画像の行動はユーザーが実行した直近のコマンドだけを使う。
+IF 人数 > 1 && 登録:1 == TARGET && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別 && SELECTCOM_NAME履歴:0 != ""
+	シーン += @"action\t%NAI_項目(SELECTCOM_NAME履歴:0)%\n"
+ENDIF
+
+; 自動コマンド連打中には要求を増やさない。
+IF シーン != NAI_前回シーン && !TFLAG:オートコマンドフラグ && !TFLAG:オートコマンド連続発動
+	NAI_要求連番 ++
+	NAI_要求ID = {GETTIME()}-{NAI_要求連番}
+	SAVETEXT @"NAI1\t%NAI_要求ID%\n%シーン%END\t%NAI_要求ID%", "novelai/runtime/request.txt", 0, 1
+	IF RESULT
+		NAI_前回シーン '= シーン
+	ENDIF
+ENDIF
+RESULTS =
+SIF 人数 < 2 || シーン != NAI_前回シーン
+	RETURN 0
+; 命名とキャッシュ検索はワーカーで共用し、現在の要求に対応した画像だけ表示する。
+SPLIT LOADTEXT("novelai/runtime/response.txt", 0, 1), "\n", 応答
+IF RESULT >= 2 && 応答:0 == NAI_要求ID
+	応答:1 '= NAI_画像名(応答:1)
+	IF 応答:1 != ""
+		RESULTS = NovelAI/%応答:1%
+		SIF EXISTFILE(@"resources/%RESULTS%")
+			RETURN 1
+	ENDIF
+ENDIF
+RESULTS =
+RETURN 0
+
+@NAI_画像名(名前)
+#FUNCTIONS
+#DIMS 名前
+; 旧ハッシュ応答も読み、フォルダー外へのパスは拒否する。
+SIF STRCOUNT(名前, "^[a-f0-9]{64}$") == 1
+	RETURNF 名前 + ".png"
+SIF STRCOUNT(名前, "^[^<>:\\x22/\\\\|?*\\x00-\\x1F]{1,176}\\.png$") == 1
+	RETURNF 名前
+RETURNF ""
+
+@NAI_再生成
+#DIMS 再生成ID
+SIF !NAI_有効()
+	RETURN 0
+CALL NAI_画像取得
+SIF NAI_要求ID == "" || STRCOUNT(NAI_前回シーン, "(^|\\n)character\\t") == 0
+	RETURN 0
+NAI_要求連番 ++
+再生成ID = {GETTIME()}-{NAI_要求連番}
+SAVETEXT @"NAIREGEN1\n%NAI_要求ID%\n%再生成ID%\nEND\t%再生成ID%", "novelai/runtime/regenerate.txt", 0, 1
+RETURN RESULT
+
+@OPTION_NOVELAI
+#DIMS 項目, 2
+#DIMS 項目名, 2
+#DIM 選択
+#DIM 対象
+#DIMS パス
+項目 '= "system", "negative"
+項目名 '= "システム（固定）", "ネガティブ"
+$メニュー
+DRAWLINE
+PRINTL NovelAI 自動一枚絵
+PRINTFORML [0] 自動生成: \@ NAI_有効() ? 有効 # 無効 \@
+PRINTL 一枚絵タブの表示中、場面の変化に合わせて生成します。
+PRINTL 最初にnovelai/start.cmdでワーカーを起動してください。
+PRINTL 生成はNovelAIの契約に応じてAnlasを消費します。
+FOR 選択, 0, 2
+	PRINTFORML [{選択 + 1}] %項目名:選択%プロンプト
+NEXT
+PRINTL [3] 現在のプレイヤーの個別キャラプロンプト（キャラNOで保存）
+PRINTL [7] 現在の相手の個別キャラプロンプト（キャラNOで保存）
+PRINTL [8] 画像を再生成（失敗時も再試行）
+PRINTL [9] NovelAIのモデル・生成設定
+PRINTL [999] 戻る
+PRINTL 固定システム＋現在のキャラNOに対応するプロンプト＋現在の行動タグを自動で組み合わせます。
+PRINTL プロンプト: novelai/prompts.csv / characters.csv / actions.csv
+PRINTL 状態:
+PRINTPLAINFORM %LOADTEXT("novelai/runtime/status.txt", 0, 1)%
+PRINTL
+BINPUT
+選択 = RESULT
+IF 選択 == 999
+	RETURN 0
+ELSEIF 選択 == 0
+	IF NAI_有効()
+		SAVETEXT "0", "novelai/runtime/enabled.txt", 0, 1
+	ELSE
+		SAVETEXT "1", "novelai/runtime/enabled.txt", 0, 1
+	ENDIF
+	NAI_前回シーン =
+ELSEIF 選択 == 8
+	CALL NAI_再生成
+ELSEIF 選択 == 9
+	CALL OPTION_NOVELAI_CONFIG
+ELSEIF (選択 >= 1 && 選択 <= 3) || 選択 == 7
+	IF 選択 == 3 || 選択 == 7
+		対象 = PLAYER
+		SIF 選択 == 7
+			対象 = TARGET
+		IF 対象 < 0 || 対象 >= CHARANUM || (選択 == 7 && 対象 == PLAYER)
+			PRINTW 編集するキャラを選択してから開いてください。
+			GOTO メニュー
+		ENDIF
+		パス '= TOSTR(NAI_キャラ番号(対象))
+	ELSE
+		パス '= 項目:(選択 - 1)
+	ENDIF
+	PRINTL 現在の内容:
+	IF 選択 == 3 || 選択 == 7
+		PRINTPLAINFORM %NAI_設定値("characters", パス)%
+	ELSE
+		PRINTPLAINFORM %NAI_設定値("prompts", パス)%
+	ENDIF
+	PRINTL
+	PRINTL 新しい内容を1行で入力（空欄は取り消し、-のみで空にする）:
+	INPUTS
+	IF RESULTS != ""
+		SIF RESULTS == "-"
+			RESULTS =
+		IF 選択 == 3 || 選択 == 7
+			CALL NAI_設定更新("characters", パス, RESULTS)
+		ELSE
+			CALL NAI_設定更新("prompts", パス, RESULTS)
+		ENDIF
+	ENDIF
+ENDIF
+GOTO メニュー
+
+@NAI_設定値(種類, キー)
+#FUNCTIONS
+#DIMS 種類
+#DIMS キー
+#DIMS 行, 5000
+#DIM 番号
+#DIM 行数
+SPLIT LOADTEXT(@"novelai/runtime/view-%種類%.txt", 0, 1), "\n", 行
+行数 = RESULT
+FOR 番号, 0, 行数
+	SIF STRFIND(行:番号, キー + "\t") == 0
+		RETURNF SUBSTRING(行:番号, STRLENS(キー) + 1)
+NEXT
+RETURNF ""
+
+@NAI_設定更新(種類, キー, 値)
+#DIMS 種類
+#DIMS キー
+#DIMS 値
+#DIMS 要求, 6
+#DIMS 応答, 2
+#DIMS 更新ID
+#DIM 回数
+SPLIT LOADTEXT("novelai/runtime/settings-request.txt", 0, 1), "\n", 要求
+SPLIT LOADTEXT("novelai/runtime/settings-result.txt", 0, 1), "\n", 応答
+IF 要求:1 != "" && 要求:1 != 応答:0
+	PRINTW 前の変更が処理待ちです。ワーカーの起動・生成完了を待ってください。
+	RETURN
+ENDIF
+NAI_要求連番 ++
+更新ID = {GETTIME()}-{NAI_要求連番}
+SAVETEXT @"NAISET1\n%更新ID%\n%種類%\n%キー%\n%NAI_項目(値)%\nEND\t%更新ID%", "novelai/runtime/settings-request.txt", 0, 1
+SIF !RESULT
+	RETURN
+FOR 回数, 0, 20
+	AWAIT 100
+	SPLIT LOADTEXT("novelai/runtime/settings-result.txt", 0, 1), "\n", 応答
+	IF 応答:0 == 更新ID
+		PRINTPLAINFORM %応答:1%
+		PRINTL
+		RETURN
+	ENDIF
+NEXT
+PRINTL 変更は処理待ちです。ワーカー起動中なら生成完了後に反映されます。
+
+@OPTION_NOVELAI_CONFIG
+#DIMS キー, 11
+#DIMS 説明, 11
+#DIMS モデル, 7
+#DIMS 値
+#DIM 選択
+#DIM 番号
+キー '= "model", "width", "height", "steps", "scale", "sampler", "seed", "minimum_interval_seconds", "cfg_rescale", "noise_schedule", "prompt_format"
+説明 '= "使用モデル", "横幅", "縦幅", "Steps", "プロンプト強度", "Sampler", "Seed (-1はランダム)", "最小生成間隔（秒）", "CFG Rescale (0～1)", "Noise schedule", "プロンプト形式 (auto/v4/legacy)"
+モデル '= "nai-diffusion-5-full", "nai-diffusion-5-curated", "nai-diffusion-4-5-curated", "nai-diffusion-4-5-full", "nai-diffusion-4-full", "nai-diffusion-4-curated-preview", "nai-diffusion-3"
+$設定メニュー
+DRAWLINE
+PRINTL NovelAI 生成設定（config.json）
+FOR 番号, 0, 11
+	PRINTFORML [{番号 + 1}] %説明:番号%: %NAI_設定値("config", キー:番号)%
+NEXT
+PRINTL [999] 戻る
+PRINTL 設定変更にはワーカーを起動してください。APIキーはここでは入力しません。
+PRINTL V5のNoise scheduleは送信時にkarras固定です。プロンプト形式はauto/v4を使用します。
+BINPUT
+選択 = RESULT - 1
+SIF RESULT == 999
+	RETURN
+SIF 選択 < 0 || 選択 >= 11
+	GOTO 設定メニュー
+IF 選択 == 0
+	FOR 番号, 0, 7
+		PRINTFORML [{番号 + 1}] %モデル:番号%
+	NEXT
+	PRINTL [8] モデルIDを直接入力 / [999] 取り消し
+	BINPUT
+	IF RESULT >= 1 && RESULT <= 7
+		値 '= モデル:(RESULT - 1)
+	ELSEIF RESULT == 8
+		PRINTL モデルIDを入力してください。未知のモデルは先にプロンプト形式を設定してください。
+		INPUTS
+		値 '= RESULTS
+	ELSE
+		GOTO 設定メニュー
+	ENDIF
+ELSE
+	PRINTL 新しい値を入力してください（空欄は取り消し）。
+	INPUTS
+	値 '= RESULTS
+ENDIF
+SIF 値 != ""
+	CALL NAI_設定更新("config", キー:選択, 値)
+GOTO 設定メニュー
