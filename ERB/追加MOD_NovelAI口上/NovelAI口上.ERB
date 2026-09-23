@@ -61,7 +61,6 @@ WHILE GETMILLISECOND() - 開始時刻 < 30000
         IF 生成成功
             本文 '= RESULTS
             PRINTL
-            PRINTL 【NovelAI口上】
             ; PRINTSは生成文をERB式・HTMLとして評価しない。
             PRINTSL 本文
         ENDIF
