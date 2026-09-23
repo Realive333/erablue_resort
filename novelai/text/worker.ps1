@@ -56,38 +56,54 @@ function Read-TextConfig([string]$Directory) {
 function New-TextPayload($Request, $Config, [string]$Directory) {
     $prompts = @{}
     foreach ($row in (Read-CsvTable $Directory 'prompts' @('key', 'prompt') 'key')) {
-        if ($row.key -notin 'system', 'memory', 'authors_note') { throw "prompts.csvの未対応キー: $($row.key)" }
+        if ($row.key -notin 'system', 'memory', 'authors_note', 'example_scene', 'example_dialogue') { throw "prompts.csvの未対応キー: $($row.key)" }
         $prompts[$row.key] = $row.prompt
     }
     if ([string]::IsNullOrWhiteSpace($prompts.system)) { throw 'prompts.csvのsystemは必須です。' }
     $characters = @{}
     foreach ($row in (Read-CsvTable $Directory 'characters' @('no', 'prompt') 'no')) {
         if ($row.no -notmatch '^\d+$') { throw 'characters.csvのnoはキャラ番号を指定してください。' }
-        $characters[$row.no] = $row.prompt
+        $characters[$row.no] = $row
     }
     $actions = @{}
     foreach ($row in (Read-CsvTable $Directory 'actions' @('name', 'prompt') 'name')) { $actions[$row.name] = $row.prompt }
     $parts = @($prompts.memory)
-    $parts += '実行者: {0}。{1}' -f $Request.player.Name, $characters[$Request.player.No]
-    $parts += '反応する人物: {0}。{1}' -f $Request.character.Name, $characters[$Request.character.No]
+    $parts += '実行者: {0}。{1}' -f $Request.player.Name, $characters[$Request.player.No].prompt
+    $parts += '反応する人物: {0}。{1}' -f $Request.character.Name, $characters[$Request.character.No].prompt
+    if ($characters[$Request.character.No].examples) {
+        $parts += 'この人物の口調の参考例（今回の返答には転載しない）: ' + $characters[$Request.character.No].examples
+    }
     $parts += '場所: ' + $Request.place
     $parts += '現在の状態: ' + $Request.state
     $parts += '直前の行動: {0}。{1}' -f $Request.action, $actions[$Request.action]
-    $parts += $prompts.authors_note
-    $parts += 'この行動に対する{0}の反応：' -f $Request.character.Name
+    $parts += 'この場面に対する{0}のセリフを返してください。' -f $Request.character.Name
     $contextText = ($parts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
-    $inputText = $prompts.system + "`n" + $contextText
+    $systemText = @($prompts.system, $prompts.authors_note) -join "`n"
+    $inputText = $systemText + "`n" + $contextText
+    if ($Config.model -eq 'glm-4-6') {
+        # GLM公式chat_template.jinjaのsystem/user/assistant形式。文字列補完でも役割を保持する。
+        $inputText = "[gMASK]<sop><|system|>`n" + $systemText
+        if ($prompts.example_scene -or $prompts.example_dialogue) {
+            if (-not $prompts.example_scene -or -not $prompts.example_dialogue) { throw 'example_sceneとexample_dialogueは両方指定してください。' }
+            $example = ConvertTo-Dialogue $prompts.example_dialogue
+            $inputText += "<|user|>`n" + $prompts.example_scene + '/nothink'
+            $inputText += "<|assistant|>`n<think></think>`n" + $example
+        }
+        $inputText += "<|user|>`n" + $contextText + '/nothink'
+        $inputText += "<|assistant|>`n<think></think>`n「"
+    }
     # ponytail: 自前tokenizerは持たない。長文は拒否し、契約別の厳密なtoken数検証はAPIへ任せる。
     if ($inputText.Length -gt 6000) { throw '口上の文脈が6000文字を超えています。CSVの説明を短くしてください。' }
     if ($Config.model -eq 'glm-4-6') {
         return [ordered]@{
             model = $Config.model
-            # messagesのAPIはtoken_idsだけ返すことがある。文字列promptならtextが返る。
+            # chat APIはtoken_idsのみ返るため、公式会話テンプレートを文字列promptへ適用する。
             prompt = $inputText
             max_tokens = [int]$Config.max_length
             temperature = $Config.temperature
             top_p = $Config.top_p
             stream = $false
+            stop = @('<|user|>', '<|system|>', '<|assistant|>', '<|observation|>', '<|endoftext|>')
         }
     }
     # Kayra/Eratoの/ai/generateは、systemを含む1本の物語文脈を受け取る。
@@ -103,6 +119,23 @@ function New-TextPayload($Request, $Config, [string]$Directory) {
             logit_bias_exp = @()
         }
     }
+}
+
+function ConvertTo-Dialogue([string]$Text) {
+    $text = ($Text -replace '\r\n?', "`n").Trim()
+    if ($text.Length -gt 8000 -or $text -match '[\x00-\x08\x0B-\x1F\x7F]' -or $text -cnotmatch '\A(?:「[^「」\r\n]+」\s*){2,3}\z') {
+        throw '口上の形式違反: 「」で囲まれたセリフ2〜3文だけが必要です。説明・括弧外の文字・途中切れは表示しません。'
+    }
+    $dialogue = foreach ($quote in [regex]::Matches($text, '「([^「」\r\n]+)」')) {
+        $sentence = $quote.Groups[1].Value.Trim()
+        # ponytail: 文境界は句点・疑問符・感嘆符で判定。口調や内容の妥当性は実生成で評価する。
+        $body = $sentence -replace '[。！？!?…‥]+$', ''
+        if ($body -match '[。！？!?]' -or $body -notmatch '[\u3040-\u30ff\u3400-\u9fff]') {
+            throw '口上の形式違反: 各「」には日本語のセリフを1文ずつ入れてください。'
+        }
+        '「' + $sentence + '」'
+    }
+    return $dialogue -join "`n"
 }
 
 function Get-TextToken {
@@ -128,9 +161,10 @@ function Invoke-TextGeneration($Payload, [string]$Token, [int]$TimeoutSeconds) {
     finally { $httpResponse.RawContentStream.Dispose() }
     $outputText = if ($completion -and @($response.choices).Count -gt 0) { $response.choices[0].text } elseif (-not $completion) { $response.output }
     if ($outputText -isnot [string] -or [string]::IsNullOrWhiteSpace($outputText)) { throw 'API応答に口上テキストがありません。' }
-    $result = ($outputText -replace '\r\n?', "`n" -replace '[\x00-\x08\x0B-\x1F\x7F]', '').Trim()
-    if (-not $result -or $result.Length -gt 8000 -or @($result -split "`n").Count -gt 250) { throw '生成テキストの長さが不正です。' }
-    return $result
+    if ($completion -and $response.choices[0].finish_reason -eq 'length') { throw '口上が生成トークン上限で打ち切られました。途中のセリフは表示しません。' }
+    # 文字列補完の応答には、入力末尾で先置きした「は含まれない。
+    if ($completion) { $outputText = '「' + $outputText }
+    return ConvertTo-Dialogue $outputText
 }
 
 function Set-TextStatus([string]$Runtime, [string]$Message) {
