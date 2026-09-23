@@ -21,7 +21,7 @@
 3008	girl, shinonome ena
 3252	girl, shinosawa hiro,
 4000	girl, still in love umamusume, small breast
-4001	girl, rice shower umamusume, loli, petite, flat chest
+4001	girl, rice shower umamusume, 2::child, loli, petite::, flat chest
 4002	girl, neo universe umamusume
 4003	girl, shioriha ruri, small breast
 64	girl, nier (granblue fantasy), small chest

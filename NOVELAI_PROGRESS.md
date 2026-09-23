@@ -3,6 +3,7 @@
 最新更新: 2026-09-22。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
 
 ## 実装済み
+- 2026-09-22: 口上の設定説明への脱線を修正。GLM公式会話テンプレートでsystem/user/assistantを分離し、共通会話例・非thinking・「のprefillを適用。chat APIはtoken_idsのみ返るため、文字列補完APIへ正規の会話文脈を送る。表示前に日本語2〜3文・括弧外の余分な文字・文数・途中切れを検査し、違反を表示せず自動再送しない。characters.csvに任意examples列、prompts.csvにexample_scene/example_dialogueを追加。人物設定はユーザーが手動入力する方針で、行は追加しない。一般的な3場面を実API各1回で検証し、すべて説明なしのセリフ2文。見出し削除はERB再読込、生成処理変更は口上ワーカー再起動が必要。
 - 2026-09-22: 口上の文字化けはWindows PowerShell 5.1がcharsetなしのAPI JSONをLatin-1で誤読したことが原因。Invoke-WebRequestのRawContentStreamをUTF-8で復号するよう修正。prompts.csvで日本語・台詞の指定を強化。GLMで日本語を実生成し、その本文を同梱のEmuera 1.824+v24+EMv18+EEv55へ渡して表示ログの文字一致まで検証。通信はUTF-8、ERBもLOADTEXT/SAVETEXTでUTF-8を明示済み。test.ps1にcharsetなし応答の回帰検証と実生成文の表示検証オプションを追加しPASS。反映には口上ワーカーを再起動する。
 - 2026-09-21: 口上のHTTP 400を実APIで調査。原因はKayra/Eratoのメンテナンス停止（公式statusでも確認）。APIのErrorDetailsから理由をログ表示するよう修正し、GLM-4.6の`/oa/v1/completions`文字列prompt/choices.textに対応。config.csvのモデルをglm-4-6へ変更。chat/completionsは実応答がtoken_idsのみだったため使用しない。テキストの共通CSV・画像との分離・自動再送禁止は保持。
 - 2026-09-21: 独立した自動口上MODを追加。`ERB/追加MOD_NovelAI口上/` と `novelai/text/`。SOURCEの既存口上処理後に手動コマンドの相手1人へ生成口上を追加。画像とは有効設定・ワーカー・CSV・通信先を分離し、CSV/原子的書込の共通関数だけ`novelai/scripts/common.ps1`へ移動。専用CSVはconfig/prompts/characters/actions、公式`text.novelai.net/ai/generate`の文字列API（Kayra/Erato）を使用。失敗の自動再送・遅延応答混入を防止。口上は初期無効、起動と仕様は`novelai/text/README.md`。APIモックと実Emueraの往復・待機上限を`novelai/text/test.ps1`で検証。実API通信は未実施。

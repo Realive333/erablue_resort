@@ -34,6 +34,8 @@ try {
     Assert ($payload.parameters.use_string -and $payload.parameters.max_length -eq 150 -and $payload.parameters.logit_bias_exp.Count -eq 0) '公式APIの文字列形式'
     Write-Atomic (Join-Path $testRoot 'characters.csv') "no,prompt`n123,明るい話し方"
     Assert ((New-TextPayload $request $config $testRoot).input.Contains('明るい話し方')) 'CSVを毎回読み直す'
+    Write-Atomic (Join-Path $testRoot 'characters.csv') "no,prompt,examples`n123,落ち着いた話し方,「私がご案内します。」"
+    Assert ((New-TextPayload $request $config $testRoot).input.Contains('私がご案内します。')) 'キャラ別の口調例'
     Write-Atomic (Join-Path $testRoot 'characters.csv') "no,prompt`n123,`"落ち着いた,話し方`n二行目`""
     Assert ((New-TextPayload $request $config $testRoot).input.Contains("落ち着いた,話し方`n二行目")) 'CSVのカンマと改行を保持'
     Write-Atomic (Join-Path $testRoot 'characters.csv') "no,prompt`n123,a`n123,b"
@@ -46,6 +48,14 @@ try {
         Reject { Read-TextConfig $testRoot }
     }
     Write-Atomic (Join-Path $testRoot 'config.csv') $originalConfig
+
+    Assert ((ConvertTo-Dialogue '「ありがとう。」「助かりました。」') -ceq "「ありがとう。」`n「助かりました。」") '2文を改行して表示'
+    Assert (@((ConvertTo-Dialogue '「えっ？」「本当ですか！」「嬉しいです。」') -split "`n").Count -eq 3) '3文も受理'
+    foreach ($invalid in @('', '驚き。人物の口調と一人称：わたくし。丁寧語。', '「こんにちは。」',
+        '「一。」「二。」「三。」「四。」', '説明文「ありがとう。」「助かりました。」', '「ありがとう。」「途中',
+        '「ありがとう。助かりました。」「嬉しいです。」', '「Hello.」「Thanks.」', "「あ$([char]0)い。」「うえお。」")) {
+        Reject { ConvertTo-Dialogue $invalid }
+    }
 
     # 外部通信関数を置換。実トークンにもアクセスしない。
     function Get-TextToken { return 'TEST-TOKEN-ONLY' }
@@ -65,9 +75,13 @@ try {
         if ($sent.model -eq 'glm-4-6') {
             Assert ($Uri -ceq 'https://text.novelai.net/oa/v1/completions') 'GLMのAPI'
             Assert ($sent.prompt -is [string] -and $sent.prompt.Contains('テスト相手') -and $null -eq $sent.messages) 'GLMにはtoken_idsではなく文字列promptを送る'
+            Assert ($sent.prompt.StartsWith("[gMASK]<sop><|system|>`n") -and $sent.prompt.EndsWith("<|assistant|>`n<think></think>`n「")) 'GLMの会話形式と回答の書き出し'
+            Assert ($sent.prompt.Contains("/nothink<|assistant|>`n<think></think>`n「おはようございます。」")) 'userとassistantの会話例'
             Assert ($sent.max_tokens -eq 150 -and $sent.stream -eq $false -and $null -eq $sent.parameters) 'GLMの生成条件'
             if ($script:ApiMode -eq 'empty') { return New-HttpReply @{ choices = @() } }
-            return New-HttpReply @{ choices = @(@{ text = '「こんにちは、今日はいい天気ですね」'; token_ids = @(1, 2) }) }
+            if ($script:ApiMode -eq 'invalid') { return New-HttpReply @{ choices = @(@{ text = '驚き。人物設定を説明します。'; finish_reason = 'stop' }) } }
+            $finishReason = if ($script:ApiMode -eq 'length') { 'length' } else { 'stop' }
+            return New-HttpReply @{ choices = @(@{ text = "こんにちは。」`n「今日はいい天気ですね。」"; finish_reason = $finishReason; token_ids = @(1, 2) }) }
         }
         Assert ($Uri -ceq 'https://text.novelai.net/ai/generate') 'Kayra/EratoのAPI'
         Assert ($sent.input.Contains('テスト相手') -and $sent.parameters.use_string) 'UTF-8のAPI本文'
@@ -79,7 +93,7 @@ try {
         if ($script:ApiMode -eq 'empty') { return New-HttpReply @{ output = '' } }
         if ($script:ApiMode -eq 'late') { Write-Atomic (Join-Path $runtime 'request.txt') '' }
         if ($script:ApiMode -eq 'disabled') { Write-Atomic (Join-Path $runtime 'enabled.txt') '0' }
-        return New-HttpReply @{ output = "「こんにちは」`nEND`t100-1`n%NAME:0% <button>literal</button>" }
+        return New-HttpReply @{ output = "「こんにちは。」`n「%NAME:0% <button>literal</button>もそのままです。」" }
     }
     Write-Atomic (Join-Path $runtime 'request.txt') $wire
     Write-Atomic (Join-Path $runtime 'enabled.txt') '0'
@@ -89,7 +103,7 @@ try {
     Invoke-TextWorker -Once -Directory $testRoot
     $responsePath = Join-Path $runtime 'response.txt'
     $goodResponse = Read-Text $responsePath
-    Assert ($goodResponse.Contains("`nok`ntext`t「こんにちは」") -and $goodResponse.Contains("text`tEND`t100-1")) '改行・区切りを含む応答'
+    Assert ($goodResponse.Contains("`nok`ntext`t「こんにちは。」") -and $goodResponse.Contains('text' + "`t「%NAME:0%")) '日本語のセリフを各行へ格納'
     Invoke-TextWorker -Once -Directory $testRoot
     Assert ($script:Calls -eq 1) '同一要求の重複送信なし'
     $script:ApiMode = 'error'
@@ -113,12 +127,17 @@ try {
     Write-Atomic (Join-Path $runtime 'request.txt') ($wire.Replace('100-1', '300-1'))
     Invoke-TextWorker -Once -Directory $testRoot
     Assert ((Read-Text $responsePath).Contains('今日はいい天気ですね')) 'GLMの応答を既存の口上通信へ接続'
-    $script:ApiMode = 'empty'
-    Write-Atomic (Join-Path $runtime 'request.txt') ($wire.Replace('100-1', '300-2'))
-    Invoke-TextWorker -Once -Directory $testRoot
-    Assert ((Read-Text $responsePath).Contains("`nerror`n")) 'GLMの空応答も失敗として扱う'
+    foreach ($mode in 'empty', 'invalid', 'length') {
+        $script:ApiMode = $mode
+        $beforeCalls = $script:Calls
+        Write-Atomic (Join-Path $runtime 'request.txt') ($wire.Replace('100-1', ('300-' + $beforeCalls)))
+        Invoke-TextWorker -Once -Directory $testRoot
+        Invoke-TextWorker -Once -Directory $testRoot
+        Assert ((Read-Text $responsePath).Contains("`nerror`n") -and $script:Calls -eq $beforeCalls + 1) '空応答・形式違反・打切りを表示せず自動再送しない'
+    }
 
-    $displayText = if ($GeneratedTextPath) { Read-Text $GeneratedTextPath } else { '「こんにちは、今日はいい天気ですね」' }
+    $displayText = if ($GeneratedTextPath) { Read-Text $GeneratedTextPath } else { "「こんにちは。」`n「今日はいい天気ですね。」" }
+    $displayText = ConvertTo-Dialogue $displayText
     Assert (-not [string]::IsNullOrWhiteSpace($displayText)) '表示検証用の日本語本文'
     $displayLines = @($displayText.Trim() -split '\r?\n')
     $displayBody = ($displayLines | ForEach-Object { "text`t$_" }) -join "`n"
@@ -217,7 +236,8 @@ RETURNF "海辺"
     Assert $answered '実Emueraとの往復'
     $displayLog = [IO.File]::ReadAllText((Join-Path $gameRoot 'display.txt'))
     foreach ($line in $displayLines) { Assert ($displayLog.Contains($line)) '実Emueraの表示ログで日本語が一致' }
-    Write-Host 'PASS: independent CSV / native and GLM APIs / UTF-8 decoding / failure handling / Emuera Japanese display and timeout'
+    Assert (-not $displayLog.Contains('【NovelAI口上】')) '口上の見出しを表示しない'
+    Write-Host 'PASS: independent CSV / GLM chat template / Japanese dialogue validation / UTF-8 / failure handling / Emuera display without heading'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
