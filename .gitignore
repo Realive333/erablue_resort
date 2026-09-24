@@ -43,4 +43,3 @@ resources/汎用グラフィック/*.webp
 /resources/NovelAI/
 /novelai/text/runtime/*
 !/novelai/text/runtime/.gitkeep
-*.txt
