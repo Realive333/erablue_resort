@@ -42,7 +42,8 @@ if (Test-Path $actionsPath) {
 $catalog = @{}
 foreach ($name in $seeds.Keys) { $catalog[$name] = $true }
 # ゲーム内の定義から取得。表示名が条件で変わる場合は静的に読める全候補を登録する。
-foreach ($file in (Get-ChildItem -LiteralPath (Join-Path $script:Root 'ERB/コマンド') -Recurse -File -Filter '*.ERB')) {
+$commandDirectories = @('ERB/コマンド', 'ERB/むりやりうふふ関連', 'ERB/マッサージモード関連') | ForEach-Object { Join-Path $script:Root $_ }
+foreach ($file in (Get-ChildItem -LiteralPath $commandDirectories -Recurse -File -Filter '*.ERB')) {
     $source = [IO.File]::ReadAllText($file.FullName, [Text.Encoding]::UTF8)
     $names = @([regex]::Matches($source, '(?m)^\s*TSTR:コマンド名受渡\s*=\s*([^\r\n]+)') | ForEach-Object { $_.Groups[1].Value.Trim() })
     $names += @([regex]::Matches($source, '(?m)^@(?:MODE_持続快楽_|MODETYPE_)([^\(\r\n]+)') | ForEach-Object { $_.Groups[1].Value.Trim() })

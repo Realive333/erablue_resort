@@ -1,8 +1,9 @@
 # NovelAI 自動一枚絵・再開メモ
 
-最新更新: 2026-09-22。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
+最新更新: 2026-09-25。日本語で回答。既存実装を再調査せず、必要箇所とgit diffから再開する。
 
 ## 実装済み
+- 2026-09-25: 画像の行動は既存のコマンド履歴:0・派生コマンド履歴:0からTRAIN_COMNAME/TRAIN_COMNAME_Sで解決する。SELECTCOM_NAME履歴は参照せず、前案で専用モード本体に追加した名前履歴更新は取り消した。専用セットの開始名が残る問題をNovelAI側だけで修正。表示用ハート画像はactions.csvの定義表記_H_へ戻す。export-csvの抽出対象に両モードのERBを追加済み。actions.csvへ91件の空欄行を追加し433件、既存342件のタグは照合して保持。test-clothesで3モードの実履歴保存・名前解決関数をEmueraで実行し、古い名前履歴の無視・通常/派生/空履歴/自動処理・画像要求・画像名・タグ検索を確認。test.ps1もPASS（API通信なし）。反映にはゲームを保存して再起動する。新規行のタグはCSVで手動設定。
 - 2026-09-22: 口上の設定説明への脱線を修正。GLM公式会話テンプレートでsystem/user/assistantを分離し、共通会話例・非thinking・「のprefillを適用。chat APIはtoken_idsのみ返るため、文字列補完APIへ正規の会話文脈を送る。表示前に日本語2〜3文・括弧外の余分な文字・文数・途中切れを検査し、違反を表示せず自動再送しない。characters.csvに任意examples列、prompts.csvにexample_scene/example_dialogueを追加。人物設定はユーザーが手動入力する方針で、行は追加しない。一般的な3場面を実API各1回で検証し、すべて説明なしのセリフ2文。見出し削除はERB再読込、生成処理変更は口上ワーカー再起動が必要。
 - 2026-09-22: 口上の文字化けはWindows PowerShell 5.1がcharsetなしのAPI JSONをLatin-1で誤読したことが原因。Invoke-WebRequestのRawContentStreamをUTF-8で復号するよう修正。prompts.csvで日本語・台詞の指定を強化。GLMで日本語を実生成し、その本文を同梱のEmuera 1.824+v24+EMv18+EEv55へ渡して表示ログの文字一致まで検証。通信はUTF-8、ERBもLOADTEXT/SAVETEXTでUTF-8を明示済み。test.ps1にcharsetなし応答の回帰検証と実生成文の表示検証オプションを追加しPASS。反映には口上ワーカーを再起動する。
 - 2026-09-21: 口上のHTTP 400を実APIで調査。原因はKayra/Eratoのメンテナンス停止（公式statusでも確認）。APIのErrorDetailsから理由をログ表示するよう修正し、GLM-4.6の`/oa/v1/completions`文字列prompt/choices.textに対応。config.csvのモデルをglm-4-6へ変更。chat/completionsは実応答がtoken_idsのみだったため使用しない。テキストの共通CSV・画像との分離・自動再送禁止は保持。

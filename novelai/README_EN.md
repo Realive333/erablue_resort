@@ -55,7 +55,7 @@ Both the controlled character and their contacts use **appearance → current cl
 
 `export-csv.cmd` adds new action and clothing definitions while preserving edited shared-outfit tags, and removes previously exported character-specific outfits. To update clothing alone, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File novelai/scripts/export-clothes.ps1`. Clothing is part of image names, so changing or removing clothes selects a separate image for generation or reuse. Restart the worker and game after installing this change.
 
-The action CSV contains 342 entries; 77 have initial tags and the rest are blank. Keys must exactly match in-game names. If no scene tag is available, the `scene` value from the `待機` row is used. Run `export-csv.cmd` to add new static command names and continuous actions. Old TXT prompts have been migrated to CSV.
+Action CSV keys match the names in command definitions. Normal, `むりやりうふふ`, and massage modes resolve the latest command name from the game's existing numeric and variant command histories. `export-csv.cmd` imports names from all three command sets while preserving existing tags. New entries without initial tags are blank; edit their `scene` / `actor` / `target` columns directly in `actions.csv`. If no action or scene tag is available, the `scene` value from the `待機` row is used. Old TXT prompts have been migrated to CSV.
 
 ## In-game settings and models
 
