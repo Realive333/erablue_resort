@@ -74,6 +74,7 @@ RETURNF 行
 
 @NAI_画像取得
 #DIMS シーン
+#DIMS 行動名
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -124,9 +125,18 @@ FOR 行, 0, DT_ROW_LENGTH("体位モードデータベース")
 		シーン += NAI_キャラ行("character", 接触者)
 	ENDIF
 NEXT
-; 画像の行動はユーザーが実行した直近のコマンドだけを使う。
-IF 人数 > 1 && 登録:1 == TARGET && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別 && SELECTCOM_NAME履歴:0 != ""
-	シーン += @"action\t%NAI_項目(SELECTCOM_NAME履歴:0)%\n"
+; ゲームの履歴表示と同じ番号・派生識別子から、直近のユーザーコマンド名を取得する。
+IF 人数 > 1 && 登録:1 == TARGET && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
+	行動名 =
+	IF コマンド履歴:0 >= 0
+		行動名 '= TRAIN_COMNAME(コマンド履歴:0)
+	ELSEIF コマンド履歴:0 == -1
+		行動名 '= TRAIN_COMNAME_S(派生コマンド履歴:0)
+	ENDIF
+	; 表示用のハート画像をactions.csvに抽出される定義の表記へ戻す。
+	行動名 '= REPLACE(行動名, "<img src='えっちハート'>", "_H_")
+	SIF 行動名 != ""
+		シーン += @"action\t%NAI_項目(行動名)%\n"
 ENDIF
 
 ; 自動コマンド連打中には要求を増やさない。

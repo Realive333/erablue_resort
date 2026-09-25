@@ -9,7 +9,7 @@ try {
     foreach ($directory in 'CSV', 'ERB/通常衣装関連', 'ERB/口上_キャラ個別ERB', 'resources/NovelAI', 'novelai/runtime') { [void][IO.Directory]::CreateDirectory((Join-Path $testRoot $directory)) }
     $executable = Get-ChildItem -LiteralPath $script:Root -Filter 'Emuera*.exe' | Select-Object -First 1
     New-Item -ItemType HardLink -Path (Join-Path $testRoot 'Emuera.exe') -Value $executable.FullName | Out-Null
-    foreach ($file in 'Cstr.csv', 'Tequip.csv') {
+    foreach ($file in 'Cstr.csv', 'Tequip.csv', 'SaveStr.csv', 'TSTR.csv') {
         Copy-Item -LiteralPath (Join-Path $script:Root ('CSV/' + $file)) -Destination (Join-Path $testRoot ('CSV/' + $file))
     }
     foreach ($file in 'config.json', 'prompts.csv', 'characters.csv', 'actions.csv', 'clothes.csv') {
@@ -23,7 +23,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/Chara0.csv'), "番号,0`n名前,主人公", $testUtf8)
     [IO.File]::WriteAllText((Join-Path $testRoot 'CSV/Chara123.csv'), "番号,123`n名前,相手`nCSTR,服名称,キャラ固有服", $testUtf8)
     Copy-Item -LiteralPath (Join-Path $script:Root 'ERB/追加MOD_NovelAI一枚絵/NovelAI.ERH') -Destination (Join-Path $testRoot 'ERB/NovelAI.ERH')
-    [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/test.ERH'), "#DIM コマンド履歴, 50`n#DIMS SELECTCOM_NAME履歴, 5", $testUtf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/test.ERH'), "#DIM コマンド履歴, 50`n#DIMS SELECTCOM_NAME履歴, 5`n#DIMS SELECTCOM_NAME`n#DIMS 派生コマンド履歴, 5`n#DIMS RSTR, 4`n#DEFINE SELECTCOM_S受け渡し 3", $testUtf8)
     [IO.File]::WriteAllText((Join-Path $testRoot 'novelai/runtime/enabled.txt'), '1', $testUtf8)
     # 画像取得は存在確認だけ。描画テストはtest-controls.ps1で実施する。
     [IO.File]::WriteAllText((Join-Path $testRoot 'resources/NovelAI/0_普段着_123_メイド服_会話する.png'), 'image fixture', $testUtf8)
@@ -36,9 +36,32 @@ try {
         Assert ($function -ne '') ("関数がありません: $name")
         $functions += "`n" + $function
     }
+    # 名前解決もゲームの実関数を使い、各コマンドセットだけ中立なテスト名で置き換える。
+    $commandNames = Read-Text (Join-Path $script:Root 'ERB/コマンド/コマンド名受渡.ERB')
+    foreach ($name in 'TRAIN_COMNAME', 'TRAIN_COMNAME_S') {
+        $function = [regex]::Match($commandNames, ('(?ms)^@' + $name + '\(.*?(?=^@|\z)')).Value
+        Assert ($function -ne '') ("関数がありません: $name")
+        $functions += "`n" + $function
+    }
+    $prefixes = @('COMNAME', 'RAPE_COMNAME', 'MASSAGE_COMNAME')
+    for ($i = 0; $i -lt $prefixes.Count; $i++) {
+        $suffix = if ($i -eq 2) { '_H_' } else { '' }
+        $functions += "`n@$($prefixes[$i])17`n#FUNCTIONS`nTSTR:コマンド名受渡 = 履歴試験${i}A${suffix}`nRETURNF`n"
+        $functions += "`n@$($prefixes[$i])_S17_1`n#FUNCTIONS`nTSTR:コマンド名受渡 = 履歴試験${i}B`nRETURNF`n"
+    }
+    # 各モードの実際の履歴保存ブロックを、後続のゲーム処理から切り離して実行する。
+    $historyFiles = @('ERB/EVENTCOMEND.ERB', 'ERB/むりやりうふふ関連/COM基本処理_むりやりうふふモード.ERB', 'ERB/マッサージモード関連/COM基本処理_マッサージモード.ERB')
+    for ($i = 0; $i -lt $historyFiles.Count; $i++) {
+        $handler = [regex]::Match((Read-Text (Join-Path $script:Root $historyFiles[$i])), '(?ms)^@EVENTCOMEND0_[^\r\n]+\r?\n.*?(?=^@|\z)').Value
+        $history = [regex]::Match($handler, '(?ms)^IF TFLAG:オートコマンドフラグ \|\| TFLAG:オートコマンド連続発動\r?\nELSE\r?\n.*?(?=^\t;(?:連続記録|TARGET回数記録))').Value
+        Assert ($history -ne '') ('履歴保存ブロックがありません: ' + $historyFiles[$i])
+        $functions += "`n@TEST_履歴保存_$i`n" + $history + "ENDIF`nRETURN 0`n"
+    }
     $testCode = @'
 @SYSTEM_TITLE
 #DIMS 要求
+#DIMS 期待名
+#DIM モード番号
 ADDCHARA 0
 ADDCHARA 123
 MASTER = 0
@@ -50,7 +73,8 @@ DT_COLUMN_ADD "体位モードデータベース", "実行キャラ", 3
 DT_COLUMN_ADD "体位モードデータベース", "対象キャラ", 3
 DT_ROW_ADD "体位モードデータベース", "モード名", "手を繋ぐ", "実行キャラ", PLAYER, "対象キャラ", TARGET
 コマンド履歴:5 = TARGET
-SELECTCOM_NAME履歴:0 = 会話する
+コマンド履歴:0 = 0
+SAVESTR:ゲームフェイズ管理 = 通常モード
 TEQUIP:0:上半身服あり = 1
 TEQUIP:0:下半身服あり = 1
 CSTR:0:服名称 = 組織の戦闘服・真紅
@@ -72,6 +96,52 @@ PLAYER = 1
 要求 '= "NAI1\t100-4\n" + NAI_キャラ行("player", PLAYER) + NAI_キャラ行("character", 0) + "END\t100-4"
 SAVETEXT 要求, "switched-player.txt", 0, 1
 PLAYER = 0
+; 名前履歴が古くても、ゲームの数値・派生履歴だけから現在のコマンドを解決する。
+FOR モード番号, 0, 3
+    SELECTCASE モード番号
+        CASE 0
+            SAVESTR:ゲームフェイズ管理 = 通常モード
+        CASE 1
+            SAVESTR:ゲームフェイズ管理 = むりやりうふふモード
+        CASE 2
+            SAVESTR:ゲームフェイズ管理 = マッサージモード
+    ENDSELECT
+    SELECTCOM_NAME履歴:0 = モード切替コマンド
+    SELECTCOM = 17
+    SELECTCOM_NAME = 古いコマンド名
+    RSTR:SELECTCOM_S受け渡し =
+    CALLFORM TEST_履歴保存_{モード番号}
+    SIF コマンド履歴:0 != 17 || コマンド履歴:5 != TARGET
+        THROW 実行コマンドの番号を保存できません。
+    CALL NAI_画像取得
+    期待名 = 履歴試験{モード番号}A
+    SIF モード番号 == 2
+        期待名 += "_H_"
+    SIF STRFIND(NAI_前回シーン, @"action\t%期待名%\n") < 0
+        THROW 数値履歴からコマンド名を取得できません。
+    SAVETEXT LOADTEXT("novelai/runtime/request.txt", 0, 1), @"history-number-{モード番号}.txt", 0, 1
+    RSTR:SELECTCOM_S受け渡し = 17_1
+    CALLFORM TEST_履歴保存_{モード番号}
+    SIF コマンド履歴:0 != -1 || 派生コマンド履歴:0 != "17_1"
+        THROW 派生コマンドの識別子が更新されていません。
+    CALL NAI_画像取得
+    SIF STRFIND(NAI_前回シーン, @"action\t履歴試験{モード番号}B\n") < 0
+        THROW 派生履歴からコマンド名を取得できません。
+    SAVETEXT LOADTEXT("novelai/runtime/request.txt", 0, 1), @"history-command-{モード番号}.txt", 0, 1
+    SELECTCOM = 1
+    RSTR:SELECTCOM_S受け渡し =
+    TFLAG:オートコマンドフラグ = 1
+    CALLFORM TEST_履歴保存_{モード番号}
+    TFLAG:オートコマンドフラグ = 0
+    TFLAG:オートコマンド連続発動 = 1
+    CALLFORM TEST_履歴保存_{モード番号}
+    TFLAG:オートコマンド連続発動 = 0
+    SIF コマンド履歴:0 != -1 || 派生コマンド履歴:0 != "17_1"
+        THROW 自動処理で手動コマンドの履歴を上書きしています。
+NEXT
+RSTR:SELECTCOM_S受け渡し =
+SAVESTR:ゲームフェイズ管理 = 通常モード
+コマンド履歴:0 = 0
 ; 旧画像を直接拾わず、現在の要求IDに対するワーカーのファイル名を使う。
 CALL NAI_画像取得
 SIF RESULT
@@ -81,20 +151,26 @@ SIF STRFIND(要求, "action\t会話する") < 0 || STRFIND(要求, "mode\t") >= 
     THROW 継続行動ではなく直近のコマンドを送信する必要があります。
 SAVETEXT 要求, "command-scene.txt", 0, 1
 ; 継続モードを変えずにコマンドだけ変更した場合も要求を更新する。
-SELECTCOM_NAME履歴:0 = 散歩する
+コマンド履歴:0 = 1
 CALL NAI_画像取得
 要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
 SIF STRFIND(要求, "action\t散歩する") < 0 || STRFIND(要求, "会話する") >= 0
     THROW コマンドの変更が反映されていません。
 SAVETEXT 要求, "changed-command-scene.txt", 0, 1
 ; コマンドが未実行なら継続モードがあっても行動を送らない。
-SELECTCOM_NAME履歴:0 =
+コマンド履歴:0 = -2
 CALL NAI_画像取得
 要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
 SIF STRFIND(要求, "action\t") >= 0 || STRFIND(要求, "mode\t") >= 0
     THROW 未実行のコマンドを継続行動で補完しています。
 SAVETEXT 要求, "idle-command-scene.txt", 0, 1
-SELECTCOM_NAME履歴:0 = 会話する
+; 派生識別子が空欄の場合も、前回取得した名前を残さない。
+コマンド履歴:0 = -1
+派生コマンド履歴:0 =
+CALL NAI_画像取得
+SIF STRFIND(NAI_前回シーン, "action\t") >= 0
+    THROW 空の派生履歴に前回の名前が残っています。
+コマンド履歴:0 = 0
 CALL NAI_画像取得
 SAVETEXT @"%NAI_要求ID%\n0_普段着_123_メイド服_会話する.png", "novelai/runtime/response.txt", 0, 1
 CALL NAI_画像取得
@@ -130,6 +206,16 @@ QUIT
 @IS_SAME_ROOM(ARG, ARG:1)
 #FUNCTION
 RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在マップ種別 == CFLAG:(ARG:1):現在マップ種別
+
+@COMNAME0
+#FUNCTIONS
+TSTR:コマンド名受渡 = 会話する
+RETURNF
+
+@COMNAME1
+#FUNCTIONS
+TSTR:コマンド名受渡 = 散歩する
+RETURNF
 '@
     [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/test.ERB'), $testCode + $functions, $testUtf8)
     $process = Start-Process -FilePath (Join-Path $testRoot 'Emuera.exe') -WorkingDirectory $testRoot -WindowStyle Hidden -PassThru
@@ -163,6 +249,16 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     $data.Clothes['下半身下着_1'] = 'underwear'
     $config = Read-Text (Join-Path $testRoot 'config.json') | ConvertFrom-Json
     $config.backend = 'novelai'; $config.model = 'nai-diffusion-5-full'; $config.prompt_format = 'auto'
+    for ($i = 0; $i -lt $historyFiles.Count; $i++) {
+        foreach ($kind in 'number', 'command') {
+            $historyScene = Read-Scene (Read-Text (Join-Path $testRoot "history-$kind-$i.txt"))
+            $expectedAction = if ($kind -eq 'command') { "履歴試験${i}B" } elseif ($i -eq 2) { "履歴試験${i}A_H_" } else { "履歴試験${i}A" }
+            $data.Actions[$expectedAction] = [pscustomobject]@{ scene = 'test command scene'; actor = 'test actor'; target = 'test target' }
+            $historySpec = New-Payload $historyScene $config $testRoot $data
+            Assert ($historyScene.Action -ceq $expectedAction -and (Get-ImageName $historyScene) -ceq "0_普段着_123_メイド服_${expectedAction}.png") '数値・派生履歴のコマンドが通信と画像名へ届く'
+            Assert ($historySpec.Payload.input.Contains('test command scene') -and $historySpec.UnknownActions.Count -eq 0) '履歴から解決したコマンド名で行動タグを検索'
+        }
+    }
     $spec = New-Payload $scene $config $testRoot $data
     $captions = $spec.Payload.parameters.v4_prompt.caption.char_captions
     Assert ($captions[0].char_caption -ceq 'partner identity, maid outfit' -and $captions[1].char_caption -ceq 'player identity, default outfit') 'API順変更後も操作キャラを含む本人の衣装だけを追加'
@@ -243,6 +339,7 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     $exportDirectory = Join-Path $testRoot 'novelai'
     [void][IO.Directory]::CreateDirectory((Join-Path $exportDirectory 'scripts'))
     [void][IO.Directory]::CreateDirectory((Join-Path $testRoot 'ERB/コマンド'))
+    foreach ($directory in 'ERB/むりやりうふふ関連', 'ERB/マッサージモード関連') { [void][IO.Directory]::CreateDirectory((Join-Path $testRoot $directory)) }
     foreach ($file in 'worker.ps1', 'settings.ps1', 'common.ps1', 'export-csv.ps1', 'export-clothes.ps1') {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $exportDirectory ('scripts/' + $file))
     }
@@ -257,18 +354,21 @@ RETURNF CFLAG:ARG:現在位置 == CFLAG:(ARG:1):現在位置 && CFLAG:ARG:現在
     $actionsPath = Join-Path $exportDirectory 'actions.csv'
     Write-CsvTable $actionsPath $actions @('name', 'scene', 'actor', 'target', 'source', 'status')
     [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/コマンド/catalog.ERB'), 'TSTR:コマンド名受渡 = 新しい行動', $testUtf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/むりやりうふふ関連/catalog.ERB'), 'TSTR:コマンド名受渡 = 専用セットの行動', $testUtf8)
+    [IO.File]::WriteAllText((Join-Path $testRoot 'ERB/マッサージモード関連/catalog.ERB'), 'TSTR:コマンド名受渡 = 施術セットの行動', $testUtf8)
     & (Join-Path $exportDirectory 'scripts/export-csv.ps1')
     $actions = @(Import-Csv -LiteralPath $actionsPath -Encoding UTF8)
     Assert (($actions[0].PSObject.Properties.Name -join ',') -ceq 'name,scene,actor,target') '行動CSVは識別名とプロンプトだけ出力'
     Assert (($actions | Where-Object name -eq '待機').scene -ceq '') '通常の出力では空欄も保持'
     Assert ($actions.name -contains '新しい行動') '新規行動を抽出'
+    Assert ($actions.name -contains '専用セットの行動' -and $actions.name -contains '施術セットの行動') '別コマンドセットの表示名もCSVへ抽出'
     & (Join-Path $exportDirectory 'scripts/export-csv.ps1') -FillMissingTags
     $reloaded = Read-PromptData $exportDirectory
     Assert ($reloaded.Actions['会話する'].scene -ceq $editedTag -and $reloaded.Actions['会話する'].actor -ceq 'speaker' -and $reloaded.Actions['会話する'].target -ceq 'listener') '新形式での再出力でも全プロンプトを保持'
     Assert ($reloaded.Actions['待機'].scene -ceq 'relaxed pose, spending time together') '明示した場合だけ空欄を初期タグで補完'
     Assert ($reloaded.Clothes['メイド服'] -ceq 'edited maid outfit') '服装CSVの2列形式での再出力でも編集を保持'
     Assert ($reloaded.DefaultOutfits['0'] -ceq $editedOutfit -and -not $reloaded.Clothes.ContainsKey('普段着')) '一括再出力でもキャラ別の普段着と共通服の分離を保持'
-    Write-Host 'PASS: Emuera current clothes / per-character default outfits / CSV reload / game edit preservation / repeated export'
+    Write-Host 'PASS: Emuera command history in all modes / current clothes / per-character default outfits / CSV reload / repeated export'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
