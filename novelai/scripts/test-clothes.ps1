@@ -31,7 +31,7 @@ try {
     [IO.File]::WriteAllText((Join-Path $testRoot 'emuera.config'), "LOADTEXTとSAVETEXTで使える拡張子:txt`nロード時に引数を解析する:YES", $testUtf8)
     $source = Read-Text (Join-Path $script:Root 'ERB/追加MOD_NovelAI一枚絵/NovelAI.ERB')
     $functions = ''
-    foreach ($name in 'NAI_有効', 'NAI_項目', 'NAI_キャラ番号', 'NAI_キャラ行', 'NAI_服装行', 'NAI_画像取得', 'NAI_画像名') {
+    foreach ($name in 'NAI_有効', 'NAI_項目', 'NAI_入力コマンド名', 'NAI_選択記録', 'NAI_キャラ番号', 'NAI_キャラ行', 'NAI_服装行', 'NAI_画像取得', 'NAI_画像名') {
         $function = [regex]::Match($source, ('(?ms)^@' + $name + '(?:\(|\r?\n).*?(?=^@|\z)')).Value
         Assert ($function -ne '') ("関数がありません: $name")
         $functions += "`n" + $function
@@ -96,7 +96,7 @@ PLAYER = 1
 要求 '= "NAI1\t100-4\n" + NAI_キャラ行("player", PLAYER) + NAI_キャラ行("character", 0) + "END\t100-4"
 SAVETEXT 要求, "switched-player.txt", 0, 1
 PLAYER = 0
-; 名前履歴が古くても、ゲームの数値・派生履歴だけから現在のコマンドを解決する。
+; クリック時の名前を確定し、履歴が別コマンドに変わっても画像の行動を保つ。
 FOR モード番号, 0, 3
     SELECTCASE モード番号
         CASE 0
@@ -106,27 +106,35 @@ FOR モード番号, 0, 3
         CASE 2
             SAVESTR:ゲームフェイズ管理 = マッサージモード
     ENDSELECT
+    期待名 '= NAI_入力コマンド名(17, "")
+    SIF 期待名 == ""
+        THROW 入力番号からコマンド名を取得できません。
+    CALL NAI_選択記録(期待名, TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
     SELECTCOM_NAME履歴:0 = モード切替コマンド
-    SELECTCOM = 17
-    SELECTCOM_NAME = 古いコマンド名
+    SELECTCOM = 1
+    SELECTCOM_NAME = 履歴には別名を記録
     RSTR:SELECTCOM_S受け渡し =
     CALLFORM TEST_履歴保存_{モード番号}
-    SIF コマンド履歴:0 != 17 || コマンド履歴:5 != TARGET
-        THROW 実行コマンドの番号を保存できません。
+    SIF コマンド履歴:0 != 1 || コマンド履歴:5 != TARGET
+        THROW 実行した別コマンドの履歴を保存できません。
     CALL NAI_画像取得
     期待名 = 履歴試験{モード番号}A
     SIF モード番号 == 2
         期待名 += "_H_"
     SIF STRFIND(NAI_前回シーン, @"action\t%期待名%\n") < 0
-        THROW 数値履歴からコマンド名を取得できません。
+        THROW 別コマンドの履歴でクリック時の名前が変わりました。
     SAVETEXT LOADTEXT("novelai/runtime/request.txt", 0, 1), @"history-number-{モード番号}.txt", 0, 1
+    期待名 '= NAI_入力コマンド名(-1, "R17_1")
+    SIF 期待名 != @"履歴試験{モード番号}B"
+        THROW 派生ボタンの識別子から名前を取得できません。
+    CALL NAI_選択記録(期待名, TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
     RSTR:SELECTCOM_S受け渡し = 17_1
     CALLFORM TEST_履歴保存_{モード番号}
     SIF コマンド履歴:0 != -1 || 派生コマンド履歴:0 != "17_1"
         THROW 派生コマンドの識別子が更新されていません。
     CALL NAI_画像取得
     SIF STRFIND(NAI_前回シーン, @"action\t履歴試験{モード番号}B\n") < 0
-        THROW 派生履歴からコマンド名を取得できません。
+        THROW 派生コマンドのクリック名を保持できません。
     SAVETEXT LOADTEXT("novelai/runtime/request.txt", 0, 1), @"history-command-{モード番号}.txt", 0, 1
     SELECTCOM = 1
     RSTR:SELECTCOM_S受け渡し =
@@ -136,11 +144,17 @@ FOR モード番号, 0, 3
     TFLAG:オートコマンド連続発動 = 1
     CALLFORM TEST_履歴保存_{モード番号}
     TFLAG:オートコマンド連続発動 = 0
-    SIF コマンド履歴:0 != -1 || 派生コマンド履歴:0 != "17_1"
-        THROW 自動処理で手動コマンドの履歴を上書きしています。
+    SIF NAI_選択行動名 != @"履歴試験{モード番号}B"
+        THROW 自動処理でユーザーが選んだ行動名を上書きしています。
 NEXT
-RSTR:SELECTCOM_S受け渡し =
 SAVESTR:ゲームフェイズ管理 = 通常モード
+CALL NAI_画像取得
+SIF STRFIND(NAI_前回シーン, "action\t") >= 0
+    THROW モードが変わった後に古いコマンドを使っています。
+SIF NAI_入力コマンド名(9101, "") != "" || NAI_入力コマンド名(-1, "サイド領域_NovelAI設定") != ""
+    THROW 設定ボタンを行動として保存しています。
+RSTR:SELECTCOM_S受け渡し =
+CALL NAI_選択記録(NAI_入力コマンド名(0, ""), TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
 コマンド履歴:0 = 0
 ; 旧画像を直接拾わず、現在の要求IDに対するワーカーのファイル名を使う。
 CALL NAI_画像取得
@@ -151,26 +165,30 @@ SIF STRFIND(要求, "action\t会話する") < 0 || STRFIND(要求, "mode\t") >= 
     THROW 継続行動ではなく直近のコマンドを送信する必要があります。
 SAVETEXT 要求, "command-scene.txt", 0, 1
 ; 継続モードを変えずにコマンドだけ変更した場合も要求を更新する。
+CALL NAI_選択記録(NAI_入力コマンド名(1, ""), TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
 コマンド履歴:0 = 1
 CALL NAI_画像取得
 要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
 SIF STRFIND(要求, "action\t散歩する") < 0 || STRFIND(要求, "会話する") >= 0
     THROW コマンドの変更が反映されていません。
 SAVETEXT 要求, "changed-command-scene.txt", 0, 1
-; コマンドが未実行なら継続モードがあっても行動を送らない。
+; TRAIN開始時のリセット後は、履歴に別名が残っていても行動を送らない。
+NAI_選択行動名 =
 コマンド履歴:0 = -2
 CALL NAI_画像取得
 要求 '= LOADTEXT("novelai/runtime/request.txt", 0, 1)
 SIF STRFIND(要求, "action\t") >= 0 || STRFIND(要求, "mode\t") >= 0
     THROW 未実行のコマンドを継続行動で補完しています。
 SAVETEXT 要求, "idle-command-scene.txt", 0, 1
-; 派生識別子が空欄の場合も、前回取得した名前を残さない。
+; 空の選択名では前回取得した名前を残さない。
 コマンド履歴:0 = -1
 派生コマンド履歴:0 =
+CALL NAI_選択記録(NAI_入力コマンド名(-1, ""), TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
 CALL NAI_画像取得
 SIF STRFIND(NAI_前回シーン, "action\t") >= 0
     THROW 空の派生履歴に前回の名前が残っています。
 コマンド履歴:0 = 0
+CALL NAI_選択記録(NAI_入力コマンド名(0, ""), TARGET, CFLAG:MASTER:現在位置, CFLAG:MASTER:現在マップ種別, SAVESTR:ゲームフェイズ管理)
 CALL NAI_画像取得
 SAVETEXT @"%NAI_要求ID%\n0_普段着_123_メイド服_会話する.png", "novelai/runtime/response.txt", 0, 1
 CALL NAI_画像取得
@@ -190,6 +208,16 @@ TEQUIP:1:上半身下着あり = 0
 TEQUIP:1:下半身下着あり = 0
 要求 '= "NAI1\t100-3\n" + NAI_キャラ行("player", 0) + NAI_キャラ行("character", 1) + "END\t100-3"
 SAVETEXT 要求, "naked.txt", 0, 1
+; 初期衣装が未定義で装着物が全0でも、明示的な脱衣でなければ普段着を使う。
+CSTR:1:着せ替え服 =
+CSTR:1:服名称 = （未定）
+SIF STRFIND(NAI_服装行(1), "clothes\t1\t普段着\n") < 0
+    THROW 初期衣装未定義のキャラを全裸と誤判定しています。
+要求 '= "NAI1\t100-5\n" + NAI_キャラ行("player", 0) + NAI_キャラ行("character", 1) + "END\t100-5"
+SAVETEXT 要求, "undefined-default.txt", 0, 1
+CSTR:1:着せ替え服 = 全裸
+SIF STRFIND(NAI_服装行(1), "clothes\t1\t全裸\n") < 0
+    THROW 明示的に脱いだ衣装を普段着に戻しています。
 ; 別衣装に替えた後も、古い服装名を送らない。
 TEQUIP:1:下半身服あり = 1
 CSTR:1:着せ替え服 = 水着
@@ -228,7 +256,7 @@ RETURNF
     $commandScene = Read-Scene (Read-Text (Join-Path $testRoot 'command-scene.txt'))
     $changedCommand = Read-Scene (Read-Text (Join-Path $testRoot 'changed-command-scene.txt'))
     $idleCommand = Read-Scene (Read-Text (Join-Path $testRoot 'idle-command-scene.txt'))
-    Assert ($commandScene.Action -ceq '会話する' -and (Get-ImageName $commandScene) -ceq '0_普段着_123_メイド服_会話する.png') 'ゲームからワーカーまでユーザーのコマンドで画像名を決定'
+    Assert ($commandScene.Action -ceq '会話する' -and (Get-ImageName $commandScene) -ceq '0_普段着_123_メイド服_会話する.png') 'ゲームからワーカーまで入力時のコマンド名で画像名を決定'
     Assert ($changedCommand.Action -ceq '散歩する' -and $changedCommand.Id -ne $commandScene.Id -and (Get-ImageName $changedCommand) -ceq '0_普段着_123_メイド服_散歩する.png') '継続モードが同じでもコマンド変更で要求IDと画像名が変わる'
     Assert ($idleCommand.Action -ceq '' -and (Get-ImageName $idleCommand) -ceq '0_普段着_123_メイド服_待機.png') '未実行時は継続行動の代わりに待機'
     Assert ($scene.Clothes.Count -eq 2) 'プレイヤーと相手の衣装を個別に抽出'
@@ -270,6 +298,9 @@ RETURNF
     $bothDefaults = Read-Scene ((Read-Text (Join-Path $testRoot 'dressed.txt')).Replace("clothes`t1`tメイド服", "clothes`t1`t普段着"))
     $defaultSpec = New-Payload $bothDefaults $config $testRoot $data
     Assert ($defaultSpec.CharacterPrompts[0].Prompt -ceq 'partner identity, partner default outfit' -and $defaultSpec.CharacterPrompts[1].Prompt -ceq 'player identity, default outfit') '操作キャラ・相手とも普段着はキャラNOごとの設定を使用'
+    $undefinedDefault = Read-Scene (Read-Text (Join-Path $testRoot 'undefined-default.txt'))
+    $undefinedSpec = New-Payload $undefinedDefault $config $testRoot $data
+    Assert ($undefinedDefault.Clothes[1].Name -ceq '普段着' -and $undefinedSpec.CharacterPrompts[0].Clothes[0].Prompt -ceq 'partner default outfit' -and (Get-ImageName $undefinedDefault) -ceq '0_普段着_123_普段着_待機.png') '初期衣装が未定義でも本人の普段着プロンプトと画像名を使う'
     Assert (-not $defaultSpec.Prompt.Contains('unused shared outfit')) 'clothes.csvの普段着は参照しない'
     $data.DefaultOutfits['0'] = ' '
     $emptyDefault = New-Payload $scene $config $testRoot $data
@@ -368,7 +399,7 @@ RETURNF
     Assert ($reloaded.Actions['待機'].scene -ceq 'relaxed pose, spending time together') '明示した場合だけ空欄を初期タグで補完'
     Assert ($reloaded.Clothes['メイド服'] -ceq 'edited maid outfit') '服装CSVの2列形式での再出力でも編集を保持'
     Assert ($reloaded.DefaultOutfits['0'] -ceq $editedOutfit -and -not $reloaded.Clothes.ContainsKey('普段着')) '一括再出力でもキャラ別の普段着と共通服の分離を保持'
-    Write-Host 'PASS: Emuera command history in all modes / current clothes / per-character default outfits / CSV reload / repeated export'
+    Write-Host 'PASS: Emuera selected commands in all modes / current clothes / per-character default outfits / CSV reload / repeated export'
 }
 finally {
     if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id; $process.WaitForExit() }
