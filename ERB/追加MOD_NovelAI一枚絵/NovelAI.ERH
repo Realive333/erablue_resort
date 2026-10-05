@@ -2,3 +2,8 @@
 #DIMS NAI_前回シーン
 #DIMS NAI_要求ID
 #DIM NAI_要求連番
+#DIMS NAI_選択行動名
+#DIMS NAI_選択フェイズ
+#DIM NAI_選択対象
+#DIM NAI_選択位置
+#DIM NAI_選択マップ種別

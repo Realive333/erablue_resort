@@ -1,7 +1,16 @@
 ﻿;TRAINの骨格
 
 @TRAIN_MAIN_LOOP
+#DIMS NAI_入力識別子
+#DIMS NAI_入力名
+#DIMS NAI_入力フェイズ
+#DIM NAI_入力番号
+#DIM NAI_入力済み
+#DIM NAI_入力対象
+#DIM NAI_入力位置
+#DIM NAI_入力マップ種別
 FLAG:一日終了 = 0
+NAI_入力済み = 0
 
 IF TFLAG:オートコマンドフラグ
 ELSE
@@ -15,8 +24,19 @@ ELSE
 		RESTART
 	ENDIF
 	RESULT = -1
-	SIF NEXTCOM == -1 && RFLAG:追跡フラグ == 0
+	IF NEXTCOM == -1 && RFLAG:追跡フラグ == 0
 		INPUTANY
+		NAI_入力番号 = RESULT
+		NAI_入力識別子 '= RESULTS
+		NAI_入力名 '= NAI_入力コマンド名(NAI_入力番号, NAI_入力識別子)
+		NAI_入力対象 = TARGET
+		NAI_入力位置 = CFLAG:MASTER:現在位置
+		NAI_入力マップ種別 = CFLAG:MASTER:現在マップ種別
+		NAI_入力フェイズ '= SAVESTR:ゲームフェイズ管理
+		RESULT = NAI_入力番号
+		RESULTS = %NAI_入力識別子%
+		NAI_入力済み = STRCOUNT(NAI_入力識別子, "サイド領域") == 0
+	ENDIF
 	
 	IF STRCOUNT(RESULTS, "サイド領域") > 0
 		RFLAG:サイドボタン操作 = 1
@@ -47,6 +67,8 @@ IF RFLAG:入替えコマンドフラグ == 1
 	RFLAG:入替えコマンドフラグ = 0
 ENDIF
 
+SIF NAI_入力済み
+	CALL NAI_選択記録(NAI_入力名, NAI_入力対象, NAI_入力位置, NAI_入力マップ種別, NAI_入力フェイズ)
 CALLFORM EVENTCOMEND0_%SAVESTR:ゲームフェイズ管理%
 ;TRAIN終了フラグ
 IF FLAG:一日終了
@@ -72,6 +94,7 @@ CALL EVENTEND0
 
 @TRAIN_VAR_RESET
 #LOCALSIZE 1
+NAI_選択行動名 =
 VARSET PREVCOM, 0
 VARSET コマンド履歴, -2
 VARSET 派生コマンド履歴, ""
@@ -115,9 +138,18 @@ CALL CLOTHES_RESET_TRAIN(ARG)
 
 
 @TRAIN_イベントうふふ_LOOP
+#DIMS NAI_入力識別子
+#DIMS NAI_入力名
+#DIMS NAI_入力フェイズ
+#DIM NAI_入力番号
+#DIM NAI_入力済み
+#DIM NAI_入力対象
+#DIM NAI_入力位置
+#DIM NAI_入力マップ種別
 FLAG:イベントうふふ終了 = 0
 FLAG:イベントうふふ中フラグ = 1
 TIME = FLAG:イベントTIME記録
+NAI_入力済み = 0
 
 IF TFLAG:オートコマンドフラグ
 ELSE
@@ -126,8 +158,19 @@ ELSE
 	CALL SHOW_USERCOM
 	RESULT = -1
 	RESULTS = 
-	SIF NEXTCOM == -1
+	IF NEXTCOM == -1
 		INPUTANY
+		NAI_入力番号 = RESULT
+		NAI_入力識別子 '= RESULTS
+		NAI_入力名 '= NAI_入力コマンド名(NAI_入力番号, NAI_入力識別子)
+		NAI_入力対象 = TARGET
+		NAI_入力位置 = CFLAG:MASTER:現在位置
+		NAI_入力マップ種別 = CFLAG:MASTER:現在マップ種別
+		NAI_入力フェイズ '= SAVESTR:ゲームフェイズ管理
+		RESULT = NAI_入力番号
+		RESULTS = %NAI_入力識別子%
+		NAI_入力済み = STRCOUNT(NAI_入力識別子, "サイド領域") == 0
+	ENDIF
 	
 	IF STRCOUNT(RESULTS, "サイド領域") > 0
 		RFLAG:サイドボタン操作 = 1
@@ -162,6 +205,8 @@ IF RFLAG:入替えコマンドフラグ == 1
 	RFLAG:入替えコマンドフラグ = 0
 ENDIF
 
+SIF NAI_入力済み
+	CALL NAI_選択記録(NAI_入力名, NAI_入力対象, NAI_入力位置, NAI_入力マップ種別, NAI_入力フェイズ)
 CALLFORM EVENTCOMEND0_%SAVESTR:ゲームフェイズ管理%
 
 $イベントうふふ終了

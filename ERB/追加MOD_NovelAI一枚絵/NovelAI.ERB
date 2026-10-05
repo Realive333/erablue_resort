@@ -9,6 +9,37 @@ RETURNF LOADTEXT("novelai/runtime/enabled.txt", 0, 1) == "1"
 ; タブ区切り通信にユーザー指定名の改行などを混入させない。
 RETURNF REPLACE(文字列, "[\\r\\n\\t]", " ")
 
+@NAI_入力コマンド名(番号, 入力文字列)
+#FUNCTIONS
+#DIM 番号
+#DIMS 入力文字列
+#DIMS キー
+; INPUTANYが返すボタン値を、その場のモードで表示されていた名前へ変換する。
+IF 入力文字列 == ""
+	SIF 番号 >= 0 && 番号 <= 700
+		RETURNF TRAIN_COMNAME(番号)
+	RETURNF
+ENDIF
+キー '= REPLACE(入力文字列, "^R", "")
+SIF STRCOUNT(キー, "^[0-9]+$")
+	RETURNF TRAIN_COMNAME(TOINT(キー))
+SIF STRCOUNT(キー, "^[0-9]+(_[0-9]+)+$")
+	RETURNF TRAIN_COMNAME_S(キー)
+RETURNF
+
+@NAI_選択記録(名前, 対象, 位置, マップ種別, フェイズ)
+#DIMS 名前
+#DIM 対象
+#DIM 位置
+#DIM マップ種別
+#DIMS フェイズ
+; コマンド実行後も入力時の名前を保持し、履歴や現在のCOMNAMEは参照しない。
+NAI_選択行動名 '= REPLACE(名前, "<img src='えっちハート'>", "_H_")
+NAI_選択フェイズ '= フェイズ
+NAI_選択対象 = 対象
+NAI_選択位置 = 位置
+NAI_選択マップ種別 = マップ種別
+
 @NAI_キャラ番号(対象)
 #FUNCTION
 #DIM 対象
@@ -39,6 +70,9 @@ RETURNF @"%種別%\t{対象}\t{CSV番号}\t%NAI_項目(NAME:対象)%\n" + NAI_�
 上下着 = TEQUIP:対象:上半身下着あり
 下下着 = TEQUIP:対象:下半身下着あり
 IF !上服 && !下服 && !TEQUIP:対象:上タイツあり && !TEQUIP:対象:下タイツあり && GROUPMATCH(上下着, 0, -2, -3) && GROUPMATCH(下下着, 0, -2, -3)
+	; 初期衣装が未定義のキャラは装着物が全て0。明示的に脱いでいなければCSVの普段着を使う。
+	SIF CSTR:対象:着せ替え服 == "" && CSTR:対象:服名称 == "（未定）" && CSTR:対象:表示グラフィックカテゴリ != "全裸"
+		RETURNF @"clothes\t{対象}\t普段着\n"
 	RETURNF @"clothes\t{対象}\t全裸\n"
 ENDIF
 行 =
@@ -74,7 +108,6 @@ RETURNF 行
 
 @NAI_画像取得
 #DIMS シーン
-#DIMS 行動名
 #DIMS 応答, 4
 #DIM 登録, 6
 #DIM 人数
@@ -125,18 +158,9 @@ FOR 行, 0, DT_ROW_LENGTH("体位モードデータベース")
 		シーン += NAI_キャラ行("character", 接触者)
 	ENDIF
 NEXT
-; ゲームの履歴表示と同じ番号・派生識別子から、直近のユーザーコマンド名を取得する。
-IF 人数 > 1 && 登録:1 == TARGET && コマンド履歴:5 == TARGET && コマンド履歴:10 == CFLAG:MASTER:現在位置 && コマンド履歴:15 == CFLAG:MASTER:現在マップ種別
-	行動名 =
-	IF コマンド履歴:0 >= 0
-		行動名 '= TRAIN_COMNAME(コマンド履歴:0)
-	ELSEIF コマンド履歴:0 == -1
-		行動名 '= TRAIN_COMNAME_S(派生コマンド履歴:0)
-	ENDIF
-	; 表示用のハート画像をactions.csvに抽出される定義の表記へ戻す。
-	行動名 '= REPLACE(行動名, "<img src='えっちハート'>", "_H_")
-	SIF 行動名 != ""
-		シーン += @"action\t%NAI_項目(行動名)%\n"
+; 受理された入力時の名前だけを使い、履歴やモード変更後の名前解決には依存しない。
+IF 人数 > 1 && 登録:1 == TARGET && NAI_選択対象 == TARGET && NAI_選択位置 == CFLAG:MASTER:現在位置 && NAI_選択マップ種別 == CFLAG:MASTER:現在マップ種別 && NAI_選択フェイズ == SAVESTR:ゲームフェイズ管理 && NAI_選択行動名 != ""
+	シーン += @"action\t%NAI_項目(NAI_選択行動名)%\n"
 ENDIF
 
 ; 自動コマンド連打中には要求を増やさない。
