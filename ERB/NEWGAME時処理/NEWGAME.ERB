@@ -448,7 +448,7 @@ PRINTW フレーバー素質の設定を呼び出します。
 PRINTL
 ;先に口上側の設定を読み込んでおく
 FOR COUNT, 1, CHARANUM
-	TRYCALLFORM フレーバー素質初期設定変更_{COUNT}
+	TRYCALLFORM フレーバー素質初期設定変更_%CSTR:COUNT:口上切り替えキー%{COUNT}
 NEXT
 CALL フレーバー素質初期設定
 PRINTL
@@ -689,9 +689,12 @@ FOR キャラ番号, 1, キャラクタ数上限
 		NEXT
 		CALL 弱点妥当性チェック(設定中キャラ番号)
 	ENDIF
+	;作成中
+	; ;別人版口上の存在チェック
+	; CALL 口上切り替えキーチェック(設定中キャラ番号)
 	;初期履歴の登録
 	VARSET RESULTS
-	関数総数 = ENUMFUNCENDSWITH(@"_初期履歴登録_{キャラ番号}")
+	関数総数 = ENUMFUNCENDSWITH(@"_初期履歴登録_%CSTR:設定中キャラ番号:口上切り替えキー%{キャラ番号}")
 	FOR 関数番号, 0, 関数総数
 		CALLFORM %RESULTS:関数番号%(設定中キャラ番号)
 	NEXT
@@ -822,7 +825,7 @@ IF 引き継ぎキャラフラグ == 0
 
 	;性別保存
 	CFLAG:ARG:元性別保存 = TALENT:ARG:性別
-	TRYCALLFORM 特殊性別設定_{NO:ARG}(ARG)
+	TRYCALLFORM 特殊性別設定_%CSTR:ARG:口上切り替えキー%{NO:ARG}(ARG)
 
 	;知識素質
 	IF CSTR:ARG:知識素質設定 != ""
@@ -910,7 +913,7 @@ IF 引き継ぎキャラフラグ == 0
 	ENDIF
 
 	CALL 弱点コマンド初期設定(ARG)
-	TRYCALLFORM 口上側初期パラメータ変更_{NO:ARG}
+	TRYCALLFORM 口上側初期パラメータ変更_%CSTR:ARG:口上切り替えキー%{NO:ARG}
 	;この時点で身長・スリーサイズが入っている場合、それを初期値として登録
 	SIF BASE:ARG:身長
 		CFLAG:ARG:身長初期値 = BASE:ARG:身長
@@ -1081,7 +1084,7 @@ SIF MATCH(弱点コマンド枠:ARG:0, "", 0, 5) == 0 && MATCH(弱点コマン�
 VARSET 弱点コマンド枠:ARG:0
 
 ;まず口上側で弱点の設定があるか見に行く
-TRYCCALLFORM 弱点コマンド変更_{NO:ARG}
+TRYCCALLFORM 弱点コマンド変更_%CSTR:ARG:口上切り替えキー%{NO:ARG}
 	;弱点が全て埋まった場合はここで処理終了
 	SIF MATCH(弱点コマンド枠:ARG:0, "", 0, 5) == 0 && MATCH(弱点コマンド枠:ARG:0, "-1", 0, 5) == 0
 		RETURN
@@ -1573,11 +1576,11 @@ ENDIF
 MAXBASE:キャラ番号:性欲 = MIN(性欲計算値, 9999)
 
 RESULT = 体力計算値
-TRYCALLFORM 固有体力補正_{NO:キャラ番号}(キャラ番号, 体力計算値)
+TRYCALLFORM 固有体力補正_%CSTR:キャラ番号:口上切り替えキー%{NO:キャラ番号}(キャラ番号, 体力計算値)
 MAXBASE:キャラ番号:体力 = MIN(RESULT, 9999)
 
 RESULT = 性欲計算値
-TRYCALLFORM 固有性欲補正_{NO:キャラ番号}(キャラ番号, 性欲計算値)
+TRYCALLFORM 固有性欲補正_%CSTR:キャラ番号:口上切り替えキー%{NO:キャラ番号}(キャラ番号, 性欲計算値)
 MAXBASE:キャラ番号:性欲 = MIN(RESULT, 9999)
 
 BASE:キャラ番号:体力 = MIN(MAXBASE:キャラ番号:体力, BASE:キャラ番号:体力)
@@ -2552,15 +2555,25 @@ ENDSELECT
 GOTO 表示ループ
 
 
-@初期関係性データベース登録(対象キャラ)
+@初期関係性データベース登録(対象キャラ, 復元対象 = -1)
+#DIM 復元対象
 #DIM 対象キャラ
 #DIM キャラ番号記録
 #DIMS CSTR切り分け文字列格納, 2
+#DIMS 同行設定, 100
+#DIMS 同行設定分割, 2
+#DIM 同行設定番号
+#DIM 同行確率
 
 IF ランダムキャラ判定(NO:対象キャラ)
 	;ランダムキャラの場合、初期値記録ＤＢの値で初期化
-	CALL ランダムキャラ初期化処理_初期関係性(, 対象キャラ)
+	CALL ランダムキャラ初期化処理_初期関係性(, 対象キャラ, 復元対象)
 ELSEIF CSTR:対象キャラ:初期関係性 != ""
+	IF 復元対象 >= 0
+		VARSET 同行設定
+		REPLACE CSVCSTR(NO:対象キャラ, GETNUM(CSTR, "同行キャラ")), " ", ""
+		SPLIT RESULTS, "%", 同行設定
+	ENDIF
 	VARSET LOCALS
 	REPLACE CSTR:対象キャラ:初期関係性, " ", ""
 	SPLIT RESULTS, "%", LOCALS
@@ -2571,16 +2584,42 @@ ELSEIF CSTR:対象キャラ:初期関係性 != ""
 		キャラ番号記録 = FINDCHARA(NAME, CSTR切り分け文字列格納:0)
 		SIF キャラ番号記録 < 0
 			CONTINUE
-		;同行率セット
-		IF GET_RELATION(対象キャラ, キャラ番号記録) / 100 < 80
+		;記憶消去時は復元対象に関係する組み合わせだけを処理
+		SIF 復元対象 >= 0 && 対象キャラ != 復元対象 && キャラ番号記録 != 復元対象
+			CONTINUE
+		;記憶消去時はCSVの同行率を復元し、設定がない組み合わせは80％に戻す
+		IF 復元対象 >= 0
+			同行確率 = 8000
+			FOR 同行設定番号, 0, 100
+				SIF 同行設定:同行設定番号 == ""
+					BREAK
+				SPLIT 同行設定:同行設定番号, "_", 同行設定分割
+				IF FINDCHARA(NAME, 同行設定分割:0) == キャラ番号記録
+					同行確率 = TOINT(同行設定分割:1) * 100
+					BREAK
+				ENDIF
+			NEXT
+			CALL SET_同行候補(対象キャラ, キャラ番号記録, 同行確率)
+		ELSEIF GET_RELATION(対象キャラ, キャラ番号記録) / 100 < 80
 			CALL SET_同行候補(対象キャラ, キャラ番号記録, 8000)
 		ENDIF
 		;同一組み合わせはスキップ
 		SIF DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号}) And (対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号}) And 関係性種別 = '%CSTR切り分け文字列格納:1%'")
 			CONTINUE
 		;既に恋慕があるなら恋慕初期はスキップ
-		SIF CSTR切り分け文字列格納:1 == "恋慕" && (DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号}) And 関係性種別 = '恋慕'") || TALENT:対象キャラ:恋慕 || TALENT:キャラ番号記録:恋慕)
+		IF CSTR切り分け文字列格納:1 == "恋慕" && (DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ２ = {CFLAG:対象キャラ:人物番号} Or 対象キャラ１ = {CFLAG:キャラ番号記録:人物番号} Or 対象キャラ２ = {CFLAG:キャラ番号記録:人物番号}) And 関係性種別 = '恋慕'") || TALENT:対象キャラ:恋慕 || TALENT:キャラ番号記録:恋慕)
+			;復元対象に恋人がいない時だけ、相手の新しい恋慕を尊重して想い人ありにする
+			IF 復元対象 >= 0
+				SIF !TALENT:復元対象:恋慕 && !DT_SELECT("関係性データベース", @"(対象キャラ１ = {CFLAG:復元対象:人物番号} Or 対象キャラ２ = {CFLAG:復元対象:人物番号}) And 関係性種別 = '恋慕'")
+					TALENT:復元対象:恋人持ち = -1
+			ENDIF
 			CONTINUE
+		ENDIF
+		;既存の恋慕がない場合だけ、両者のCSVの恋人持ちを復元
+		IF 復元対象 >= 0 && CSTR切り分け文字列格納:1 == "恋慕"
+			CALL 恋人持ち初期化(対象キャラ)
+			CALL 恋人持ち初期化(キャラ番号記録)
+		ENDIF
 		;同行キャラ格納格納:0に名前、同行キャラ格納:1に確率が入っているはず
 		DT_ROW_ADD "関係性データベース", "対象キャラ１", CFLAG:対象キャラ:人物番号, "対象キャラ２", CFLAG:キャラ番号記録:人物番号, "関係性種別", CSTR切り分け文字列格納:1
 		SELECTCASE CSTR切り分け文字列格納:1
@@ -2668,4 +2707,57 @@ SELECTCASE RESULT
 ENDSELECT
 
 RESTART
+
+
+@口上切り替えキーチェック(対象キャラ)
+#DIM 対象キャラ
+#DIM キー数
+#DIM 入力
+
+VARSET RESULTS
+
+キー数 = ENUMFUNCBEGINSWITH(@"口上切り替え用関数_{NO:対象キャラ}_")
+
+$表示位置
+
+IF キー数 > 0
+	DRAWLINE
+	PRINTFORML %NAME:対象キャラ%には複数バージョンの口上が存在します。
+	PRINTL どの口上を適用するかを選択してください。
+	DRAWLINE
+	PRINTBUTTON "[0] 通常の口上", 0
+	PRINTL
+	FOR LOCAL, 0, キー数
+		CALLFORM %RESULTS:LOCAL%()
+		PRINTBUTTON @"[{LOCAL + 100}] %TSTR:コマンド名受渡%口上", LOCAL + 100
+		PRINT 　　　
+		PRINTBUTTON "[解説]", LOCAL + 200
+		PRINTL
+	NEXT
+	
+	PRINTL
+	PRINTL
+	BINPUT
+	入力 = RESULT
+	SELECTCASE RESULT
+		CASE 0
+			PRINTFORMW %NAME:対象キャラ%は通常の口上で開始します。
+		CASE IS >= 200
+			CALLFORM %RESULTS:(入力 - 200)%()
+			DRAWLINE
+			PRINTFORML ・%TSTR:コマンド名受渡%口上
+			DRAWLINE
+			HTML_PRINT TSTR:ツールチップ受渡
+			PRINTL 
+			DRAWLINE
+			WAIT
+			GOTO 表示位置
+		CASE IS >= 100
+			CALLFORM %RESULTS:(入力 - 100)%()
+			PRINTFORMW %NAME:対象キャラ%は%TSTR:コマンド名受渡%口上で開始します。
+			SIF STRFIND(TSTR:コマンド名受渡, "_") != STRLENS(TSTR:コマンド名受渡) - 1
+				TSTR:コマンド名受渡 += "_"
+			CSTR:対象キャラ:口上切り替えキー '= TSTR:コマンド名受渡
+	ENDSELECT
+ENDIF
 

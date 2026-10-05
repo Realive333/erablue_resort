@@ -21,7 +21,7 @@ SIF RESULT
 ;キャラごとの特殊処理を呼び出す
 ;-------------------------------------------------
 RESULT = 0
-TRYCALLFORM COM_END_CHARAEVENT_{NO:TARGET}
+TRYCALLFORM COM_END_CHARAEVENT_%CSTR:TARGET:口上切り替えキー%{NO:TARGET}
 SIF RESULT
 	RETURN -1
 
@@ -394,10 +394,10 @@ FOR 対象キャラ, 0, CHARANUM
 		CONTINUE
 	CALL 技巧上昇判定(対象キャラ)
 	SIF RESULT
-		TRYCALLFORM KOJO_SKILLUP_技巧_{NO:対象キャラ}(対象キャラ)
+		TRYCALLFORM KOJO_SKILLUP_技巧_%CSTR:対象キャラ:口上切り替えキー%{NO:対象キャラ}(対象キャラ)
 	CALL 性知識上昇判定(対象キャラ)
 	SIF RESULT
-		TRYCALLFORM KOJO_SKILLUP_性知識_{NO:対象キャラ}(対象キャラ)
+		TRYCALLFORM KOJO_SKILLUP_性知識_%CSTR:対象キャラ:口上切り替えキー%{NO:対象キャラ}(対象キャラ)
 NEXT
 ;-------------------------------------------------
 ;刻印取得のチェック
